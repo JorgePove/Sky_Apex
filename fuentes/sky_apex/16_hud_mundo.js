@@ -139,10 +139,12 @@ function drawEnemyMarkers() {
     hudText((tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
   }
+  let nearAir = null, nearAirD = Infinity;                  // v23: de lejos (más de 4 km) solo el más cercano lleva texto (una flota no se amontona)
+  for (const s of airships) if (!s.dead) { const d = s.pos.distanceTo(_camP); if (d < nearAirD) { nearAirD = d; nearAir = s; } }
   for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
     if (s.dead) continue;
     const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
-    if (d > AIRSHIP_DRAW || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;
+    if (d > (tgt ? 15000 : AIRSHIP_DRAW) || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;   // (v23: los TGT, marcados hasta 15 km aunque la niebla ya no deje verlos)
     const onScreen = onScreenAt(a);
     if (!onScreen && !nearScreen(a)) continue;
     let half = 0;
@@ -150,7 +152,7 @@ function drawEnemyMarkers() {
     const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
     hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
     hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
-    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
   }
   for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
@@ -167,6 +169,18 @@ function drawEnemyMarkers() {
   }
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
+  drawAllyMarker(a);
+}
+/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
+const C_ALLY = '#5ab4ff';
+function drawAllyMarker(a) {
+  if (!ally.on) return;
+  const e = ally.e, d = e.pos.distanceTo(_camP);
+  if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a) || !onScreenAt(a)) return;
+  const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
+  hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
+  hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
+  hudText(allyName().toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
 }
 /* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
 const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
@@ -268,6 +282,12 @@ function drawRadar(heading, fwd) {
   }
   const L = enemyLock.e;
   if (L && !L.dead) { const q = at(L.pos.x, L.pos.z); hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(q.x, q.y, 8.5, 0, 6.283); hctx.stroke(); }
+  if (ally.on) {                                           // v23: el aliado, triángulo azul hueco
+    const e = ally.e, q = at(e.pos.x, e.pos.z); _Eef.set(0, 0, -1).applyQuaternion(e.q);
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.strokeStyle = C_ALLY; hctx.lineWidth = 1.8; hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.stroke();
+    hctx.restore();
+  }
   for (const f of fireballs) {                             // bolas guiadas enemigas: puntos rojos que parpadean
     if (f.kind !== 'emsl' || f.lost) continue;
     const dx = f.pos.x - p.x, dz = f.pos.z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range;
@@ -470,6 +490,10 @@ function drawHUD() {
     if (!o.shown) continue;
     hudText((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, HW - 28, oy, FM(15), o.done ? C_GOLD : C_BONE, 'right'); oy += 22;
   }
+  if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
+    const ed = airshipEdgeDist();
+    if (ed < Infinity) { hctx.globalAlpha = ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1; hudText('BORDE  ' + fmtDist(Math.max(0, ed)), HW - 28, oy, FM(15), ed < 2000 ? C_DANGER : C_BONE, 'right'); hctx.globalAlpha = 1; oy += 22; }
+  }
   hudText('PUNTOS  ' + towerState.score, HW - 28, oy, FM(15), C_GOLD, 'right');
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
   hctx.shadowBlur = 0;
@@ -486,7 +510,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas)
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;

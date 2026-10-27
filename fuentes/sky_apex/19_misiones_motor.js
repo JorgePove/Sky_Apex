@@ -36,9 +36,17 @@ function missionSetup(id) {
   const center = [RUN.world.start.x, RUN.world.start.z];
   RUN.towers = { total: T.total || 0, zone: (T.zone || TOWER_ZONE).slice(), islands: (T.islands || [0, 0]).slice(),
     center, random: !!T.random, sites: (T.sites || []).slice(), tags: tagList(T.tag) };
-  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag) };
+  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag), escort: !!D.escort };   // (v23: escort = con la flota)
   RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
-    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag) };
+    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag), fleet: A.fleet ? Object.assign({}, A.fleet) : null };   // (v23: fleet = en movimiento)
+}
+/* v23: flota que escapa (airships.escape: 'fail'): si un dirigible sale del área, MISIÓN FALLIDA. airshipEdgeDist = cuánto le falta al
+   que está más cerca del borde (HUD «BORDE» y condición airshipEdge de los eventos). */
+const fleetEscapes = () => !!(mission.airships && mission.airships.escape === 'fail' && mission.area);
+function airshipEdgeDist() {
+  const A = mission.area; if (!A) return Infinity;
+  let d = Infinity; for (const a of airships) if (!a.dead) d = Math.min(d, A.r - Math.hypot(a.pos.x - A.x, a.pos.z - A.z));
+  return d;
 }
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
@@ -46,6 +54,7 @@ function missionStart() {
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
   for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
+  allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   toast(mission.free ? 'Objetivo: ' + goal : mission.name);
 }
@@ -128,6 +137,8 @@ function missionUpdate(dt) {
     }
   }
   areaEl.classList.toggle('on', MS.out && state === 'playing');
+  // v23: un dirigible de la flota sale del área
+  if (fleetEscapes() && airshipEdgeDist() < 0) { missionFail('Un dirigible escapó de la zona'); return; }
   // tiempo límite
   if (mission.timeLimit && MS.t >= mission.timeLimit) { missionFail('Se acabó el tiempo'); return; }
   // final: todos los objetivos necesarios cumplidos → resultados tras MISSION_END_DELAY
@@ -138,6 +149,7 @@ function eventReady(w) {
   if (w.t != null && MS.t < w.t) return false;
   if (w.kills) for (const k in w.kills) if ((MS.kills[k] || 0) < w.kills[k]) return false;   // (v21: por tipo o por etiqueta)
   if (w.cleared) for (const tag of [].concat(w.cleared)) if (!clearedTag(tag)) return false;
+  if (w.airshipEdge != null && !(airshipEdgeDist() < w.airshipEdge)) return false;   // v23: algún dirigible a menos de esos m del borde
   if (w.done) for (const id of w.done) { const o = objById(id); if (!o || !o.done) return false; }
   if (w.pending) for (const id of w.pending) { const o = objById(id); if (o && o.done) return false; }
   if (w.hp != null && !(state === 'playing' && F.health < w.hp)) return false;

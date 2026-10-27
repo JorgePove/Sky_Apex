@@ -176,7 +176,7 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels();
-  MS.ended = true; missionHideHUD(); sfx.breath(0, 0); sfx.quiet();
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
 }

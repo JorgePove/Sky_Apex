@@ -71,6 +71,7 @@ function planAirships() {
   const R = RUN.airships; if (!R) return;
   const rand = R.random ? Math.random : seededRandom(SEED ^ 0xa1e5), [cx, cz] = R.center || [0, 0];
   const alt = () => lerp(R.alt[0], R.alt[1], rand());
+  if (R.fleet) { planFleet(R, rand, alt); return; }       // v23: flota en movimiento
   R.sites.forEach((s, i) => addAirship('F' + i, s.x, s.z, s.height != null ? s.height : alt(), s.heading != null ? s.heading : rand() * 360, s.tag ? [].concat(s.tag) : R.tags));
   for (let k = 0; airships.length < R.total && k < 600; k++) {
     const ang = rand() * Math.PI * 2, r = Math.sqrt(lerp(R.zone[0] ** 2, R.zone[1] ** 2, rand())), h = alt(), hd = rand() * 360;
@@ -96,6 +97,48 @@ function addAirship(id, x, z, height, heading, tags) {
   if (airshipRes) airshipMesh(a);
   airships.push(a);
   return a;
+}
+/* v23: flota (receta: airships.fleet { x, z, heading, speed, gap }): total dirigibles con el mismo rumbo y a speed km/h. El de cabeza va en
+   (x, z); los demás, detrás o a su altura y a los lados (como mucho FLEET_SPAN), cada uno a entre gap[0] y gap[1] m de otro y nunca a
+   menos de gap[0] de ninguno. Cada uno vuela a su altitud (alt: sobre el agua, como la ALTITUD del HUD) y solo sube si delante hay
+   terreno a menos de FLEET_CLEAR o una isla; luego vuelve a bajar a su altitud. */
+const FLEET_SPAN = { back: 1800, side: 900 };              // fondo y medio ancho máximos de la formación (m)
+const FLEET_CLEAR = 150;                                   // distancia mínima al suelo (m)
+const AIRSHIP_CLIMB = [6, 12];                             // m/s al bajar y al subir
+function planFleet(R, rand, alt) {
+  const F = R.fleet, gap = F.gap || [300, 600], ang = F.heading * Math.PI / 180, fx = Math.sin(ang), fz = -Math.cos(ang), v = (F.speed || 100) / 3.6;
+  const pts = [{ u: 0, w: 0 }];                            // u: hacia delante (≤ 0), w: a la derecha (m)
+  for (let k = 0; pts.length < R.total && k < 4000; k++) {
+    const b = pts[Math.floor(rand() * pts.length)], t = rand() * Math.PI * 2, d = lerp(gap[0], gap[1], rand());
+    const u = b.u + Math.cos(t) * d, w = b.w + Math.sin(t) * d;
+    if (u > 0 || u < -FLEET_SPAN.back || Math.abs(w) > FLEET_SPAN.side || pts.some(p => Math.hypot(p.u - u, p.w - w) < gap[0])) continue;
+    pts.push({ u, w });
+  }
+  pts.forEach((p, i) => {
+    const a = addAirship('V' + i, F.x + fx * p.u - fz * p.w, F.z + fz * p.u + fx * p.w, 0, F.heading, R.tags);
+    a.vel = new THREE.Vector3(fx * v, 0, fz * v); a.alt = WL + alt();
+    a.cruise = a.base = a.pos.y = airshipCruiseY(a); a.cruiseT = 0; airshipAxis(a);
+  });
+}
+/* Altura de crucero de un dirigible que avanza: su altitud, salvo que el suelo de debajo o de delante (hasta 1,2 km) quede a menos de
+   FLEET_CLEAR o que se cruce una isla en su camino: entonces, por encima. Al bajar se comprueba todo el tramo entre la altura actual y la
+   nueva (si no, tras pasar una montaña bajaría a través de una isla). */
+const FLEET_LOOK = [0, 300, 600, 900, 1200], FLEET_HULL = [-1.2, -0.6, 0, 0.5, 1, 2, 4, 7, 10, 13];   // (m por delante; esloras por delante)
+function islandInSpan(s, x, z, y0, y1, m) {               // ¿la isla s ocupa (x, z) en algún punto entre las alturas y0 e y1?
+  const lo = Math.max(y0, s.yMin - m), hi = Math.min(y1, s.yMax + m);
+  for (let y = lo; y <= hi; y += 25) if (insideIsland(s, x, y, z, m)) return true;
+  return false;
+}
+function airshipCruiseY(a) {
+  const l = Math.hypot(a.vel.x, a.vel.z) || 1, fx = a.vel.x / l, fz = a.vel.z / l;
+  let g = 0; for (const d of FLEET_LOOK) g = Math.max(g, groundAt(a.pos.x + fx * d, a.pos.z + fz * d));
+  let y = Math.max(a.alt, g + FLEET_CLEAR);
+  const isls = islandsInRange(a.pos.x, a.pos.z, 1500), top = Math.max(y, a.base || y);
+  for (let i = 0; i < 4; i++) {
+    const s = isls.find(s => s.yMax + a.r + 60 > y && FLEET_HULL.some(u => islandInSpan(s, a.pos.x + fx * AIRSHIP_LEN * u, a.pos.z + fz * AIRSHIP_LEN * u, y, Math.max(top, y), a.r + 40)));
+    if (!s) break; y = s.yMax + a.r + 60;
+  }
+  return y;
 }
 /* Extremos de la cápsula del casco en el mundo (se mueven con el vaivén). */
 function airshipAxis(a) {
@@ -123,9 +166,9 @@ function airshipRayHit(o, d, maxT) {
 /* n = puntos de daño (se multiplican por el daño del dragón elegido). soft = continuo (llamarada, rayo). at = punto del impacto. */
 function damageAirship(a, n, soft, at) {
   if (a.dead) return;
-  n *= heroStats().dmg;
+  if (!byAlly) n *= heroStats().dmg;                       // (v23: el aliado, con su daño y sin cargar el rayo del jugador)
   a.hp -= n; a.hitFlash = Math.max(a.hitFlash, soft ? 0.55 : 1);
-  ultGain(n * ULT_PER_DMG);
+  if (!byAlly) ultGain(n * ULT_PER_DMG);
   const c = ARC_COLOR;
   if (soft) sparks(at.x, at.y, at.z, 2, 0, 0, 0);
   else {
@@ -141,10 +184,11 @@ function damageAirship(a, n, soft, at) {
 }
 function killAirship(a) {
   a.hp = 0; a.dead = true; a.dying = AIRSHIP_DIE;
-  ultGain(ULT_PER_KILL * 0.75);
+  if (!byAlly) ultGain(ULT_PER_KILL * 0.75);
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast('Dirigible destruido  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  toast((byAlly ? allyName() + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (byAlly) allySay('kill');
   sfx.energyCharge(airshipVol(a));
 }
 const airshipVol = a => clamp(1.25 - a.pos.distanceTo(dragon.position) / 2200, 0.15, 1);
@@ -242,6 +286,11 @@ function updateAirships(dt) {
   const P = dragon.position, playing = state === 'playing', cosArc = Math.cos(AIRSHIP_ARC), sinEl = Math.sin(AIRSHIP_ELEV);
   for (const a of airships) {
     if (a.gone) continue;
+    if (a.vel !== ZERO && state !== 'menu') {               // v23: flota en movimiento (en el menú se queda quieta)
+      a.pos.x += a.vel.x * dt; a.pos.z += a.vel.z * dt;
+      a.cruiseT -= dt; if (a.cruiseT <= 0) { a.cruiseT = 0.5; a.cruise = airshipCruiseY(a); }
+      a.base += clamp(a.cruise - a.base, -AIRSHIP_CLIMB[0] * dt, AIRSHIP_CLIMB[1] * dt);
+    }
     const t = gameTime * 0.35 + a.ph;                         // vaivén: sube y baja unos metros y se mece un poco
     a.pos.y = a.base + Math.sin(t) * 3;
     airshipAxis(a);

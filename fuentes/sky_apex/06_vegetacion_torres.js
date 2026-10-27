@@ -268,8 +268,8 @@ function losClear(ax, ay, az, bx, by, bz) {
 /* v17: el daño se multiplica por el del dragón elegido (heroStats().dmg); sure: la bola guiada destruye la torre siempre, de un impacto. */
 function damageTower(t, amount, soft, at, sure) {
   if (t.dead) return;
-  amount *= heroStats().dmg; if (sure) amount = Math.max(amount, t.hp);
-  t.hp -= amount; ultGain(amount * ULT_PER_DMG);
+  if (!byAlly) amount *= heroStats().dmg; if (sure) amount = Math.max(amount, t.hp);   // (v23: el aliado, con su daño y sin recompensas)
+  t.hp -= amount; if (!byAlly) ultGain(amount * ULT_PER_DMG);
   const hx = at ? at.x : t.x, hy = at ? at.y : t.y + TOWER_TOP * 0.55, hz = at ? at.z : t.z;
   if (t.hp > 0) {
     if (soft) sparks(hx + rnd(-4, 4), hy + rnd(-4, 4), hz + rnd(-4, 4), 2, 0, 4, 0);
@@ -278,7 +278,7 @@ function damageTower(t, amount, soft, at, sure) {
     if (!(gameTime - t.sndT < 0.22)) { t.sndT = gameTime; sfx.hit(); }
     return;
   }
-  ultGain(ULT_PER_KILL * 0.5);
+  if (!byAlly) ultGain(ULT_PER_KILL * 0.5);
   t.dead = true; towerState.destroyed.add(t.id);
   towerState.score += 100; towerState.kills++;
   if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)
@@ -297,6 +297,6 @@ function damageTower(t, amount, soft, at, sure) {
   }
   explode(t.x, t.y + TOWER_TOP * 0.35, t.z, 2.2); explode(t.x, t.y + TOWER_TOP * 0.75, t.z, 1.6); sfx.boom(1.0);
   debris(t.x, t.y + TOWER_TOP * 0.3, t.z);
-  const got = Math.min(MSL_TOWER, MSL_MAX - W.msl); W.msl += got;
+  const got = byAlly ? 0 : Math.min(MSL_TOWER, MSL_MAX - W.msl); W.msl += got;
   toast('Torre destruida  +100' + (got > 0 ? '  ·  +' + got + ' bola' + (got > 1 ? 's' : '') + ' guiada' + (got > 1 ? 's' : '') : '') + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
 }

@@ -302,6 +302,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       </div>
       <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
         <div class="kicker">Modo de juego</div>
+        <button class="mbtn" id="mM1">Misión 1: la flota</button>
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
         <button class="mbtn" id="mObj">Prueba de objetivos</button>
@@ -1462,8 +1463,8 @@ function losClear(ax, ay, az, bx, by, bz) {
 /* v17: el daño se multiplica por el del dragón elegido (heroStats().dmg); sure: la bola guiada destruye la torre siempre, de un impacto. */
 function damageTower(t, amount, soft, at, sure) {
   if (t.dead) return;
-  amount *= heroStats().dmg; if (sure) amount = Math.max(amount, t.hp);
-  t.hp -= amount; ultGain(amount * ULT_PER_DMG);
+  if (!byAlly) amount *= heroStats().dmg; if (sure) amount = Math.max(amount, t.hp);   // (v23: el aliado, con su daño y sin recompensas)
+  t.hp -= amount; if (!byAlly) ultGain(amount * ULT_PER_DMG);
   const hx = at ? at.x : t.x, hy = at ? at.y : t.y + TOWER_TOP * 0.55, hz = at ? at.z : t.z;
   if (t.hp > 0) {
     if (soft) sparks(hx + rnd(-4, 4), hy + rnd(-4, 4), hz + rnd(-4, 4), 2, 0, 4, 0);
@@ -1472,7 +1473,7 @@ function damageTower(t, amount, soft, at, sure) {
     if (!(gameTime - t.sndT < 0.22)) { t.sndT = gameTime; sfx.hit(); }
     return;
   }
-  ultGain(ULT_PER_KILL * 0.5);
+  if (!byAlly) ultGain(ULT_PER_KILL * 0.5);
   t.dead = true; towerState.destroyed.add(t.id);
   towerState.score += 100; towerState.kills++;
   if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)
@@ -1491,7 +1492,7 @@ function damageTower(t, amount, soft, at, sure) {
   }
   explode(t.x, t.y + TOWER_TOP * 0.35, t.z, 2.2); explode(t.x, t.y + TOWER_TOP * 0.75, t.z, 1.6); sfx.boom(1.0);
   debris(t.x, t.y + TOWER_TOP * 0.3, t.z);
-  const got = Math.min(MSL_TOWER, MSL_MAX - W.msl); W.msl += got;
+  const got = byAlly ? 0 : Math.min(MSL_TOWER, MSL_MAX - W.msl); W.msl += got;
   toast('Torre destruida  +100' + (got > 0 ? '  ·  +' + got + ' bola' + (got > 1 ? 's' : '') + ' guiada' + (got > 1 ? 's' : '') : '') + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
 }
 /* ============================================================
@@ -3233,6 +3234,7 @@ window.addEventListener('wheel', e => { if (state === 'select') show.zoom = clam
    6. PARTÍCULAS, PROYECTILES Y SONIDO PROCEDURAL
    ============================================================ */
 let camShake = 0;
+let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas)
 
 /* ---------- Partículas (puntos con shader) ---------- */
 function makeParticles(cap, additive) {
@@ -3415,20 +3417,23 @@ const _white = new THREE.Color(1, 1, 1);
    arcano de los dirigibles, morado, ver 6c). */
 const ARC_COLOR = [0.78, 0.42, 1];       // color de lo arcano: proyectiles de los dirigibles, sus chispas y su explosión
 const _arcC = new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]), _arcW = _arcC.clone().lerp(_white, 0.55);
-function spawnFireball(from, dir, enemy, vol, kind) {
+const ALLY_FIRE = new THREE.Color(0.45, 0.75, 1), _allyW = ALLY_FIRE.clone().lerp(_white, 0.6);   // v23: el fuego del aliado, azul
+/* ally (v23): proyectil del aliado (6e): como los del jugador, pero azul, con su volumen y sin contar en las estadísticas. */
+function spawnFireball(from, dir, enemy, vol, kind, ally) {
   kind = enemy ? (kind === 'emsl' || kind === 'aa' || kind === 'arc' ? kind : 'enemy') : kind || 'gun';
   const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', arc = kind === 'arc', fast = gun || aa || arc;
   // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego (las arcanas, moradas)
-  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : enemy ? _white : ATTACK;
+  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : ally ? _allyW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : ally ? ALLY_FIRE : enemy ? _white : ATTACK;
   const r0 = arc ? 3.4 : fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = arc ? 11 : fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   core.scale.setScalar(r0); core.renderOrder = 7; core.position.copy(from); scene.add(core);   // (ya en la boca en el fotograma en que nace)
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: colH, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
   const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
-  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
+  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false,
+    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: !!ally };
   fireballs.push(f);
-  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
+  if (gun) sfx.shot(ally ? vol : undefined); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
 }
 /* Bola guiada enemiga: guiado imperfecto a propósito (persecución con poco adelanto y giro limitado). Si el jugador se le sale del cono de su
@@ -3501,7 +3506,8 @@ function updateFireballs(dt) {
           if (!t.dead && dx * dx + dz * dz < (TOWER_R + 3) ** 2 && f.pos.y > t.y - 1 && f.pos.y < t.y + TOWER_TOP + 4) { hit = true; explode(f.pos.x, f.pos.y, f.pos.z, 1.1); break; }
         }
       } else {
-        // proyectiles del jugador: torres y dragones enemigos
+        // proyectiles del jugador (y del aliado, v23): torres, dragones enemigos y dirigibles
+        byAlly = f.ally;
         for (const t of towers.values()) {
           if (t.dead) continue;
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
@@ -3517,10 +3523,11 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
+        byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
     }
-    if (onTarget) { if (gun) stats.shotHits++; else if (msl) stats.mslHits++; }
+    if (onTarget && !f.ally) { if (gun) stats.shotHits++; else if (msl) stats.mslHits++; }
     f.life -= dt;
     if (hit || f.life <= 0) { killFireball(i); continue; }
     f.core.position.copy(f.pos); f.halo.position.copy(f.pos);
@@ -3922,7 +3929,24 @@ function makeEnemy() {
   };
 }
 const _Eac = { x: 0, z: 0 };
+/* v23: escolta (receta: dragons.escort): los dragones nacen y patrullan junto a la flota de dirigibles, y los relevos despegan de uno de
+   ellos (launch: pegados a su casco y ya alerta). Salen a por el jugador si se acerca a ESCORT_ALERT de cualquier dirigible. */
+const ESCORT_ALERT = 2500;
+const escorting = () => RUN.dragons.escort && airships.some(a => !a.dead);
+function randomAirship() { const live = airships.filter(a => !a.dead); return live.length ? live[Math.floor(Math.random() * live.length)] : null; }
+function placeEscort(e, launch) {
+  const a = randomAirship(); if (!a) return false;
+  const t = Math.random() * 6.2832, r = launch ? rnd(110, 200) : rnd(250, 700), x = a.pos.x + Math.cos(t) * r, z = a.pos.z + Math.sin(t) * r;
+  e.pos.set(x, safeY(x, a.pos.y + (launch ? rnd(-20, 40) : rnd(-80, 160)), z), z);
+  e.q.copy(a.q);                                           // con el rumbo de la flota
+  e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
+  e.hasWp = false; setEnemyMode(e, 'patrol'); e.alert = launch ? 0 : 3;
+  resetTrail(e); releaseLock(e);
+  return true;
+}
+function nearestAirshipDist(p) { let d = Infinity; for (const a of airships) if (!a.dead) d = Math.min(d, a.pos.distanceTo(p)); return d; }
 function placeEnemy(e, rmin, rmax) {
+  if (escorting() && placeEscort(e, false)) return;        // v23: escolta de la flota
   const P = dragon.position;
   let x = 0, z = 0;
   for (let i = 0; i < 12; i++) {                            // v15: dentro del área de la misión (si la hay); si no se encuentra sitio, al borde
@@ -3942,7 +3966,7 @@ function reviveEnemy(e) {
   enemyState.spawned++;
   e.tags = RUN.dragons.tags; e.squad = null;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
-  placeEnemy(e, 3500, 5500);
+  if (!(escorting() && placeEscort(e, true))) placeEnemy(e, 3500, 5500);   // (v23: los relevos de la escolta despegan de un dirigible)
 }
 /* Mete o saca de la escena el modelo de un enemigo (fuera no cuesta ni animación ni matrices de huesos). */
 function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.add(e.wrap); else e.g.remove(e.wrap); } }
@@ -4004,6 +4028,13 @@ function setEnemyMode(e, m) {
   } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
 }
 function newWaypoint(e) {
+  const ship = escorting() && randomAirship();
+  if (ship) {                                              // v23: escolta: alrededor de uno de los dirigibles (algo por delante: la flota avanza)
+    const t = Math.random() * 6.2832, r = rnd(300, 900);
+    clampToArea(ship.pos.x + Math.cos(t) * r + ship.vel.x * 12, ship.pos.z + Math.sin(t) * r + ship.vel.z * 12, 900, _Eac);
+    e.wp.set(_Eac.x, safeY(_Eac.x, ship.pos.y + rnd(-120, 200), _Eac.z), _Eac.z);
+    return;
+  }
   const P = dragon.position, far = e.pos.distanceTo(P) > 4500;
   const cx = far ? P.x : e.pos.x, cz = far ? P.z : e.pos.z, a = Math.random() * 6.2832, r = far ? rnd(1500, 4200) : rnd(1800, 3800);
   clampToArea(cx + Math.cos(a) * r, cz + Math.sin(a) * r, 900, _Eac);   // v15: patrullan dentro del área de la misión
@@ -4074,9 +4105,11 @@ function thinkEnemy(e, dt, playing) {
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
   if (e.mode === 'patrol') {
-    if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > 70) { newWaypoint(e); e.hasWp = true; e.t = 0; }
+    const esc = escorting();
+    if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
     want.subVectors(e.wp, e.pos).normalize(); tSpeed = 62;
-    if (playing && e.alert <= 0 && dist < ENEMY_DETECT) { setEnemyMode(e, 'pass'); sfx.roar(clamp(1.1 - dist / 2200, 0.15, 1)); }
+    const alarm = esc && dist < 5000 && nearestAirshipDist(P) < ESCORT_ALERT;   // v23: la escolta defiende la flota
+    if (playing && e.alert <= 0 && (dist < ENEMY_DETECT || alarm)) { setEnemyMode(e, 'pass'); sfx.roar(clamp(1.1 - dist / 2200, 0.15, 1)); }
   } else if (e.mode === 'pass') {
     // persecución con adelanto; a media distancia se aproxima en arco (flanqueando) y luego se lanza de frente
     const tl = clamp(dist / (e.speed + 140), 0, 2.2) * 0.8;
@@ -4158,7 +4191,7 @@ function steerEnemy(e, tSpeed, dt) {
   const ang = _Esax.length() * dt;
   if (ang > 1e-6) { _Edq.setFromAxisAngle(_Esax.normalize(), ang); q.multiply(_Edq).normalize(); }
   // velocidad (tope = el del jugador sin boost) y avance
-  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, ENEMY_VMAX);
+  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, e.vmax || ENEMY_VMAX);   // (v23: el aliado tiene su tope, e.vmax)
   _Esf.set(0, 0, -1).applyQuaternion(q);
   e.vel.copy(_Esf).multiplyScalar(e.speed);
   pos.addScaledVector(e.vel, dt);
@@ -4177,9 +4210,9 @@ function steerEnemy(e, tSpeed, dt) {
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
   if (e.dead) return;
-  n *= heroStats().dmg;                                    // (v17: el daño del dragón elegido)
+  if (!byAlly) n *= heroStats().dmg;                       // (v17: el daño del dragón elegido; v23: el aliado, el suyo)
   e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);
-  ultGain(n * ULT_PER_DMG);
+  if (!byAlly) ultGain(n * ULT_PER_DMG);
   if (soft) sparks(at.x, at.y, at.z, 2, e.vel.x * 0.5, e.vel.y * 0.5, e.vel.z * 0.5);
   else {
     const k = clamp(n / 25, 0.3, 2);                       // el estallido crece con el daño: chispazo del proyectil rápido, golpe de la bola guiada
@@ -4195,15 +4228,17 @@ function damageEnemy(e, n, at, soft) {
   if (e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e) {
-  ultGain(ULT_PER_KILL);
+  const mine = !byAlly;                                    // v23: los derribos del aliado no recargan el rayo ni el escudo
+  if (mine) ultGain(ULT_PER_KILL);
   e.dead = true; showEnemy(e, false); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  const sh = W.shield < SHIELD_MAX; if (sh) W.shield++;                  // derribar dragones recarga el escudo
-  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  const sh = mine && W.shield < SHIELD_MAX; if (sh) W.shield++;          // derribar dragones recarga el escudo
+  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (!mine) allySay('kill');
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -4236,6 +4271,26 @@ function enemyRayHit(o, d, maxT) {
 }
 
 /* ---------- Actualización por fotograma ---------- */
+/* Visibilidad (en pantalla y a menos de 6,5 km), animación (más barata a distancia) y destellos de un dragón con modelo propio (enemigos y,
+   desde la v23, el aliado). Devuelve si se ve. Usa el frustum de la cámara que calcula updateEnemies. */
+function animateEnemyModel(e, dt, dist) {
+  _Esph.center.copy(e.pos);
+  const vis = dist < 6500 && _Efr.intersectsSphere(_Esph);
+  showEnemy(e, vis);
+  e.animAcc += dt;
+  if (vis && (++e.frame % (dist < ENEMY_ANIM_LOD[0] ? 1 : dist < ENEMY_ANIM_LOD[1] ? 2 : 3)) === 0) {
+    _Eef.set(0, 0, -1).applyQuaternion(e.q);
+    const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
+    _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
+    _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
+    animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0;
+  }
+  // destellos: la piel al recibir un impacto y la boca al disparar
+  e.U.uHit.value = e.hitFlash * 0.85;
+  e.glow.visible = vis && e.fireFlash > 0.02;
+  if (e.glow.visible) { enemyMouth(e, e.glow.position); e.glow.scale.setScalar((4 + 10 * e.fireFlash) * ENEMY_SCALE); e.glow.material.opacity = clamp(e.fireFlash * 1.2, 0, 1); }
+  return vis;
+}
 function updateEnemies(dt) {
   if (!enemies.length) return;
   const playing = state === 'playing', P = dragon.position;
@@ -4244,7 +4299,7 @@ function updateEnemies(dt) {
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
     if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
-    if (e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);
+    if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
     e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
@@ -4258,22 +4313,7 @@ function updateEnemies(dt) {
     _Eiq.copy(e.q).invert();
     if (e.mode === 'patrol') e.aimLocal.set(0, 0, -1);
     else e.aimLocal.copy(P).sub(e.pos).applyQuaternion(_Eiq).normalize();
-    // visibilidad (en pantalla y a menos de 6,5 km) y animación (más barata a distancia)
-    _Esph.center.copy(e.pos);
-    const vis = dist < 6500 && _Efr.intersectsSphere(_Esph);
-    showEnemy(e, vis);
-    e.animAcc += dt;
-    if (vis && (++e.frame % (dist < ENEMY_ANIM_LOD[0] ? 1 : dist < ENEMY_ANIM_LOD[1] ? 2 : 3)) === 0) {
-      _Eef.set(0, 0, -1).applyQuaternion(e.q);
-      const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
-      _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
-      _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
-      animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0;
-    }
-    // destellos: la piel al recibir un impacto y la boca al disparar
-    e.U.uHit.value = e.hitFlash * 0.85;
-    e.glow.visible = vis && e.fireFlash > 0.02;
-    if (e.glow.visible) { enemyMouth(e, e.glow.position); e.glow.scale.setScalar((4 + 10 * e.fireFlash) * ENEMY_SCALE); e.glow.material.opacity = clamp(e.fireFlash * 1.2, 0, 1); }
+    const vis = animateEnemyModel(e, dt, dist);
     // dañado: humo (y chispas con 1 de vida)
     if (e.hp < ENEMY_HP && e.hp > 0 && dist < 2600 && Math.random() < (1 - e.hp / ENEMY_HP) * 0.88) {
       _Eef.set(0, 0, 1).applyQuaternion(e.q);
@@ -4367,6 +4407,7 @@ function planAirships() {
   const R = RUN.airships; if (!R) return;
   const rand = R.random ? Math.random : seededRandom(SEED ^ 0xa1e5), [cx, cz] = R.center || [0, 0];
   const alt = () => lerp(R.alt[0], R.alt[1], rand());
+  if (R.fleet) { planFleet(R, rand, alt); return; }       // v23: flota en movimiento
   R.sites.forEach((s, i) => addAirship('F' + i, s.x, s.z, s.height != null ? s.height : alt(), s.heading != null ? s.heading : rand() * 360, s.tag ? [].concat(s.tag) : R.tags));
   for (let k = 0; airships.length < R.total && k < 600; k++) {
     const ang = rand() * Math.PI * 2, r = Math.sqrt(lerp(R.zone[0] ** 2, R.zone[1] ** 2, rand())), h = alt(), hd = rand() * 360;
@@ -4392,6 +4433,48 @@ function addAirship(id, x, z, height, heading, tags) {
   if (airshipRes) airshipMesh(a);
   airships.push(a);
   return a;
+}
+/* v23: flota (receta: airships.fleet { x, z, heading, speed, gap }): total dirigibles con el mismo rumbo y a speed km/h. El de cabeza va en
+   (x, z); los demás, detrás o a su altura y a los lados (como mucho FLEET_SPAN), cada uno a entre gap[0] y gap[1] m de otro y nunca a
+   menos de gap[0] de ninguno. Cada uno vuela a su altitud (alt: sobre el agua, como la ALTITUD del HUD) y solo sube si delante hay
+   terreno a menos de FLEET_CLEAR o una isla; luego vuelve a bajar a su altitud. */
+const FLEET_SPAN = { back: 1800, side: 900 };              // fondo y medio ancho máximos de la formación (m)
+const FLEET_CLEAR = 150;                                   // distancia mínima al suelo (m)
+const AIRSHIP_CLIMB = [6, 12];                             // m/s al bajar y al subir
+function planFleet(R, rand, alt) {
+  const F = R.fleet, gap = F.gap || [300, 600], ang = F.heading * Math.PI / 180, fx = Math.sin(ang), fz = -Math.cos(ang), v = (F.speed || 100) / 3.6;
+  const pts = [{ u: 0, w: 0 }];                            // u: hacia delante (≤ 0), w: a la derecha (m)
+  for (let k = 0; pts.length < R.total && k < 4000; k++) {
+    const b = pts[Math.floor(rand() * pts.length)], t = rand() * Math.PI * 2, d = lerp(gap[0], gap[1], rand());
+    const u = b.u + Math.cos(t) * d, w = b.w + Math.sin(t) * d;
+    if (u > 0 || u < -FLEET_SPAN.back || Math.abs(w) > FLEET_SPAN.side || pts.some(p => Math.hypot(p.u - u, p.w - w) < gap[0])) continue;
+    pts.push({ u, w });
+  }
+  pts.forEach((p, i) => {
+    const a = addAirship('V' + i, F.x + fx * p.u - fz * p.w, F.z + fz * p.u + fx * p.w, 0, F.heading, R.tags);
+    a.vel = new THREE.Vector3(fx * v, 0, fz * v); a.alt = WL + alt();
+    a.cruise = a.base = a.pos.y = airshipCruiseY(a); a.cruiseT = 0; airshipAxis(a);
+  });
+}
+/* Altura de crucero de un dirigible que avanza: su altitud, salvo que el suelo de debajo o de delante (hasta 1,2 km) quede a menos de
+   FLEET_CLEAR o que se cruce una isla en su camino: entonces, por encima. Al bajar se comprueba todo el tramo entre la altura actual y la
+   nueva (si no, tras pasar una montaña bajaría a través de una isla). */
+const FLEET_LOOK = [0, 300, 600, 900, 1200], FLEET_HULL = [-1.2, -0.6, 0, 0.5, 1, 2, 4, 7, 10, 13];   // (m por delante; esloras por delante)
+function islandInSpan(s, x, z, y0, y1, m) {               // ¿la isla s ocupa (x, z) en algún punto entre las alturas y0 e y1?
+  const lo = Math.max(y0, s.yMin - m), hi = Math.min(y1, s.yMax + m);
+  for (let y = lo; y <= hi; y += 25) if (insideIsland(s, x, y, z, m)) return true;
+  return false;
+}
+function airshipCruiseY(a) {
+  const l = Math.hypot(a.vel.x, a.vel.z) || 1, fx = a.vel.x / l, fz = a.vel.z / l;
+  let g = 0; for (const d of FLEET_LOOK) g = Math.max(g, groundAt(a.pos.x + fx * d, a.pos.z + fz * d));
+  let y = Math.max(a.alt, g + FLEET_CLEAR);
+  const isls = islandsInRange(a.pos.x, a.pos.z, 1500), top = Math.max(y, a.base || y);
+  for (let i = 0; i < 4; i++) {
+    const s = isls.find(s => s.yMax + a.r + 60 > y && FLEET_HULL.some(u => islandInSpan(s, a.pos.x + fx * AIRSHIP_LEN * u, a.pos.z + fz * AIRSHIP_LEN * u, y, Math.max(top, y), a.r + 40)));
+    if (!s) break; y = s.yMax + a.r + 60;
+  }
+  return y;
 }
 /* Extremos de la cápsula del casco en el mundo (se mueven con el vaivén). */
 function airshipAxis(a) {
@@ -4419,9 +4502,9 @@ function airshipRayHit(o, d, maxT) {
 /* n = puntos de daño (se multiplican por el daño del dragón elegido). soft = continuo (llamarada, rayo). at = punto del impacto. */
 function damageAirship(a, n, soft, at) {
   if (a.dead) return;
-  n *= heroStats().dmg;
+  if (!byAlly) n *= heroStats().dmg;                       // (v23: el aliado, con su daño y sin cargar el rayo del jugador)
   a.hp -= n; a.hitFlash = Math.max(a.hitFlash, soft ? 0.55 : 1);
-  ultGain(n * ULT_PER_DMG);
+  if (!byAlly) ultGain(n * ULT_PER_DMG);
   const c = ARC_COLOR;
   if (soft) sparks(at.x, at.y, at.z, 2, 0, 0, 0);
   else {
@@ -4437,10 +4520,11 @@ function damageAirship(a, n, soft, at) {
 }
 function killAirship(a) {
   a.hp = 0; a.dead = true; a.dying = AIRSHIP_DIE;
-  ultGain(ULT_PER_KILL * 0.75);
+  if (!byAlly) ultGain(ULT_PER_KILL * 0.75);
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast('Dirigible destruido  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  toast((byAlly ? allyName() + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (byAlly) allySay('kill');
   sfx.energyCharge(airshipVol(a));
 }
 const airshipVol = a => clamp(1.25 - a.pos.distanceTo(dragon.position) / 2200, 0.15, 1);
@@ -4538,6 +4622,11 @@ function updateAirships(dt) {
   const P = dragon.position, playing = state === 'playing', cosArc = Math.cos(AIRSHIP_ARC), sinEl = Math.sin(AIRSHIP_ELEV);
   for (const a of airships) {
     if (a.gone) continue;
+    if (a.vel !== ZERO && state !== 'menu') {               // v23: flota en movimiento (en el menú se queda quieta)
+      a.pos.x += a.vel.x * dt; a.pos.z += a.vel.z * dt;
+      a.cruiseT -= dt; if (a.cruiseT <= 0) { a.cruiseT = 0.5; a.cruise = airshipCruiseY(a); }
+      a.base += clamp(a.cruise - a.base, -AIRSHIP_CLIMB[0] * dt, AIRSHIP_CLIMB[1] * dt);
+    }
     const t = gameTime * 0.35 + a.ph;                         // vaivén: sube y baja unos metros y se mece un poco
     a.pos.y = a.base + Math.sin(t) * 3;
     airshipAxis(a);
@@ -4624,6 +4713,168 @@ function cycleTarget() {
   const i = cand.findIndex(c => c.t === enemyLock.e), next = cand[i < 0 ? 0 : (i + 1) % cand.length];
   if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
   else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + BLANCO[next.t.kind].name + '  ·  ' + fmtDist(next.d)); }
+}
+
+/* ============================================================
+   6e. ALIADO: COMPAÑERO DE ESCUADRÓN (v23)
+   Un dragón amigo con IA (receta: ally { id, lines }; su nombre y color, en radio[id]). Es el Tyrant teñido de azul (ALLY_TINT), con el
+   vuelo de los enemigos (steerEnemy) y solo fuego rápido y llamarada: ni bolas guiadas ni rayo. No recibe daño (los enemigos no lo atacan
+   ni sus proyectiles le dan). Dos estados:
+   · formación ('form'): a ALLY_SLOT del jugador (a su lado y algo por detrás), a su velocidad y con margen para alcanzarle (hasta VMAX);
+     si el jugador está en hover, le da vueltas alrededor;
+   · combate ('fight'): en cuanto un dragón enemigo o un dirigible está a menos de ALLY_ENGAGE del jugador (o de él). Ataca blancos al
+     azar entre dragones y dirigibles, pero antes que nada a los dragones que van a por el jugador (protegerle). Tras ALLY_CALM s sin
+     enemigos cerca, vuelve a la formación.
+   Sus derribos cuentan para la misión, pero no dan rayo, escudo ni bolas guiadas al jugador (byAlly). Lo que dice por radio sale de
+   ally.lines de la receta (start, engage, protect, kill, regroup: un texto o una lista, uno al azar), con ALLY_SAY_GAP s entre dos iguales.
+   ============================================================ */
+const ALLY_SLOT = [200, -70];            // a la derecha del jugador y hacia delante (negativo: detrás), en m
+const ALLY_ENGAGE = 2000, ALLY_CALM = 6; // distancia a la que entra en combate (m) y s sin enemigos para volver a la formación
+const ALLY_TINT = new THREE.Color(0.55, 0.85, 1.75), ALLY_EYES = 0x5fd0ff;   // piel azul acero y ojos azules
+const ALLY_GUN_CD = [0.14, 0.26], ALLY_GUN_RANGE = 1000, ALLY_AIM = 0.985, ALLY_AIM_ERR = 0.01;   // s entre disparos, alcance (m), coseno del cono de tiro (≈10°, como los enemigos) y error de puntería
+const ALLY_PICK = [5, 10];               // s con el mismo blanco antes de cambiar (salvo para proteger al jugador)
+const ALLY_PROTECT = 1000, ALLY_URGENT = 600, ALLY_PROTECT_P = 0.6;   // dragón en pasada de ataque hacia el jugador: a menos de ALLY_URGENT va
+                                         // a por él al momento; a menos de ALLY_PROTECT, al cambiar de blanco lo elige con probabilidad ALLY_PROTECT_P
+const ALLY_SAY_GAP = 9;
+const ally = { e: null, on: false, mode: 'form', target: null, protect: false, pickT: 0, calmT: 0, gunCool: 0, breakT: 0, breakDir: new THREE.Vector3(), said: {} };
+const _Al = new THREE.Vector3(), _Am = new THREE.Vector3(), _Ad2 = new THREE.Vector3(), _Af2 = new THREE.Vector3(), _Ar2 = new THREE.Vector3();
+
+const allyName = () => { const A = mission.ally, c = A && mission.radio && mission.radio[A.id]; return c ? c.name : 'Tu aliado'; };
+function allySay(key) {
+  const A = mission.ally; if (!A || !ally.on || !A.lines || !A.lines[key]) return;
+  if (key in ally.said && gameTime - ally.said[key] < ALLY_SAY_GAP) return;
+  ally.said[key] = gameTime;
+  const L = [].concat(A.lines[key]); radioSay(A.id, L[Math.floor(Math.random() * L.length)]);
+}
+/* Al empezar la misión (missionStart): sin aliado en la receta, fuera; si no, a su sitio en la formación. */
+function allyStart() {
+  if (!mission.ally || !hero.ready) { allyOff(); return; }
+  if (!ally.e) {
+    const e = ally.e = makeEnemy();
+    e.g.scale.setScalar(1);                                // del tamaño del dragón del jugador (los enemigos, +50 %)
+    e.U.uTint.value = ALLY_TINT; e.vmax = VMAX; e.kind = 'ally';
+    e.model.traverse(o => { if (o.isSkinnedMesh && !o.material.map && o.material.emissive) o.material.emissive.set(ALLY_EYES); });
+    e.glow.material.color.copy(ALLY_FIRE);
+  }
+  const e = ally.e, P = dragon.position;
+  _Af2.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Af2.y = 0; if (_Af2.lengthSq() < 1e-4) _Af2.set(0, 0, -1); _Af2.normalize();
+  e.pos.set(P.x - _Af2.z * ALLY_SLOT[0] + _Af2.x * ALLY_SLOT[1], P.y + 10, P.z + _Af2.x * ALLY_SLOT[0] + _Af2.z * ALLY_SLOT[1]);
+  e.q.copy(dragon.quaternion); e.speed = Math.max(64, F.speed); e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
+  e.dead = false; e.hp = ENEMY_HP; e.hitFlash = e.fireFlash = 0; e.aimLocal.set(0, 0, -1);
+  Object.assign(ally, { on: true, mode: 'form', target: null, protect: false, pickT: 0, calmT: 0, gunCool: 1, breakT: 0, said: {} });
+  allySay('start');
+}
+function allyOff() {
+  ally.on = false;
+  if (ally.e) { showEnemy(ally.e, false); ally.e.glow.visible = false; }
+}
+
+/* ---------- Cada fotograma (desde updateWorld) ---------- */
+function updateAlly(dt) {
+  if (!ally.on) return;
+  const e = ally.e, P = dragon.position, playing = state === 'playing';
+  if (!enemies.length) _Efr.setFromProjectionMatrix(_Epm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+  // ¿hay enemigos cerca?
+  let near = Infinity;
+  for (const o of enemies) if (!o.dead && !o.off) near = Math.min(near, o.pos.distanceTo(P), o.pos.distanceTo(e.pos));
+  for (const a of airships) if (!a.dead) near = Math.min(near, a.pos.distanceTo(P), a.pos.distanceTo(e.pos));
+  if (ally.mode === 'form' && playing && near < ALLY_ENGAGE) { ally.mode = 'fight'; ally.target = null; ally.calmT = 0; allySay('engage'); }
+  else if (ally.mode === 'fight') {
+    ally.calmT = near > ALLY_ENGAGE + 500 ? ally.calmT + dt : 0;
+    if (ally.calmT > ALLY_CALM || !playing) { ally.mode = 'form'; ally.target = null; if (playing) allySay('regroup'); }
+  }
+  ally.gunCool -= dt; ally.pickT -= dt;
+  const tSpeed = ally.mode === 'fight' && allyPick() ? allyFight(e, dt) : allyFormation(e);
+  steerEnemy(e, tSpeed, dt);
+  // no atravesar dirigibles: si se mete en el casco, sale hacia arriba
+  for (const a of airships) if (!a.dead && airshipPointDist2(a, e.pos) < (a.r + 25) ** 2) { e.pos.y += 40 * dt; if (ally.breakT <= 0) { ally.breakT = 1.5; ally.breakDir.set(0, 0, -1).applyQuaternion(e.q).setY(0.6).normalize(); } }
+  // mirada: hacia su blanco en combate; si no, al frente
+  _Eiq.copy(e.q).invert();
+  if (ally.mode === 'fight' && ally.target) e.aimLocal.copy(ally.target.pos).sub(e.pos).applyQuaternion(_Eiq).normalize(); else e.aimLocal.set(0, 0, -1);
+  e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2);
+  animateEnemyModel(e, dt, e.pos.distanceTo(_Ecam.setFromMatrixPosition(camera.matrixWorld)));
+}
+/* Formación: hacia un punto 250 m por delante de su sitio, a la velocidad del jugador más lo que le falte para llegar. */
+function allyFormation(e) {
+  const P = dragon.position;
+  _Af2.set(0, 0, -1).applyQuaternion(dragon.quaternion); const fy = _Af2.y; _Af2.y = 0; if (_Af2.lengthSq() < 1e-4) _Af2.set(0, 0, -1); _Af2.normalize();
+  _Ar2.set(-_Af2.z, 0, _Af2.x);
+  _Al.copy(P).addScaledVector(_Ar2, ALLY_SLOT[0]).addScaledVector(_Af2, ALLY_SLOT[1]); _Al.y += 10;   // su sitio
+  if (F.speed < 45) {                                      // jugador en hover: vueltas a su alrededor
+    _Ad2.subVectors(e.pos, P); _Ad2.y = 0; const r = _Ad2.length() || 1; _Ad2.divideScalar(r);
+    _Ewant.set(-_Ad2.z, 0, _Ad2.x).addScaledVector(_Ad2, clamp((400 - r) / 300, -1, 1)); _Ewant.y = clamp((P.y + 40 - e.pos.y) / 300, -0.5, 0.5); _Ewant.normalize();
+    return 62;
+  }
+  _Ad2.subVectors(_Al, e.pos); const gap = _Ad2.length(), along = _Ad2.dot(_Af2);
+  _Am.copy(_Al).addScaledVector(_Af2, 250); _Am.y += fy * 250;
+  _Ewant.subVectors(_Am, e.pos).normalize();
+  return gap > 1500 ? VMAX : clamp(F.speed + along * 0.4, 45, VMAX);
+}
+/* Elige blanco. Un dragón en pasada de ataque muy cerca del jugador, al momento (protegerle); si no, sigue con el suyo un rato y, al
+   cambiar, elige con probabilidad ALLY_PROTECT_P al que esté atacando al jugador o, si no, uno al azar entre los dragones y dirigibles cercanos. */
+function allyPick() {
+  const P = dragon.position, t = ally.target, alive = o => !!o && !o.dead && !o.off;
+  let threat = null, best = ALLY_PROTECT;
+  for (const o of enemies) if (alive(o) && o.mode === 'pass') { const d = o.pos.distanceTo(P); if (d < best) { best = d; threat = o; } }
+  const protect = () => { if (!ally.protect || threat !== t) allySay('protect'); ally.target = threat; ally.protect = true; ally.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]); return true; };
+  if (threat && best < ALLY_URGENT && threat !== t) return protect();
+  if (alive(t) && ally.pickT > 0) return true;
+  if (threat && Math.random() < ALLY_PROTECT_P) return protect();
+  ally.protect = false;
+  const cand = [];
+  for (const o of enemies) if (!o.dead && !o.off && o.pos.distanceTo(P) < 3500) cand.push(o);
+  for (const a of airships) if (!a.dead && a.pos.distanceTo(P) < 4000) cand.push(a);
+  ally.target = cand.length ? cand[Math.floor(Math.random() * cand.length)] : null;
+  ally.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]);
+  return !!ally.target;
+}
+/* Combate: persigue al blanco con adelanto, dispara cuando lo tiene delante, lo quema de cerca y rompe la pasada para no chocar. */
+function allyFight(e, dt) {
+  const t = ally.target, ship = t.kind === 'airship', mouth = enemyMouth(e, _Am);
+  if (interceptPoint(t, mouth, _Al, GUN_SPEED, GUN_LIFE) < 0) _Al.copy(t.pos);
+  _Ad2.subVectors(_Al, mouth); const dist = _Ad2.length(); _Ad2.divideScalar(dist || 1);
+  const close = ship ? t.r + 90 : 120;
+  let tSpeed;
+  if (ally.breakT > 0) { ally.breakT -= dt; _Ewant.copy(ally.breakDir); tSpeed = ENEMY_VMAX; }
+  else {
+    _Ewant.copy(_Ad2); tSpeed = ship ? lerp(60, ENEMY_VMAX, smooth(300, 1200, dist)) : ENEMY_VMAX * 1.05;
+    if (dist < close) {                                    // romper la pasada: de lado y hacia arriba
+      ally.breakT = 2.2; _Af2.set(0, 0, -1).applyQuaternion(e.q); rotY(_Af2, (Math.random() < 0.5 ? -1 : 1) * 0.8); _Af2.y = 0.35;
+      ally.breakDir.copy(_Af2.normalize());
+    }
+  }
+  // armas: fuego rápido con el blanco delante; llamarada de cerca
+  _Af2.set(0, 0, -1).applyQuaternion(e.q);
+  const dot = _Af2.dot(_Ad2);
+  if (state === 'playing' && ally.gunCool <= 0 && dist < ALLY_GUN_RANGE && dot > ALLY_AIM && losClear(mouth.x, mouth.y, mouth.z, _Al.x, _Al.y, _Al.z)) {
+    _Ar2.copy(_Ad2); _Ar2.x += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.y += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.z += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.normalize();
+    spawnFireball(mouth, _Ar2, false, clamp(1 - e.pos.distanceTo(dragon.position) / 1500, 0.05, 0.5), 'gun', true);
+    e.fireFlash = 1; ally.gunCool = rnd(ALLY_GUN_CD[0], ALLY_GUN_CD[1]);
+  }
+  if (state === 'playing' && dist < FLAME_RANGE + (ship ? t.r : 15) && dot > 0.94) allyFlame(e, mouth, dt);
+  return tSpeed;
+}
+/* Llamarada del aliado: un chorro más ligero que el del jugador (menos partículas) con el mismo daño, en su color. */
+function allyFlame(e, mouth, dt) {
+  _Af2.set(0, 0, -1).applyQuaternion(e.q);
+  const c = ALLY_FIRE, n = Math.round(260 * dt + Math.random());
+  for (let i = 0; i < n; i++) {
+    const sp = FLAME_SPEED * rnd(0.9, 1.1), vx = (_Af2.x + rnd(-0.1, 0.1)) * sp, vy = (_Af2.y + rnd(-0.1, 0.1)) * sp, vz = (_Af2.z + rnd(-0.1, 0.1)) * sp;
+    emit(fxAdd, mouth.x, mouth.y, mouth.z, vx + e.vel.x, vy + e.vel.y, vz + e.vel.z, FLAME_RANGE / sp * rnd(0.7, 1.05), rnd(1, 1.8), rnd(14, 22), c.r, c.g * rnd(0.85, 1.1), c.b, 0.4, 0, -8);
+  }
+  e.fireFlash = 1;
+  const amt = FLAME_DPS * dt;
+  _Am.copy(mouth); _Al.copy(mouth).addScaledVector(_Af2, FLAME_RANGE);
+  byAlly = true;
+  for (const o of enemies) {
+    if (o.dead || o.off) continue;
+    _Ad2.subVectors(o.pos, _Am); const along = _Ad2.dot(_Af2);
+    if (along < -ENEMY_HIT_R || along > FLAME_RANGE + ENEMY_HIT_R) continue;
+    const r = ENEMY_HIT_R + 2 + clamp(along, 0, FLAME_RANGE) * 0.11;
+    if (_Ad2.lengthSq() - along * along < r * r) damageEnemy(o, amt, _Ad2.copy(_Am).addScaledVector(_Af2, clamp(along, 0, FLAME_RANGE)), true);
+  }
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _Am, _Al) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);
+  byAlly = false;
 }
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
@@ -4803,7 +5054,7 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels();
-  MS.ended = true; missionHideHUD(); sfx.breath(0, 0); sfx.quiet();
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
 }
@@ -5596,10 +5847,12 @@ function drawEnemyMarkers() {
     hudText((tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
   }
+  let nearAir = null, nearAirD = Infinity;                  // v23: de lejos (más de 4 km) solo el más cercano lleva texto (una flota no se amontona)
+  for (const s of airships) if (!s.dead) { const d = s.pos.distanceTo(_camP); if (d < nearAirD) { nearAirD = d; nearAir = s; } }
   for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
     if (s.dead) continue;
     const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
-    if (d > AIRSHIP_DRAW || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;
+    if (d > (tgt ? 15000 : AIRSHIP_DRAW) || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;   // (v23: los TGT, marcados hasta 15 km aunque la niebla ya no deje verlos)
     const onScreen = onScreenAt(a);
     if (!onScreen && !nearScreen(a)) continue;
     let half = 0;
@@ -5607,7 +5860,7 @@ function drawEnemyMarkers() {
     const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
     hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
     hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
-    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
   }
   for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
@@ -5624,6 +5877,18 @@ function drawEnemyMarkers() {
   }
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
+  drawAllyMarker(a);
+}
+/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
+const C_ALLY = '#5ab4ff';
+function drawAllyMarker(a) {
+  if (!ally.on) return;
+  const e = ally.e, d = e.pos.distanceTo(_camP);
+  if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a) || !onScreenAt(a)) return;
+  const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
+  hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
+  hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
+  hudText(allyName().toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
 }
 /* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
 const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
@@ -5725,6 +5990,12 @@ function drawRadar(heading, fwd) {
   }
   const L = enemyLock.e;
   if (L && !L.dead) { const q = at(L.pos.x, L.pos.z); hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(q.x, q.y, 8.5, 0, 6.283); hctx.stroke(); }
+  if (ally.on) {                                           // v23: el aliado, triángulo azul hueco
+    const e = ally.e, q = at(e.pos.x, e.pos.z); _Eef.set(0, 0, -1).applyQuaternion(e.q);
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.strokeStyle = C_ALLY; hctx.lineWidth = 1.8; hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.stroke();
+    hctx.restore();
+  }
   for (const f of fireballs) {                             // bolas guiadas enemigas: puntos rojos que parpadean
     if (f.kind !== 'emsl' || f.lost) continue;
     const dx = f.pos.x - p.x, dz = f.pos.z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range;
@@ -5927,6 +6198,10 @@ function drawHUD() {
     if (!o.shown) continue;
     hudText((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, HW - 28, oy, FM(15), o.done ? C_GOLD : C_BONE, 'right'); oy += 22;
   }
+  if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
+    const ed = airshipEdgeDist();
+    if (ed < Infinity) { hctx.globalAlpha = ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1; hudText('BORDE  ' + fmtDist(Math.max(0, ed)), HW - 28, oy, FM(15), ed < 2000 ? C_DANGER : C_BONE, 'right'); hctx.globalAlpha = 1; oy += 22; }
+  }
   hudText('PUNTOS  ' + towerState.score, HW - 28, oy, FM(15), C_GOLD, 'right');
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
   hctx.shadowBlur = 0;
@@ -5943,7 +6218,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas)
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
@@ -6079,7 +6354,7 @@ for (const b of document.querySelectorAll('.mpanel [data-close]')) b.addEventLis
 const menuMainEl = document.getElementById('mMain'), menuPlayEl = document.getElementById('mPlay');
 function showPlayMenu(on) {
   closePanels(); menuMainEl.hidden = on; menuPlayEl.hidden = !on;
-  document.getElementById(on ? 'mTest' : 'go').focus({ preventScroll: true });
+  document.getElementById(on ? 'mM1' : 'go').focus({ preventScroll: true });
 }
 const playMenuOpen = () => !menuPlayEl.hidden;
 document.getElementById('mBack').addEventListener('click', () => showPlayMenu(false));
@@ -6461,8 +6736,16 @@ function updateIntro(now) {
      v21: sites = torres fijas [{ x, z, tag }] (en tierra; cuentan dentro de total) y tag = etiqueta de las demás.
    · airships (v21): dirigibles enemigos, quietos en el aire (ver 6c). total, zone (anillo, como las torres), alt ([mín, máx] m sobre el
      suelo; por defecto 500-1000), sites = fijos [{ x, z, height, heading, tag }] (cuentan dentro de total), tag, random.
+     v23: fleet = flota en movimiento { x, z (el de cabeza), heading (°), speed (km/h), gap: [mín, máx] m entre uno y otro }: los total
+     dirigibles van en formación con ese rumbo, cada uno a una altitud de alt (sobre el agua, como la ALTITUD del HUD; sube solo si hay
+     montaña o isla delante). escape: 'fail' = si uno sale del área,
+     MISIÓN FALLIDA (el HUD muestra «BORDE» con lo que le falta al más adelantado).
+   · callsign (v23): nombre en clave del jugador (lo usan los textos de la radio).
+   · ally (v23): compañero de escuadrón (ver 6e). { id (el de radio, con su nombre y color), lines: { start, engage, protect, kill,
+     regroup } (un texto o una lista: dice uno al azar) }. Va en formación hasta que hay enemigos a 2 km; no recibe daño.
    · dragons: dragones enemigos. total (en toda la misión) y atOnce (a la vez en el aire: al caer uno sale otro hasta llegar al total).
-     v21: tag = su etiqueta.
+     v21: tag = su etiqueta. v23: escort: true = escoltan la flota de dirigibles (nacen y patrullan junto a ella, los relevos despegan
+     de los dirigibles y salen a por el jugador si se acerca a 2,5 km de cualquiera).
    · squads (v21): escuadrones de dragones que salen con un evento («squad»). { id: { n, at: { x, z, height } (sin at: a dist m del
      jugador, por delante), dist, attack (false = patrullan hasta verte), tag (por defecto, el id) } }. No reaparecen.
    · objectives: lo que se muestra arriba a la derecha.
@@ -6478,12 +6761,57 @@ function updateIntro(now) {
          t: s de misión · kills: { tower: n, dragon: n, airship: n, <etiqueta>: n } (al menos) · cleared: [etiquetas] (destruidos
          todos los que la llevan) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir] · hp: vida por debajo de
          · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
+         · airshipEdge: m (v23: algún dirigible a menos de m del borde del área)
        do (en orden):
          say: [quién, texto, segundos (opcional: si no, según lo largo)] · show: id de un objetivo oculto · toast: texto
          · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
-   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas tres son solo para probar el motor.
+   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros). «mision1» es la suya (Fase 1, v23); las otras tres son
+   solo para probar el motor.
    ============================================================ */
 const MISSIONS = {
+  /* v23: Misión 1 (diseño de Jorge): una flota de 10 dirigibles huye hacia el borde del mapa; hay que destruirla antes de que salga (si
+     sale uno, se falla). Vuela en formación con el mismo rumbo a 100 km/h, entre 700 y 900 m de altura y a 300-600 m entre uno y otro, con
+     15 dragones de escolta (8 a la vez; no son TGT). El jugador (Percival) sale 10 km por detrás, con Lance (aliado, Tyrant) a 200 m y algo
+     por detrás. Recorrido de la flota hasta el borde: 10 km (unos 6 min). Rumbo 285°: sin islas en su camino a esa altura. */
+  mision1: {
+    name: 'Misión 1: la flota', place: 'Valle de las Torres', callsign: 'Percival',
+    world: { seed: 777, biome: 'valle' },
+    start: { x: 9176, z: 2459, heading: 285, height: 750 },
+    area: { x: 0, z: 0, r: 11000 },
+    death: 'fail',
+    timeLimit: null,
+    towers: { total: 0 },
+    airships: { total: 10, alt: [700, 900], fleet: { x: -966, z: -259, heading: 285, speed: 100, gap: [300, 600] }, escape: 'fail', tag: 'flota' },
+    dragons: { total: 15, atOnce: 8, tag: 'escolta', escort: true },
+    ally: {
+      id: 'lance',
+      lines: {
+        start: 'Percival, aquí Lance. Estoy a tu derecha. Vamos a por esa flota.',
+        engage: ['¡Contacto! Entro en combate.', 'Escolta a la vista. Me encargo de los que pueda.'],
+        protect: ['¡Percival, tienes uno encima! Voy a por él.', 'Cuidado a tu espalda, lo tengo.', 'Te cubro.'],
+        kill: ['¡Uno menos!', 'Derribado.', 'Ese ya no molesta.'],
+        regroup: 'Zona despejada. Vuelvo a tu lado.'
+      }
+    },
+    objectives: [
+      { id: 'flota', text: 'Destruye la flota de dirigibles antes de que salga de la zona', hud: 'DIRIGIBLES', target: 'airship' }
+    ],
+    radio: {
+      mando: { name: 'Mando', color: '#f2b84b', icon: 'M' },
+      lance: { name: 'Lance', color: '#5ab4ff', icon: 'L' }
+    },
+    events: [
+      { id: 'inicio', when: { t: 3 }, do: [{ say: ['mando', 'Percival, aquí Mando. Una flota de diez dirigibles huye hacia el borde de la región. Derríbalos antes de que escapen.'] }] },
+      { when: { after: { event: 'inicio', t: 9 } }, do: [{ say: ['mando', 'Llevan escolta: quince dragones. Los dirigibles son la prioridad.'] }] },
+      { when: { kills: { airship: 1 } }, do: [{ say: ['mando', 'Un dirigible menos. Quedan nueve.'] }] },
+      { when: { kills: { airship: 5 } }, do: [{ say: ['mando', 'La mitad de la flota, abajo. No aflojes.'] }] },
+      { when: { kills: { airship: 9 } }, do: [{ say: ['mando', '¡Solo queda uno!'] }] },
+      { when: { airshipEdge: 3000 }, do: [{ say: ['mando', '¡La flota está a tres kilómetros del borde!'] }] },
+      { when: { airshipEdge: 1000 }, do: [{ say: ['mando', '¡Un kilómetro! ¡Detenlos ya!'] }] },
+      { when: { done: ['flota'] }, do: [{ say: ['mando', 'Flota destruida. Buen trabajo, Percival. Lance, volved a la base.'] }] },
+      { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Percival, estás muy tocado! Aléjate y espera a recuperarte.'] }] }
+    ]
+  },
   /* La partida de la v14 como misión: mismas torres y dragones, pero con área delimitada, caer = fallar y algo de radio. */
   prueba: {
     name: 'Misión de prueba', place: 'Valle de las Torres',
@@ -6606,9 +6934,17 @@ function missionSetup(id) {
   const center = [RUN.world.start.x, RUN.world.start.z];
   RUN.towers = { total: T.total || 0, zone: (T.zone || TOWER_ZONE).slice(), islands: (T.islands || [0, 0]).slice(),
     center, random: !!T.random, sites: (T.sites || []).slice(), tags: tagList(T.tag) };
-  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag) };
+  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag), escort: !!D.escort };   // (v23: escort = con la flota)
   RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
-    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag) };
+    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag), fleet: A.fleet ? Object.assign({}, A.fleet) : null };   // (v23: fleet = en movimiento)
+}
+/* v23: flota que escapa (airships.escape: 'fail'): si un dirigible sale del área, MISIÓN FALLIDA. airshipEdgeDist = cuánto le falta al
+   que está más cerca del borde (HUD «BORDE» y condición airshipEdge de los eventos). */
+const fleetEscapes = () => !!(mission.airships && mission.airships.escape === 'fail' && mission.area);
+function airshipEdgeDist() {
+  const A = mission.area; if (!A) return Infinity;
+  let d = Infinity; for (const a of airships) if (!a.dead) d = Math.min(d, A.r - Math.hypot(a.pos.x - A.x, a.pos.z - A.z));
+  return d;
 }
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
@@ -6616,6 +6952,7 @@ function missionStart() {
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
   for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
+  allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   toast(mission.free ? 'Objetivo: ' + goal : mission.name);
 }
@@ -6698,6 +7035,8 @@ function missionUpdate(dt) {
     }
   }
   areaEl.classList.toggle('on', MS.out && state === 'playing');
+  // v23: un dirigible de la flota sale del área
+  if (fleetEscapes() && airshipEdgeDist() < 0) { missionFail('Un dirigible escapó de la zona'); return; }
   // tiempo límite
   if (mission.timeLimit && MS.t >= mission.timeLimit) { missionFail('Se acabó el tiempo'); return; }
   // final: todos los objetivos necesarios cumplidos → resultados tras MISSION_END_DELAY
@@ -6708,6 +7047,7 @@ function eventReady(w) {
   if (w.t != null && MS.t < w.t) return false;
   if (w.kills) for (const k in w.kills) if ((MS.kills[k] || 0) < w.kills[k]) return false;   // (v21: por tipo o por etiqueta)
   if (w.cleared) for (const tag of [].concat(w.cleared)) if (!clearedTag(tag)) return false;
+  if (w.airshipEdge != null && !(airshipEdgeDist() < w.airshipEdge)) return false;   // v23: algún dirigible a menos de esos m del borde
   if (w.done) for (const id of w.done) { const o = objById(id); if (!o || !o.done) return false; }
   if (w.pending) for (const id of w.pending) { const o = objById(id); if (o && o.done) return false; }
   if (w.hp != null && !(state === 'playing' && F.health < w.hp)) return false;
@@ -6947,12 +7287,13 @@ function frame(now) {
   loadTotal = Math.max(1, terrainState.pending.length);
   planTowers();
   goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
+  document.getElementById('mM1').addEventListener('click', () => chooseMission('mision1'));        // v23: Misión 1 (Fase 1)
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
-    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget };   // (v21)
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally };   // (v21; v23: ally)
   requestAnimationFrame(frame);
 })();
 </script>

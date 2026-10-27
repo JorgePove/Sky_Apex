@@ -23,8 +23,16 @@
      v21: sites = torres fijas [{ x, z, tag }] (en tierra; cuentan dentro de total) y tag = etiqueta de las demás.
    · airships (v21): dirigibles enemigos, quietos en el aire (ver 6c). total, zone (anillo, como las torres), alt ([mín, máx] m sobre el
      suelo; por defecto 500-1000), sites = fijos [{ x, z, height, heading, tag }] (cuentan dentro de total), tag, random.
+     v23: fleet = flota en movimiento { x, z (el de cabeza), heading (°), speed (km/h), gap: [mín, máx] m entre uno y otro }: los total
+     dirigibles van en formación con ese rumbo, cada uno a una altitud de alt (sobre el agua, como la ALTITUD del HUD; sube solo si hay
+     montaña o isla delante). escape: 'fail' = si uno sale del área,
+     MISIÓN FALLIDA (el HUD muestra «BORDE» con lo que le falta al más adelantado).
+   · callsign (v23): nombre en clave del jugador (lo usan los textos de la radio).
+   · ally (v23): compañero de escuadrón (ver 6e). { id (el de radio, con su nombre y color), lines: { start, engage, protect, kill,
+     regroup } (un texto o una lista: dice uno al azar) }. Va en formación hasta que hay enemigos a 2 km; no recibe daño.
    · dragons: dragones enemigos. total (en toda la misión) y atOnce (a la vez en el aire: al caer uno sale otro hasta llegar al total).
-     v21: tag = su etiqueta.
+     v21: tag = su etiqueta. v23: escort: true = escoltan la flota de dirigibles (nacen y patrullan junto a ella, los relevos despegan
+     de los dirigibles y salen a por el jugador si se acerca a 2,5 km de cualquiera).
    · squads (v21): escuadrones de dragones que salen con un evento («squad»). { id: { n, at: { x, z, height } (sin at: a dist m del
      jugador, por delante), dist, attack (false = patrullan hasta verte), tag (por defecto, el id) } }. No reaparecen.
    · objectives: lo que se muestra arriba a la derecha.
@@ -40,12 +48,57 @@
          t: s de misión · kills: { tower: n, dragon: n, airship: n, <etiqueta>: n } (al menos) · cleared: [etiquetas] (destruidos
          todos los que la llevan) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir] · hp: vida por debajo de
          · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
+         · airshipEdge: m (v23: algún dirigible a menos de m del borde del área)
        do (en orden):
          say: [quién, texto, segundos (opcional: si no, según lo largo)] · show: id de un objetivo oculto · toast: texto
          · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
-   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas tres son solo para probar el motor.
+   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros). «mision1» es la suya (Fase 1, v23); las otras tres son
+   solo para probar el motor.
    ============================================================ */
 const MISSIONS = {
+  /* v23: Misión 1 (diseño de Jorge): una flota de 10 dirigibles huye hacia el borde del mapa; hay que destruirla antes de que salga (si
+     sale uno, se falla). Vuela en formación con el mismo rumbo a 100 km/h, entre 700 y 900 m de altura y a 300-600 m entre uno y otro, con
+     15 dragones de escolta (8 a la vez; no son TGT). El jugador (Percival) sale 10 km por detrás, con Lance (aliado, Tyrant) a 200 m y algo
+     por detrás. Recorrido de la flota hasta el borde: 10 km (unos 6 min). Rumbo 285°: sin islas en su camino a esa altura. */
+  mision1: {
+    name: 'Misión 1: la flota', place: 'Valle de las Torres', callsign: 'Percival',
+    world: { seed: 777, biome: 'valle' },
+    start: { x: 9176, z: 2459, heading: 285, height: 750 },
+    area: { x: 0, z: 0, r: 11000 },
+    death: 'fail',
+    timeLimit: null,
+    towers: { total: 0 },
+    airships: { total: 10, alt: [700, 900], fleet: { x: -966, z: -259, heading: 285, speed: 100, gap: [300, 600] }, escape: 'fail', tag: 'flota' },
+    dragons: { total: 15, atOnce: 8, tag: 'escolta', escort: true },
+    ally: {
+      id: 'lance',
+      lines: {
+        start: 'Percival, aquí Lance. Estoy a tu derecha. Vamos a por esa flota.',
+        engage: ['¡Contacto! Entro en combate.', 'Escolta a la vista. Me encargo de los que pueda.'],
+        protect: ['¡Percival, tienes uno encima! Voy a por él.', 'Cuidado a tu espalda, lo tengo.', 'Te cubro.'],
+        kill: ['¡Uno menos!', 'Derribado.', 'Ese ya no molesta.'],
+        regroup: 'Zona despejada. Vuelvo a tu lado.'
+      }
+    },
+    objectives: [
+      { id: 'flota', text: 'Destruye la flota de dirigibles antes de que salga de la zona', hud: 'DIRIGIBLES', target: 'airship' }
+    ],
+    radio: {
+      mando: { name: 'Mando', color: '#f2b84b', icon: 'M' },
+      lance: { name: 'Lance', color: '#5ab4ff', icon: 'L' }
+    },
+    events: [
+      { id: 'inicio', when: { t: 3 }, do: [{ say: ['mando', 'Percival, aquí Mando. Una flota de diez dirigibles huye hacia el borde de la región. Derríbalos antes de que escapen.'] }] },
+      { when: { after: { event: 'inicio', t: 9 } }, do: [{ say: ['mando', 'Llevan escolta: quince dragones. Los dirigibles son la prioridad.'] }] },
+      { when: { kills: { airship: 1 } }, do: [{ say: ['mando', 'Un dirigible menos. Quedan nueve.'] }] },
+      { when: { kills: { airship: 5 } }, do: [{ say: ['mando', 'La mitad de la flota, abajo. No aflojes.'] }] },
+      { when: { kills: { airship: 9 } }, do: [{ say: ['mando', '¡Solo queda uno!'] }] },
+      { when: { airshipEdge: 3000 }, do: [{ say: ['mando', '¡La flota está a tres kilómetros del borde!'] }] },
+      { when: { airshipEdge: 1000 }, do: [{ say: ['mando', '¡Un kilómetro! ¡Detenlos ya!'] }] },
+      { when: { done: ['flota'] }, do: [{ say: ['mando', 'Flota destruida. Buen trabajo, Percival. Lance, volved a la base.'] }] },
+      { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Percival, estás muy tocado! Aléjate y espera a recuperarte.'] }] }
+    ]
+  },
   /* La partida de la v14 como misión: mismas torres y dragones, pero con área delimitada, caer = fallar y algo de radio. */
   prueba: {
     name: 'Misión de prueba', place: 'Valle de las Torres',

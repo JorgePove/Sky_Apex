@@ -84,7 +84,7 @@ for (const b of document.querySelectorAll('.mpanel [data-close]')) b.addEventLis
 const menuMainEl = document.getElementById('mMain'), menuPlayEl = document.getElementById('mPlay');
 function showPlayMenu(on) {
   closePanels(); menuMainEl.hidden = on; menuPlayEl.hidden = !on;
-  document.getElementById(on ? 'mTest' : 'go').focus({ preventScroll: true });
+  document.getElementById(on ? 'mM1' : 'go').focus({ preventScroll: true });
 }
 const playMenuOpen = () => !menuPlayEl.hidden;
 document.getElementById('mBack').addEventListener('click', () => showPlayMenu(false));

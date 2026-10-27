@@ -160,7 +160,24 @@ function makeEnemy() {
   };
 }
 const _Eac = { x: 0, z: 0 };
+/* v23: escolta (receta: dragons.escort): los dragones nacen y patrullan junto a la flota de dirigibles, y los relevos despegan de uno de
+   ellos (launch: pegados a su casco y ya alerta). Salen a por el jugador si se acerca a ESCORT_ALERT de cualquier dirigible. */
+const ESCORT_ALERT = 2500;
+const escorting = () => RUN.dragons.escort && airships.some(a => !a.dead);
+function randomAirship() { const live = airships.filter(a => !a.dead); return live.length ? live[Math.floor(Math.random() * live.length)] : null; }
+function placeEscort(e, launch) {
+  const a = randomAirship(); if (!a) return false;
+  const t = Math.random() * 6.2832, r = launch ? rnd(110, 200) : rnd(250, 700), x = a.pos.x + Math.cos(t) * r, z = a.pos.z + Math.sin(t) * r;
+  e.pos.set(x, safeY(x, a.pos.y + (launch ? rnd(-20, 40) : rnd(-80, 160)), z), z);
+  e.q.copy(a.q);                                           // con el rumbo de la flota
+  e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
+  e.hasWp = false; setEnemyMode(e, 'patrol'); e.alert = launch ? 0 : 3;
+  resetTrail(e); releaseLock(e);
+  return true;
+}
+function nearestAirshipDist(p) { let d = Infinity; for (const a of airships) if (!a.dead) d = Math.min(d, a.pos.distanceTo(p)); return d; }
 function placeEnemy(e, rmin, rmax) {
+  if (escorting() && placeEscort(e, false)) return;        // v23: escolta de la flota
   const P = dragon.position;
   let x = 0, z = 0;
   for (let i = 0; i < 12; i++) {                            // v15: dentro del área de la misión (si la hay); si no se encuentra sitio, al borde
@@ -180,7 +197,7 @@ function reviveEnemy(e) {
   enemyState.spawned++;
   e.tags = RUN.dragons.tags; e.squad = null;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
-  placeEnemy(e, 3500, 5500);
+  if (!(escorting() && placeEscort(e, true))) placeEnemy(e, 3500, 5500);   // (v23: los relevos de la escolta despegan de un dirigible)
 }
 /* Mete o saca de la escena el modelo de un enemigo (fuera no cuesta ni animación ni matrices de huesos). */
 function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.add(e.wrap); else e.g.remove(e.wrap); } }
@@ -242,6 +259,13 @@ function setEnemyMode(e, m) {
   } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
 }
 function newWaypoint(e) {
+  const ship = escorting() && randomAirship();
+  if (ship) {                                              // v23: escolta: alrededor de uno de los dirigibles (algo por delante: la flota avanza)
+    const t = Math.random() * 6.2832, r = rnd(300, 900);
+    clampToArea(ship.pos.x + Math.cos(t) * r + ship.vel.x * 12, ship.pos.z + Math.sin(t) * r + ship.vel.z * 12, 900, _Eac);
+    e.wp.set(_Eac.x, safeY(_Eac.x, ship.pos.y + rnd(-120, 200), _Eac.z), _Eac.z);
+    return;
+  }
   const P = dragon.position, far = e.pos.distanceTo(P) > 4500;
   const cx = far ? P.x : e.pos.x, cz = far ? P.z : e.pos.z, a = Math.random() * 6.2832, r = far ? rnd(1500, 4200) : rnd(1800, 3800);
   clampToArea(cx + Math.cos(a) * r, cz + Math.sin(a) * r, 900, _Eac);   // v15: patrullan dentro del área de la misión
@@ -312,9 +336,11 @@ function thinkEnemy(e, dt, playing) {
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
   if (e.mode === 'patrol') {
-    if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > 70) { newWaypoint(e); e.hasWp = true; e.t = 0; }
+    const esc = escorting();
+    if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
     want.subVectors(e.wp, e.pos).normalize(); tSpeed = 62;
-    if (playing && e.alert <= 0 && dist < ENEMY_DETECT) { setEnemyMode(e, 'pass'); sfx.roar(clamp(1.1 - dist / 2200, 0.15, 1)); }
+    const alarm = esc && dist < 5000 && nearestAirshipDist(P) < ESCORT_ALERT;   // v23: la escolta defiende la flota
+    if (playing && e.alert <= 0 && (dist < ENEMY_DETECT || alarm)) { setEnemyMode(e, 'pass'); sfx.roar(clamp(1.1 - dist / 2200, 0.15, 1)); }
   } else if (e.mode === 'pass') {
     // persecución con adelanto; a media distancia se aproxima en arco (flanqueando) y luego se lanza de frente
     const tl = clamp(dist / (e.speed + 140), 0, 2.2) * 0.8;
@@ -396,7 +422,7 @@ function steerEnemy(e, tSpeed, dt) {
   const ang = _Esax.length() * dt;
   if (ang > 1e-6) { _Edq.setFromAxisAngle(_Esax.normalize(), ang); q.multiply(_Edq).normalize(); }
   // velocidad (tope = el del jugador sin boost) y avance
-  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, ENEMY_VMAX);
+  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, e.vmax || ENEMY_VMAX);   // (v23: el aliado tiene su tope, e.vmax)
   _Esf.set(0, 0, -1).applyQuaternion(q);
   e.vel.copy(_Esf).multiplyScalar(e.speed);
   pos.addScaledVector(e.vel, dt);
@@ -415,9 +441,9 @@ function steerEnemy(e, tSpeed, dt) {
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
   if (e.dead) return;
-  n *= heroStats().dmg;                                    // (v17: el daño del dragón elegido)
+  if (!byAlly) n *= heroStats().dmg;                       // (v17: el daño del dragón elegido; v23: el aliado, el suyo)
   e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);
-  ultGain(n * ULT_PER_DMG);
+  if (!byAlly) ultGain(n * ULT_PER_DMG);
   if (soft) sparks(at.x, at.y, at.z, 2, e.vel.x * 0.5, e.vel.y * 0.5, e.vel.z * 0.5);
   else {
     const k = clamp(n / 25, 0.3, 2);                       // el estallido crece con el daño: chispazo del proyectil rápido, golpe de la bola guiada
@@ -433,15 +459,17 @@ function damageEnemy(e, n, at, soft) {
   if (e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e) {
-  ultGain(ULT_PER_KILL);
+  const mine = !byAlly;                                    // v23: los derribos del aliado no recargan el rayo ni el escudo
+  if (mine) ultGain(ULT_PER_KILL);
   e.dead = true; showEnemy(e, false); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  const sh = W.shield < SHIELD_MAX; if (sh) W.shield++;                  // derribar dragones recarga el escudo
-  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  const sh = mine && W.shield < SHIELD_MAX; if (sh) W.shield++;          // derribar dragones recarga el escudo
+  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (!mine) allySay('kill');
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -474,6 +502,26 @@ function enemyRayHit(o, d, maxT) {
 }
 
 /* ---------- Actualización por fotograma ---------- */
+/* Visibilidad (en pantalla y a menos de 6,5 km), animación (más barata a distancia) y destellos de un dragón con modelo propio (enemigos y,
+   desde la v23, el aliado). Devuelve si se ve. Usa el frustum de la cámara que calcula updateEnemies. */
+function animateEnemyModel(e, dt, dist) {
+  _Esph.center.copy(e.pos);
+  const vis = dist < 6500 && _Efr.intersectsSphere(_Esph);
+  showEnemy(e, vis);
+  e.animAcc += dt;
+  if (vis && (++e.frame % (dist < ENEMY_ANIM_LOD[0] ? 1 : dist < ENEMY_ANIM_LOD[1] ? 2 : 3)) === 0) {
+    _Eef.set(0, 0, -1).applyQuaternion(e.q);
+    const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
+    _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
+    _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
+    animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0;
+  }
+  // destellos: la piel al recibir un impacto y la boca al disparar
+  e.U.uHit.value = e.hitFlash * 0.85;
+  e.glow.visible = vis && e.fireFlash > 0.02;
+  if (e.glow.visible) { enemyMouth(e, e.glow.position); e.glow.scale.setScalar((4 + 10 * e.fireFlash) * ENEMY_SCALE); e.glow.material.opacity = clamp(e.fireFlash * 1.2, 0, 1); }
+  return vis;
+}
 function updateEnemies(dt) {
   if (!enemies.length) return;
   const playing = state === 'playing', P = dragon.position;
@@ -482,7 +530,7 @@ function updateEnemies(dt) {
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
     if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
-    if (e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);
+    if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
     e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
@@ -496,22 +544,7 @@ function updateEnemies(dt) {
     _Eiq.copy(e.q).invert();
     if (e.mode === 'patrol') e.aimLocal.set(0, 0, -1);
     else e.aimLocal.copy(P).sub(e.pos).applyQuaternion(_Eiq).normalize();
-    // visibilidad (en pantalla y a menos de 6,5 km) y animación (más barata a distancia)
-    _Esph.center.copy(e.pos);
-    const vis = dist < 6500 && _Efr.intersectsSphere(_Esph);
-    showEnemy(e, vis);
-    e.animAcc += dt;
-    if (vis && (++e.frame % (dist < ENEMY_ANIM_LOD[0] ? 1 : dist < ENEMY_ANIM_LOD[1] ? 2 : 3)) === 0) {
-      _Eef.set(0, 0, -1).applyQuaternion(e.q);
-      const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
-      _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
-      _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
-      animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0;
-    }
-    // destellos: la piel al recibir un impacto y la boca al disparar
-    e.U.uHit.value = e.hitFlash * 0.85;
-    e.glow.visible = vis && e.fireFlash > 0.02;
-    if (e.glow.visible) { enemyMouth(e, e.glow.position); e.glow.scale.setScalar((4 + 10 * e.fireFlash) * ENEMY_SCALE); e.glow.material.opacity = clamp(e.fireFlash * 1.2, 0, 1); }
+    const vis = animateEnemyModel(e, dt, dist);
     // dañado: humo (y chispas con 1 de vida)
     if (e.hp < ENEMY_HP && e.hp > 0 && dist < 2600 && Math.random() < (1 - e.hp / ENEMY_HP) * 0.88) {
       _Eef.set(0, 0, 1).applyQuaternion(e.q);

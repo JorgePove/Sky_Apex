@@ -2,6 +2,7 @@
    6. PARTÍCULAS, PROYECTILES Y SONIDO PROCEDURAL
    ============================================================ */
 let camShake = 0;
+let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas)
 
 /* ---------- Partículas (puntos con shader) ---------- */
 function makeParticles(cap, additive) {
@@ -184,20 +185,23 @@ const _white = new THREE.Color(1, 1, 1);
    arcano de los dirigibles, morado, ver 6c). */
 const ARC_COLOR = [0.78, 0.42, 1];       // color de lo arcano: proyectiles de los dirigibles, sus chispas y su explosión
 const _arcC = new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]), _arcW = _arcC.clone().lerp(_white, 0.55);
-function spawnFireball(from, dir, enemy, vol, kind) {
+const ALLY_FIRE = new THREE.Color(0.45, 0.75, 1), _allyW = ALLY_FIRE.clone().lerp(_white, 0.6);   // v23: el fuego del aliado, azul
+/* ally (v23): proyectil del aliado (6e): como los del jugador, pero azul, con su volumen y sin contar en las estadísticas. */
+function spawnFireball(from, dir, enemy, vol, kind, ally) {
   kind = enemy ? (kind === 'emsl' || kind === 'aa' || kind === 'arc' ? kind : 'enemy') : kind || 'gun';
   const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', arc = kind === 'arc', fast = gun || aa || arc;
   // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego (las arcanas, moradas)
-  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : enemy ? _white : ATTACK;
+  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : ally ? _allyW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : ally ? ALLY_FIRE : enemy ? _white : ATTACK;
   const r0 = arc ? 3.4 : fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = arc ? 11 : fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   core.scale.setScalar(r0); core.renderOrder = 7; core.position.copy(from); scene.add(core);   // (ya en la boca en el fotograma en que nace)
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: colH, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
   const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
-  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
+  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false,
+    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: !!ally };
   fireballs.push(f);
-  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
+  if (gun) sfx.shot(ally ? vol : undefined); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
 }
 /* Bola guiada enemiga: guiado imperfecto a propósito (persecución con poco adelanto y giro limitado). Si el jugador se le sale del cono de su
@@ -270,7 +274,8 @@ function updateFireballs(dt) {
           if (!t.dead && dx * dx + dz * dz < (TOWER_R + 3) ** 2 && f.pos.y > t.y - 1 && f.pos.y < t.y + TOWER_TOP + 4) { hit = true; explode(f.pos.x, f.pos.y, f.pos.z, 1.1); break; }
         }
       } else {
-        // proyectiles del jugador: torres y dragones enemigos
+        // proyectiles del jugador (y del aliado, v23): torres, dragones enemigos y dirigibles
+        byAlly = f.ally;
         for (const t of towers.values()) {
           if (t.dead) continue;
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
@@ -286,10 +291,11 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
+        byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
     }
-    if (onTarget) { if (gun) stats.shotHits++; else if (msl) stats.mslHits++; }
+    if (onTarget && !f.ally) { if (gun) stats.shotHits++; else if (msl) stats.mslHits++; }
     f.life -= dt;
     if (hit || f.life <= 0) { killFireball(i); continue; }
     f.core.position.copy(f.pos); f.halo.position.copy(f.pos);
