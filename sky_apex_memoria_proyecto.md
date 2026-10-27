@@ -626,6 +626,12 @@ Petición de Jorge: lo planeado para la v21 (sección 7d) y, además, el primer 
 - Probado (navegador integrado, `sky-apex-2`): colocación (alturas 570-920 m sobre el suelo, sin islas), aspecto de cerca, ángulos de tiro (costado sí; proa, popa, vertical y más de 1 km no), fijado con TGT, derribo con bola guiada (2,1 s), agonía y explosión en capturas, la misión entera por eventos (escuadrón, baterías, Alfa, victoria con resultados), la misión de prueba y el combate libre igual que antes (30 torres TGT, sin dirigibles), vuelo real simulado sin errores y el HTML generado (35,9 MB) jugando 15 s. Sin comprobar: la sensación jugando, el sonido nuevo y el rendimiento en la Vega 10 con varios dirigibles a la vista (56k triángulos cada uno, una llamada de dibujo).
 - Etiqueta `v21` en git (ya no se copia a `versiones/`).
 
+### v22 (27-oct): menú «Jugar» y alcance de los dirigibles
+Jorge jugó la v21: «Todo parece funcionar correctamente». Pidió dos mejoras:
+- **Menú principal**: un solo botón **Jugar** (el grande, con la barra de carga) en lugar de los tres modos; al pulsarlo, en la misma pantalla (título, llamas y música) salen «Modo de juego»: Misión de prueba, Combate libre, Prueba de objetivos y «← Volver». Esc o «← Volver» regresan; volver desde «Elige tu dragón» deja abiertos los modos; terminar una partida vuelve al menú principal. Código: `#mMain` y `#mPlay` (`02_dom.html`), `showPlayMenu` y `playMenuOpen` (`17_intro_menu_tutorial.js`), Esc en `15_vuelo_estado.js`.
+- **Dirigibles**: `AIRSHIP_RANGE` 2000 m (antes 1000) y `AIRSHIP_SHOT_LIFE` 2,8 s para que los proyectiles lleguen. Medido: disparan hasta 2000 m y no más allá; a 1,5-2 km casi no aciertan por la dispersión (`AIRSHIP_SPREAD` 0,03 rad), aunque pasan a unos 20 m.
+- Probado en el navegador integrado: los botones y Esc, las tres misiones desde el submenú, capturas de los dos menús a 1280×720, el alcance a 800, 1500, 1950 y 2100 m y el HTML generado jugando 10 s sin errores. Etiqueta `v22`.
+
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.
 - El Tyrant del jugador cuesta unos 2 ms de render y 0,3–0,6 ms de CPU de animación.
@@ -634,7 +640,8 @@ Petición de Jorge: lo planeado para la v21 (sección 7d) y, además, el primer 
 - Partidas simuladas de 30 s: sin errores.
 
 ### Pendiente
-- **v21 entregada** (27-oct, sin jugar aún): objetivos genéricos (TGT, etiquetas, sitios fijos, escuadrones por eventos, fijar cualquier blanco) y dirigibles, con la «Prueba de objetivos». Etiqueta `v21` en git. Para ajustar al jugarla: tamaño (`AIRSHIP_LEN`), cadencia, daño y ángulos muertos de los dirigibles. Con ella acaba la Fase 0 de la campaña (sección 7d); lo siguiente lo decide Jorge.
+- **v22 entregada** (27-oct, sin jugar aún): menú con «Jugar» y los modos de juego detrás; dirigibles con 2 km de alcance. Etiqueta `v22`.
+- **v21 jugada** («Todo parece funcionar correctamente», 27-oct): objetivos genéricos (TGT, etiquetas, sitios fijos, escuadrones por eventos, fijar cualquier blanco) y dirigibles, con la «Prueba de objetivos». Etiqueta `v21` en git. Para ajustar al jugarla: tamaño (`AIRSHIP_LEN`), cadencia, daño y ángulos muertos de los dirigibles. Con ella acaba la Fase 0 de la campaña (sección 7d); lo siguiente lo decide Jorge.
 - **v20**: Fulgor, cuarto dragón. Jorge dio por cerrados los dragones de momento (27-oct). Pendiente para más adelante: la descripción definitiva y las stats propias de Fulgor (ahora las de Ventoscuro).
 - **v19 entregada** (26-oct, sin jugar aún), copiada en `versiones/sky_apex_v19.*`.
 - **v18 aceptada** («funciona lo suficientemente bien», 26-oct), copiada en `versiones/sky_apex_v18.*`.

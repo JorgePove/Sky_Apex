@@ -19,11 +19,11 @@ const AIRSHIP_SCORE = 200;               // puntos (una torre da 100 y un dragó
 const AIRSHIP_ALT = [500, 1000];         // altura sobre el suelo (m) por defecto
 const AIRSHIP_ZONE = [1500, 7000];       // anillo alrededor del punto de partida donde se reparten (m) por defecto
 const AIRSHIP_GAP = 900;                 // separación mínima entre dos (m)
-const AIRSHIP_RANGE = 1000;              // alcance de los cañones (m)
+const AIRSHIP_RANGE = 2000;              // alcance de los cañones (m) (v22: antes 1000)
 const AIRSHIP_ARC = 35 * Math.PI / 180;  // ángulo muerto a proa y a popa, desde el eje: ahí no pueden disparar
 const AIRSHIP_ELEV = 70 * Math.PI / 180; // por encima (o por debajo) de esta elevación tampoco: los cañones van en los costados
 const AIRSHIP_RATE = 0.3;                // s entre disparos, sin pausas (las torres: ráfagas de 5 cada 0,12 s y 2-3,6 s de pausa)
-const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 1.6, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s) y dispersión (rad) de cada proyectil
+const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 2.8, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s: llega algo más allá del alcance) y dispersión (rad) de cada proyectil
 const AIRSHIP_DRAW = 8500;               // más lejos no se dibujan (la niebla ya los oculta)
 const AIRSHIP_DIE = 0.45;                // s de agonía antes de la explosión
 const AIRSHIP_HULL = { y: 0.6, z0: 7.5, z1: -5.5, r: 5.2 };                 // cápsula del casco en unidades del modelo (popa +z, proa -z)

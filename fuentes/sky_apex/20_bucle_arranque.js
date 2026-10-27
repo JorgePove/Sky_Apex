@@ -11,8 +11,7 @@ function frame(now) {
     loadBar.style.width = (100 * (1 - left / loadTotal)).toFixed(0) + '%';
     if (left === 0 && !hero.ready) goBtn.textContent = hero.error ? 'No se pudo cargar el dragón' : 'Despertando al dragón…';
     if (left === 0 && hero.ready) {
-      state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Misión de prueba'; document.getElementById('mFree').disabled = false;   // v15
-      document.getElementById('mObj').disabled = false;                                                                                   // v21
+      state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Jugar';   // v22: los modos de juego, tras «Jugar»
       updateTowerStreaming(dragon.position.x, dragon.position.z);
       updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
       for (let i = 0, s; i < 6 && (s = islandAt(dragon.position.x, dragon.position.y, dragon.position.z, 90)); i++) dragon.position.y = s.yMax + 130;
@@ -37,7 +36,8 @@ function frame(now) {
   refreshTerrainSelection(dragon.position.x, dragon.position.y, dragon.position.z, true);
   loadTotal = Math.max(1, terrainState.pending.length);
   planTowers();
-  goBtn.addEventListener('click', () => chooseMission('prueba'));                                   // v15: menú → misión → «Elige tu dragón»
+  goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
+  document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible

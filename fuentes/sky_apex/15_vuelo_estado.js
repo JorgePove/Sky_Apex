@@ -50,7 +50,9 @@ window.addEventListener('keydown', e => {
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyF') activateShield();
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
-  else if (e.code === 'Escape' && state === 'menu') { if (!tutEscape()) closePanels(); }   // (con el vídeo del tutorial ampliado, primero lo reduce)
+  else if (e.code === 'Escape' && state === 'menu') {      // (con el vídeo del tutorial ampliado, primero lo reduce; v22: sin paneles, de los modos de juego al menú)
+    if (!tutEscape()) { if (document.querySelector('.mpanel:not([hidden])')) closePanels(); else if (playMenuOpen()) showPlayMenu(false); }
+  }
   else if (e.code === 'Escape' || e.code === 'KeyP') {
     if (state === 'select' && e.code === 'Escape') leaveSelect(false);
     else if (state === 'playing' && !F.locked) setPaused(true); else if (state === 'paused' && e.code === 'KeyP') resumeGame();
@@ -175,7 +177,7 @@ function resetRun(pump) {
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels();
   MS.ended = true; missionHideHUD(); sfx.breath(0, 0); sfx.quiet();
-  state = 'menu'; menuEl.hidden = false; resetRun();
+  state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
 }
 function restartGame() { vicEl.hidden = pauseEl.hidden = deadEl.hidden = true; state = 'menu'; startGame(); }   // (v15: también desde la pausa)

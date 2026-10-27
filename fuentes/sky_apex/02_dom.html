@@ -16,14 +16,21 @@
     <h1 class="logo-stage" aria-label="Sky Apex"><img id="logoSky" alt=""><img id="logoApex" alt=""></h1>
     <p class="tag reveal">Domina el cielo a lomos de un dragón</p>
     <nav class="menu-btns reveal" aria-label="Menú principal">
-      <button class="cta" id="go" disabled>Generando mundo…</button>
-      <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
-      <button class="mbtn" id="mFree" disabled>Combate libre</button>
-      <button class="mbtn" id="mObj" disabled>Prueba de objetivos</button>
-      <button class="mbtn" id="mTutorial">Tutorial</button>
-      <button class="mbtn" id="mControls">Controles</button>
-      <button class="mbtn" id="mOptions">Opciones</button>
-      <button class="mbtn" id="mQuit">Salir</button>
+      <div class="mgroup" id="mMain">
+        <button class="cta" id="go" disabled>Generando mundo…</button>
+        <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
+        <button class="mbtn" id="mTutorial">Tutorial</button>
+        <button class="mbtn" id="mControls">Controles</button>
+        <button class="mbtn" id="mOptions">Opciones</button>
+        <button class="mbtn" id="mQuit">Salir</button>
+      </div>
+      <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
+        <div class="kicker">Modo de juego</div>
+        <button class="mbtn" id="mTest">Misión de prueba</button>
+        <button class="mbtn" id="mFree">Combate libre</button>
+        <button class="mbtn" id="mObj">Prueba de objetivos</button>
+        <button class="ghost" id="mBack">← Volver</button>
+      </div>
     </nav>
   </div>
   <canvas class="fx" id="fxFront" aria-hidden="true"></canvas>

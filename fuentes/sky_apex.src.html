@@ -93,7 +93,9 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #victory .vic h2{font-size:clamp(30px,4.2vw,50px);letter-spacing:.06em;white-space:nowrap}   /* «Misión cumplida» en una línea */
 .vic .lead{text-align:center;max-width:none}
 .mbtn:disabled{opacity:.45;cursor:progress}
-@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns{gap:5px}#menu .menu-btns .mbtn{padding:5px 0}#menu .menu-btns .cta{padding:11px 0}}   /* siete botones (v21): que no pisen la nota del pie a 720 px */
+@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns,#menu .mgroup{gap:7px}#menu .menu-btns .mbtn{padding:8px 0}#menu .menu-btns .cta{padding:13px 0}}   /* que no pisen la nota del pie a 720 px */
+.mgroup{display:flex;flex-direction:column;align-items:center;gap:9px}.mgroup[hidden]{display:none}   /* v22: menú principal y modos de juego */
+#mPlay .kicker{margin:2px 0 4px}#mPlay .ghost{align-self:center;margin-top:6px}
 @media (max-width:640px){.keys{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}.load i{transition:none}#radio{transition:none}}
 /* ---------- Pantalla de título ---------- */
@@ -289,14 +291,21 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <h1 class="logo-stage" aria-label="Sky Apex"><img id="logoSky" alt=""><img id="logoApex" alt=""></h1>
     <p class="tag reveal">Domina el cielo a lomos de un dragón</p>
     <nav class="menu-btns reveal" aria-label="Menú principal">
-      <button class="cta" id="go" disabled>Generando mundo…</button>
-      <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
-      <button class="mbtn" id="mFree" disabled>Combate libre</button>
-      <button class="mbtn" id="mObj" disabled>Prueba de objetivos</button>
-      <button class="mbtn" id="mTutorial">Tutorial</button>
-      <button class="mbtn" id="mControls">Controles</button>
-      <button class="mbtn" id="mOptions">Opciones</button>
-      <button class="mbtn" id="mQuit">Salir</button>
+      <div class="mgroup" id="mMain">
+        <button class="cta" id="go" disabled>Generando mundo…</button>
+        <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
+        <button class="mbtn" id="mTutorial">Tutorial</button>
+        <button class="mbtn" id="mControls">Controles</button>
+        <button class="mbtn" id="mOptions">Opciones</button>
+        <button class="mbtn" id="mQuit">Salir</button>
+      </div>
+      <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
+        <div class="kicker">Modo de juego</div>
+        <button class="mbtn" id="mTest">Misión de prueba</button>
+        <button class="mbtn" id="mFree">Combate libre</button>
+        <button class="mbtn" id="mObj">Prueba de objetivos</button>
+        <button class="ghost" id="mBack">← Volver</button>
+      </div>
     </nav>
   </div>
   <canvas class="fx" id="fxFront" aria-hidden="true"></canvas>
@@ -3995,11 +4004,11 @@ const AIRSHIP_SCORE = 200;               // puntos (una torre da 100 y un dragó
 const AIRSHIP_ALT = [500, 1000];         // altura sobre el suelo (m) por defecto
 const AIRSHIP_ZONE = [1500, 7000];       // anillo alrededor del punto de partida donde se reparten (m) por defecto
 const AIRSHIP_GAP = 900;                 // separación mínima entre dos (m)
-const AIRSHIP_RANGE = 1000;              // alcance de los cañones (m)
+const AIRSHIP_RANGE = 2000;              // alcance de los cañones (m) (v22: antes 1000)
 const AIRSHIP_ARC = 35 * Math.PI / 180;  // ángulo muerto a proa y a popa, desde el eje: ahí no pueden disparar
 const AIRSHIP_ELEV = 70 * Math.PI / 180; // por encima (o por debajo) de esta elevación tampoco: los cañones van en los costados
 const AIRSHIP_RATE = 0.3;                // s entre disparos, sin pausas (las torres: ráfagas de 5 cada 0,12 s y 2-3,6 s de pausa)
-const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 1.6, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s) y dispersión (rad) de cada proyectil
+const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 2.8, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s: llega algo más allá del alcance) y dispersión (rad) de cada proyectil
 const AIRSHIP_DRAW = 8500;               // más lejos no se dibujan (la niebla ya los oculta)
 const AIRSHIP_DIE = 0.45;                // s de agonía antes de la explosión
 const AIRSHIP_HULL = { y: 0.6, z0: 7.5, z1: -5.5, r: 5.2 };                 // cápsula del casco en unidades del modelo (popa +z, proa -z)
@@ -4357,7 +4366,9 @@ window.addEventListener('keydown', e => {
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyF') activateShield();
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
-  else if (e.code === 'Escape' && state === 'menu') { if (!tutEscape()) closePanels(); }   // (con el vídeo del tutorial ampliado, primero lo reduce)
+  else if (e.code === 'Escape' && state === 'menu') {      // (con el vídeo del tutorial ampliado, primero lo reduce; v22: sin paneles, de los modos de juego al menú)
+    if (!tutEscape()) { if (document.querySelector('.mpanel:not([hidden])')) closePanels(); else if (playMenuOpen()) showPlayMenu(false); }
+  }
   else if (e.code === 'Escape' || e.code === 'KeyP') {
     if (state === 'select' && e.code === 'Escape') leaveSelect(false);
     else if (state === 'playing' && !F.locked) setPaused(true); else if (state === 'paused' && e.code === 'KeyP') resumeGame();
@@ -4482,7 +4493,7 @@ function resetRun(pump) {
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels();
   MS.ended = true; missionHideHUD(); sfx.breath(0, 0); sfx.quiet();
-  state = 'menu'; menuEl.hidden = false; resetRun();
+  state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
 }
 function restartGame() { vicEl.hidden = pauseEl.hidden = deadEl.hidden = true; state = 'menu'; startGame(); }   // (v15: también desde la pausa)
@@ -5753,6 +5764,14 @@ function closePanels() {
   document.getElementById('tutVideo').pause(); document.getElementById('pTutorial').classList.remove('zoom');   // (el vídeo del tutorial, parado)
 }
 for (const b of document.querySelectorAll('.mpanel [data-close]')) b.addEventListener('click', closePanels);
+/* v22: «Jugar» abre, en la misma pantalla (título y música), los modos de juego; «← Volver» o Esc vuelven a los botones principales. */
+const menuMainEl = document.getElementById('mMain'), menuPlayEl = document.getElementById('mPlay');
+function showPlayMenu(on) {
+  closePanels(); menuMainEl.hidden = on; menuPlayEl.hidden = !on;
+  document.getElementById(on ? 'mTest' : 'go').focus({ preventScroll: true });
+}
+const playMenuOpen = () => !menuPlayEl.hidden;
+document.getElementById('mBack').addEventListener('click', () => showPlayMenu(false));
 document.getElementById('mTutorial').addEventListener('click', () => { sfx.init(); openTutorial(); });
 document.getElementById('mControls').addEventListener('click', () => openPanel('pControls'));
 document.getElementById('mOptions').addEventListener('click', () => openPanel('pOptions'));
@@ -5842,7 +5861,7 @@ const TUTORIAL = [
       'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] },
     { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
       'Grandes barcos voladores quietos en el aire, entre 500 y 1000 m sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
-      'A menos de 1 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
+      'A menos de 2 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
       'Aguantan 50 de daño (una bola guiada los derriba de un golpe) y dan 200 puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
   ] },
   { cat: 'Partida', items: [
@@ -6591,8 +6610,7 @@ function frame(now) {
     loadBar.style.width = (100 * (1 - left / loadTotal)).toFixed(0) + '%';
     if (left === 0 && !hero.ready) goBtn.textContent = hero.error ? 'No se pudo cargar el dragón' : 'Despertando al dragón…';
     if (left === 0 && hero.ready) {
-      state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Misión de prueba'; document.getElementById('mFree').disabled = false;   // v15
-      document.getElementById('mObj').disabled = false;                                                                                   // v21
+      state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Jugar';   // v22: los modos de juego, tras «Jugar»
       updateTowerStreaming(dragon.position.x, dragon.position.z);
       updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
       for (let i = 0, s; i < 6 && (s = islandAt(dragon.position.x, dragon.position.y, dragon.position.z, 90)); i++) dragon.position.y = s.yMax + 130;
@@ -6617,7 +6635,8 @@ function frame(now) {
   refreshTerrainSelection(dragon.position.x, dragon.position.y, dragon.position.z, true);
   loadTotal = Math.max(1, terrainState.pending.length);
   planTowers();
-  goBtn.addEventListener('click', () => chooseMission('prueba'));                                   // v15: menú → misión → «Elige tu dragón»
+  goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
+  document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible

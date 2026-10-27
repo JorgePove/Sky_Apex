@@ -80,6 +80,14 @@ function closePanels() {
   document.getElementById('tutVideo').pause(); document.getElementById('pTutorial').classList.remove('zoom');   // (el vídeo del tutorial, parado)
 }
 for (const b of document.querySelectorAll('.mpanel [data-close]')) b.addEventListener('click', closePanels);
+/* v22: «Jugar» abre, en la misma pantalla (título y música), los modos de juego; «← Volver» o Esc vuelven a los botones principales. */
+const menuMainEl = document.getElementById('mMain'), menuPlayEl = document.getElementById('mPlay');
+function showPlayMenu(on) {
+  closePanels(); menuMainEl.hidden = on; menuPlayEl.hidden = !on;
+  document.getElementById(on ? 'mTest' : 'go').focus({ preventScroll: true });
+}
+const playMenuOpen = () => !menuPlayEl.hidden;
+document.getElementById('mBack').addEventListener('click', () => showPlayMenu(false));
 document.getElementById('mTutorial').addEventListener('click', () => { sfx.init(); openTutorial(); });
 document.getElementById('mControls').addEventListener('click', () => openPanel('pControls'));
 document.getElementById('mOptions').addEventListener('click', () => openPanel('pOptions'));
@@ -169,7 +177,7 @@ const TUTORIAL = [
       'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] },
     { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
       'Grandes barcos voladores quietos en el aire, entre 500 y 1000 m sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
-      'A menos de 1 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
+      'A menos de 2 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
       'Aguantan 50 de daño (una bola guiada los derriba de un golpe) y dan 200 puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
   ] },
   { cat: 'Partida', items: [
