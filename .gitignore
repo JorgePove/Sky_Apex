@@ -1,0 +1,38 @@
+# Sky Apex: lo que NO va al repositorio (ver CLAUDE.md, «Qué no está en el repo»).
+# Límite de GitHub: ningún archivo de más de 100 MB.
+
+# Originales pesados y material de referencia (si hacen falta en otro equipo: OneDrive o disco externo)
+/Drogon/
+/barcos/
+/dragones raw/
+/modelos/dragon_01.glb
+/red_dragon.glb
+*.stl
+*.STL
+*.obj
+*.OBJ
+*.fbx
+*.FBX
+*.zip
+*.rar
+*.7z
+*.blend
+*.blend1
+/*.pdf
+
+# Vídeos y música originales de la raíz (los que usa el juego están en tutorial/ y musica/)
+/*.mp4
+/*.webm
+/*.mp3
+
+# Copias a mano de versiones: las sustituyen las etiquetas de git (v20, v21…)
+/versiones/
+
+# Generado o propio de cada equipo
+node_modules/
+__pycache__/
+/herramientas/salida/
+/herramientas/blender/salida/
+/herramientas/blender/ruta_local.txt
+/.claude/settings.local.json
+/.claude/worktrees/

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de brazos del jinete</title>
+<!-- Prueba de los brazos del jinete (modelos/brazos_jinete.glb) con la IK del juego (versión de pruebas: la buena está en la
+     sección 5e de fuentes/sky_apex.src.html, con los valores finales de la pose).
+     En la consola: R.p (parámetros de la pose: shoulder, grip, pole, fist, thumb, curl…), R.vista('fp' | 'lado' | 'arriba' | 'tq'). -->
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#6f7f95}#info{position:fixed;left:8px;top:6px;font:12px monospace;color:#111;background:rgba(255,255,255,.75);padding:4px 6px;white-space:pre}</style>
+<div id="info">cargando…</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x8fa6c6);
+const camera = new THREE.PerspectiveCamera(86, innerWidth / innerHeight, 0.02, 100);
+const sun = new THREE.DirectionalLight(0xffc48a, 1.9); sun.position.set(0.55, 0.22, -0.8).multiplyScalar(100); scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95));
+const rig = new THREE.Group(); scene.add(rig);          // = la cámara del juego (mira hacia -Z)
+const R = { p: {} }; window.R = R;
+new THREE.GLTFLoader().load('../modelos/brazos_jinete.glb', g => {
+  R.gltf = g; R.rider = setupRider(g, rig, renderer);
+  R.ready = true; document.getElementById('info').textContent = 'listo';
+  R.vista('fp');
+}, undefined, e => { document.getElementById('info').textContent = 'Error ' + e; });
+
+R.vista = v => {
+  rig.position.set(0, 0, 0); rig.quaternion.identity();
+  if (v === 'fp') { camera.position.set(0, 0, 0); camera.lookAt(0, 0, -1); }
+  else if (v === 'lado') { camera.position.set(1.4, -0.2, -0.2); camera.lookAt(0, -0.3, -0.2); }
+  else if (v === 'arriba') { camera.position.set(0, 1.2, -0.25); camera.lookAt(0, -0.3, -0.25); }
+  else { camera.position.set(0.9, 0.5, -1.3); camera.lookAt(0, -0.3, -0.2); }
+  R.render();
+};
+R.render = () => { if (R.rider) poseRider(R.rider, R.p); renderer.render(scene, camera); };
+(function loop() { requestAnimationFrame(loop); if (R.ready) R.render(); })();
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+
+/* ====== código del jinete (el mismo que va en el juego) ====== */
+const RIDER_SHOULDER = [0.2, -0.27, -0.06];     // hombro izquierdo en ejes del jinete (x: izquierda +, y arriba, z adelante), m
+const RIDER_GRIP = [0.14, -0.33, 0.42];         // muñeca izquierda en reposo
+const RIDER_POLE = [0.55, -1, -0.35];           // hacia dónde apunta el codo izquierdo
+const RIDER_FIST = [-0.22, -0.12, 1];           // dirección de la mano (muñeca → nudillos) izquierda
+const RIDER_THUMB = [-0.25, 1, 0.15];           // lado del pulgar
+const RIDER_CURL = [1.15, 1.25, 0.75], RIDER_THUMB_CURL = [0.5, 0.35, 0.5];
+let RIDER_TWIST = 0.6;                           // parte del giro de la muñeca que se lleva el antebrazo
+const _rv = Array.from({ length: 8 }, () => new THREE.Vector3()), _rq = Array.from({ length: 5 }, () => new THREE.Quaternion()), _rm = new THREE.Matrix4();
+function setupRider(gltf, parent, rend) {
+  const body = gltf.scene; body.rotation.y = Math.PI;     // el modelo mira hacia +Z; el jinete, como la cámara, hacia -Z
+  parent.add(body);
+  // reflejos del acero: un cielo de degradado prefiltrado (sin él, el metal sale negro)
+  const envScene = new THREE.Scene();
+  envScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false,
+    vertexShader: 'varying vec3 vP; void main(){ vP = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: 'varying vec3 vP; void main(){ float h = normalize(vP).y; vec3 sky = mix(vec3(0.95,0.72,0.55), vec3(0.42,0.55,0.78), smoothstep(0.0,0.5,h)); vec3 gnd = mix(vec3(0.6,0.45,0.35), vec3(0.18,0.15,0.13), smoothstep(0.0,-0.4,h)); gl_FragColor = linearToOutputTexel(vec4(h > 0.0 ? sky : gnd, 1.0)); }' })));
+  const pm = new THREE.PMREMGenerator(rend), env = pm.fromScene(envScene, 0.02).texture; pm.dispose();
+  const arms = [];
+  body.traverse(o => {
+    if (o.isMesh) { o.frustumCulled = false; const m = o.material; if (m.metalness > 0.5) { m.envMap = env; m.envMapIntensity = 0.9; m.needsUpdate = true; } }
+  });
+  for (const side of ['izq', 'der']) {
+    const B = n => body.getObjectByName(n + '_' + side), node = body.getObjectByName('brazo_' + side), ex = node.userData;
+    const A = { side, sx: side === 'izq' ? 1 : -1, up: B('Brazo'), fore: B('Antebrazo'), hand: B('Mano'),
+      fingers: ['indice', 'corazon', 'anular', 'menique'].map(f => [1, 2, 3].map(k => B(f + k))), thumb: [1, 2, 3].map(k => B('pulgar' + k)),
+      hd: new THREE.Vector3().fromArray(ex.manoDir), ht: new THREE.Vector3().fromArray(ex.manoPulgar),
+      eDed: new THREE.Vector3().fromArray(ex.ejeDedos), ePul: new THREE.Vector3().fromArray(ex.ejePulgar) };
+    A.l1 = A.fore.position.length(); A.l2 = A.hand.position.length();
+    A.dU0 = A.fore.position.clone().normalize(); A.dF0 = A.hand.position.clone().normalize();
+    A.pole0 = new THREE.Vector3(0, 0, -1).addScaledVector(A.dU0, A.dU0.z).normalize();   // en reposo el codo apunta hacia atrás
+    arms.push(A);
+  }
+  return { body, arms, env };
+}
+function basisQ(x, y, out) {                    // giro que lleva X→x, Y→y (ortogonalizado)
+  const bx = _rv[5].copy(x).normalize(), bz = _rv[6].crossVectors(bx, y).normalize(), by = _rv[7].crossVectors(bz, bx);
+  return out.setFromRotationMatrix(_rm.makeBasis(bx, by, bz));
+}
+function frameRot(x1, y1, x0, y0, out) { basisQ(x0, y0, _rq[4]); return basisQ(x1, y1, out).multiply(_rq[4].invert()); }
+/* Coloca un brazo: hombro S y muñeca W (ejes del jinete), codo hacia pole, mano con dirección hd y pulgar ht. */
+function poseArm(A, S, W, pole, hd, ht, curl, tcurl) {
+  const D = _rv[0].subVectors(W, S), dist = Math.min(Math.max(D.length(), Math.abs(A.l1 - A.l2) + 1e-3), A.l1 + A.l2 - 1e-3);
+  const u = D.normalize(), v = _rv[1].copy(pole).addScaledVector(u, -pole.dot(u)).normalize();
+  const cosA = (A.l1 * A.l1 + dist * dist - A.l2 * A.l2) / (2 * A.l1 * dist), sinA = Math.sqrt(Math.max(0, 1 - cosA * cosA));
+  const dU = _rv[2].copy(u).multiplyScalar(cosA).addScaledVector(v, sinA);          // hombro → codo
+  const E = _rv[3].copy(S).addScaledVector(dU, A.l1);
+  const dF = _rv[4].copy(S).addScaledVector(u, dist).sub(E).normalize();            // codo → muñeca
+  const p1 = v.addScaledVector(dU, -v.dot(dU)).normalize();
+  const Ru = frameRot(dU, p1, A.dU0, A.pole0, _rq[0]);
+  const f1 = _rv[0].copy(A.dF0).applyQuaternion(Ru);
+  const Rf = _rq[1].setFromUnitVectors(f1, dF).multiply(Ru);
+  const Rh = frameRot(hd, ht, A.hd, A.ht, _rq[2]);
+  // el antebrazo se lleva parte del giro de la muñeca (pronación), para que el guantelete no se retuerza
+  const rel = _rq[3].copy(Rf).invert().multiply(Rh), ax = A.dF0, d = rel.x * ax.x + rel.y * ax.y + rel.z * ax.z;
+  const tw = _rq[4].set(ax.x * d, ax.y * d, ax.z * d, rel.w).normalize();
+  const ang = 2 * Math.atan2(Math.hypot(tw.x, tw.y, tw.z) * Math.sign(d || 1), tw.w);
+  Rf.multiply(_rq[3].setFromAxisAngle(ax, ang * RIDER_TWIST));
+  A.up.position.copy(S); A.up.quaternion.copy(Ru);
+  A.fore.quaternion.copy(Ru).invert().multiply(Rf);
+  A.hand.quaternion.copy(Rf).invert().multiply(Rh);
+  for (const f of A.fingers) for (let k = 0; k < 3; k++) f[k].quaternion.setFromAxisAngle(A.eDed, curl[k]);
+  for (let k = 0; k < 3; k++) A.thumb[k].quaternion.setFromAxisAngle(A.ePul, tcurl[k]);
+}
+const _mir = (a, sx, out) => out.set(a[0] * sx, a[1], a[2]);
+function poseRider(R, p) {
+  for (const A of R.arms) {
+    const sx = A.sx;
+    poseArm(A, _mir(p.shoulder || RIDER_SHOULDER, sx, new THREE.Vector3()), _mir(p.grip || RIDER_GRIP, sx, new THREE.Vector3()), _mir(p.pole || RIDER_POLE, sx, new THREE.Vector3()),
+      _mir(p.fist || RIDER_FIST, sx, new THREE.Vector3()), _mir(p.thumb || RIDER_THUMB, sx, new THREE.Vector3()), p.curl || RIDER_CURL, p.tcurl || RIDER_THUMB_CURL);
+  }
+}
+</script>

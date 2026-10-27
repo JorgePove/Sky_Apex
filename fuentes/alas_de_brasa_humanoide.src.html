@@ -1,0 +1,2849 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alas de Brasa · Humanoide</title>
+<!-- RAMA EXPERIMENTAL: dragón humanoide (modelo GLB riggeado) en tercera persona.
+     Fuente editable: fuentes/alas_de_brasa_humanoide.src.html (carga ../modelos/dragon_01_web.glb).
+     El archivo para jugar, alas_de_brasa_humanoide.html, se genera con herramientas/incrustar_modelo.mjs, que mete el modelo dentro. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Share+Tech+Mono&display=swap">
+<style>
+/* Concepto: cabina de vuelo en primera persona. El mundo ocupa toda la pantalla;
+   la interfaz es instrumental (tinta oscura, hueso, brasa) y se dibuja casi toda en canvas. */
+:root{
+  --ink:#0d0a0f;
+  --ink-2:#18121b;
+  --bone:#f1e6d3;
+  --bone-dim:#b7aa96;
+  --ember:#ff7a2e;
+  --gold:#f2b84b;
+  --danger:#ff4a3a;
+  --glass:rgba(13,10,15,.66);
+  --f-display:'Cinzel',Georgia,'Times New Roman',serif;
+  --f-data:'Share Tech Mono',ui-monospace,Menlo,Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--ink);color:var(--bone);font-family:var(--f-data);}
+#gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
+#gl{cursor:none;background:var(--ink)}
+#hud{pointer-events:none}
+.overlay{position:fixed;inset:0;display:flex;align-items:center;z-index:5;
+  background:linear-gradient(90deg,rgba(13,10,15,.94) 0%,rgba(13,10,15,.78) 38%,rgba(13,10,15,.12) 78%,rgba(13,10,15,0) 100%);}
+.overlay[hidden]{display:none!important}
+.panel{width:min(560px,100%);box-sizing:border-box;padding:clamp(20px,5vh,56px) clamp(16px,5vw,64px);display:flex;flex-direction:column;gap:18px;max-height:100%;overflow-y:auto}
+.kicker{font-family:var(--f-data);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--ember)}
+h1{font-family:var(--f-display);font-weight:700;font-size:clamp(40px,8vw,76px);line-height:.95;margin:0;letter-spacing:.02em;text-wrap:balance;color:var(--bone)}
+.lead{margin:0;color:var(--bone-dim);font-size:14px;line-height:1.55;max-width:46ch}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:9px 16px;align-items:center;margin:4px 0;font-size:13px}
+.keys dt{display:flex;gap:5px;flex-wrap:wrap}
+.keys dd{margin:0;color:var(--bone-dim)}
+kbd{font-family:var(--f-data);font-size:12px;min-width:22px;box-sizing:border-box;text-align:center;padding:3px 7px;border:1px solid rgba(241,230,211,.35);border-bottom-width:2px;border-radius:3px;color:var(--bone);background:rgba(241,230,211,.06)}
+.row{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--bone-dim);flex-wrap:wrap}
+.row label{letter-spacing:.14em;text-transform:uppercase}
+input[type=range]{accent-color:var(--ember);width:160px}
+.go{align-self:flex-start;font-family:var(--f-display);font-weight:700;font-size:17px;letter-spacing:.2em;text-transform:uppercase;
+  padding:14px 34px;border:1px solid var(--ember);color:var(--bone);background:linear-gradient(180deg,rgba(255,122,46,.28),rgba(255,122,46,.08));cursor:pointer;border-radius:2px}
+.go:hover:not(:disabled){background:linear-gradient(180deg,rgba(255,122,46,.5),rgba(255,122,46,.2))}
+.go:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.go:disabled{opacity:.45;cursor:progress}
+.load{height:3px;background:rgba(241,230,211,.14);width:min(320px,100%);overflow:hidden}
+.load i{display:block;height:100%;width:0;background:var(--ember);transition:width .15s linear}
+.note{font-size:11px;color:var(--bone-dim);opacity:.8}
+.note a{color:var(--bone-dim)}
+#pause,#dead{justify-content:center;background:rgba(13,10,15,.55);text-align:center}
+#pause .panel,#dead .panel{align-items:center;width:auto}
+#pause h2,#dead h2{font-family:var(--f-display);font-weight:700;font-size:clamp(30px,6vw,54px);margin:0;letter-spacing:.08em}
+#dead h2{color:var(--danger)}
+#toast{position:fixed;top:78px;left:50%;transform:translateX(-50%);z-index:4;font-family:var(--f-display);font-weight:700;letter-spacing:.14em;font-size:clamp(14px,2.4vw,20px);color:var(--gold);
+  text-shadow:0 2px 12px rgba(0,0,0,.8);opacity:0;transition:opacity .35s;pointer-events:none;text-align:center;white-space:nowrap}
+#toast.on{opacity:1}
+#vig{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;
+  background:radial-gradient(ellipse at center,rgba(255,40,20,0) 45%,rgba(255,40,20,.55) 100%)}
+#warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:4;font-family:var(--f-display);font-weight:700;letter-spacing:.3em;color:var(--danger);font-size:18px;opacity:0;pointer-events:none;text-shadow:0 0 14px rgba(255,60,40,.7)}
+@media (max-width:640px){.keys{grid-template-columns:1fr}}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}.load i{transition:none}}
+</style>
+
+<canvas id="gl" tabindex="0"></canvas>
+<canvas id="hud"></canvas>
+<div id="vig"></div>
+<div id="warn">PROYECTIL</div>
+<div id="toast"></div>
+
+<section class="overlay" id="menu">
+  <div class="panel">
+    <div class="kicker">Prototipo · dragón humanoide en tercera persona</div>
+    <h1>Alas de Brasa</h1>
+    <p class="lead">Vuela tumbado como un superhéroe sobre un mundo que se genera sin fin: cordilleras, valles, ríos, bosques e islas flotantes. Derriba las torres de vigía y los dragones amarillos que patrullan el cielo con tu aliento de fuego antes de que te alcancen.</p>
+    <dl class="keys">
+      <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Acelerar / frenar</dd>
+      <dt><kbd>Ratón</kbd></dt><dd>Dirección (el marcador guía al dragón, que se inclina al virar)</dd>
+      <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo izquierda / derecha</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta; recarga 2 s tras soltar). Girar cuesta</dd>
+      <dt><kbd>Espacio</kbd></dt><dd>Hover: parar en el aire. En hover, W/S suben y bajan y el ratón gira en horizontal. Otra vez: volar</dd>
+      <dt><kbd>Clic izq.</kbd></dt><dd>Bola de fuego hacia el marcador</dd>
+      <dt><kbd>Clic dcho.</kbd></dt><dd>Fijar el siguiente dragón enemigo a la vista. Dispara al círculo gris (adelanto); flecha en el borde si sale de pantalla</dd>
+      <dt><kbd>R</kbd></dt><dd>Mantener para nivelar el horizonte</dd>
+      <dt><kbd>C</kbd> <kbd>M</kbd> <kbd>Esc</kbd></dt><dd>Cámara cerca / lejos · Sonido · Pausa</dd>
+    </dl>
+    <div class="row"><label for="sens">Sensibilidad</label><input id="sens" type="range" min="30" max="200" value="100"></div>
+    <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
+    <button class="go" id="go" disabled>Generando mundo…</button>
+    <div class="note">Pensado para ordenador (teclado y ratón). Si el navegador no permite capturar el puntero, el dragón gira hacia la posición del cursor.</div>
+    <div class="note">Modelo del dragón: <a href="https://sketchfab.com/3d-models/dragon-character-3d-by-oscar-creativo-7bad9ad76293430f8e5bb24cd499c53b" target="_blank" rel="noopener">«Dragon Character 3d»</a> de Oscar Creativo, licencia <a href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a> (optimizado y animado para el juego).</div>
+  </div>
+</section>
+
+<section class="overlay" id="pause" hidden>
+  <div class="panel"><h2>Pausa</h2><div class="kicker">Haz clic para continuar</div></div>
+</section>
+<section class="overlay" id="dead" hidden>
+  <div class="panel"><h2>Has caído</h2><div class="kicker" id="deadwhy">Reapareciendo en las alturas…</div></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Modelo del dragón en base64 (lo rellena herramientas/incrustar_modelo.mjs; vacío = se carga ../modelos/dragon_01_web.glb) -->
+<script id="modelo-glb" type="application/octet-stream"></script>
+<script>
+'use strict';
+/* ============================================================
+   1. UTILIDADES, RUIDO Y FUNCIÓN DE TERRENO (datos puros, sin THREE)
+   Convención de ejes del mundo: +Y arriba, norte = -Z, este = +X.
+   ============================================================ */
+const WL = 0;                         // nivel del agua (ríos y lagos)
+const SEED = (typeof window !== 'undefined' && window.__SEED != null) ? (window.__SEED | 0) : ((Math.random() * 1e9) | 0);
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const lerp = (a, b, t) => a + (b - a) * t;
+const smooth = (a, b, v) => { const t = clamp((v - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
+
+function makeNoise(seed) {
+  const perm = new Uint8Array(256), p = new Uint8Array(512);
+  for (let i = 0; i < 256; i++) perm[i] = i;
+  let s = seed >>> 0;
+  const rnd = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+  for (let i = 255; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; const t = perm[i]; perm[i] = perm[j]; perm[j] = t; }
+  for (let i = 0; i < 512; i++) p[i] = perm[i & 255];
+  const gx = [1, -1, 1, -1, 1, -1, 0, 0], gy = [1, 1, -1, -1, 0, 0, 1, -1];
+  const F2 = 0.5 * (Math.sqrt(3) - 1), G2 = (3 - Math.sqrt(3)) / 6;
+  return function noise(xin, yin) {
+    const sk = (xin + yin) * F2;
+    const i = Math.floor(xin + sk), j = Math.floor(yin + sk);
+    const t = (i + j) * G2;
+    const x0 = xin - (i - t), y0 = yin - (j - t);
+    const i1 = x0 > y0 ? 1 : 0, j1 = 1 - i1;
+    const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2, x2 = x0 - 1 + 2 * G2, y2 = y0 - 1 + 2 * G2;
+    const ii = i & 255, jj = j & 255;
+    let n = 0, tt = 0.5 - x0 * x0 - y0 * y0, g;
+    if (tt > 0) { tt *= tt; g = p[ii + p[jj]] & 7; n += tt * tt * (gx[g] * x0 + gy[g] * y0); }
+    tt = 0.5 - x1 * x1 - y1 * y1;
+    if (tt > 0) { tt *= tt; g = p[ii + i1 + p[jj + j1]] & 7; n += tt * tt * (gx[g] * x1 + gy[g] * y1); }
+    tt = 0.5 - x2 * x2 - y2 * y2;
+    if (tt > 0) { tt *= tt; g = p[ii + 1 + p[jj + 1]] & 7; n += tt * tt * (gx[g] * x2 + gy[g] * y2); }
+    return clamp(n * 70, -1, 1);
+  };
+}
+const N1 = makeNoise(SEED ^ 0x9e3779b1), N2 = makeNoise(SEED ^ 0x85ebca6b), N3 = makeNoise(SEED ^ 0xc2b2ae35);
+
+// hash determinista (celda entera -> 0..1)
+function hash2(ix, iz, salt) {
+  let h = Math.imul(ix | 0, 374761393) ^ Math.imul(iz | 0, 668265263) ^ Math.imul((salt | 0) + SEED, 2147483647);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
+}
+
+/* Rellena out.h (altura), out.forest (densidad de bosque 0..1) y out.wet (cercanía a ríos/lagos 0..1).
+   full=false calcula solo la altura (colisiones, puntería). */
+const _o = { h: 0, forest: 0, wet: 0 };
+function terrain(x, z, out, full) {
+  const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
+  const px = x + wx, pz = z + wz;
+  // máscara de cordilleras
+  let m = smooth(0.38, 0.62, N2(px * 0.00017 + 7.7, pz * 0.00017 - 3.1) * 0.5 + 0.5);
+  // tierras bajas ondulantes
+  let low = 34 + N3(px * 0.0004, pz * 0.0004) * 20
+    + N1(px * 0.0016, pz * 0.0016) * 10 + N2(px * 0.0044, pz * 0.0044) * 4
+    + (full ? 0 : 0) + N3(px * 0.011, pz * 0.011) * 2.2;
+  let h = low;
+  if (m > 0.001) {
+    let r = 0, a = 1, f = 0.00062, sum = 0, ox = 0;
+    for (let i = 0; i < 6; i++) {
+      const nn = N1(px * f + ox, pz * f - ox); let v = 1 - Math.sqrt(nn * nn + 0.014);
+      v *= v; r += v * a; sum += a; a *= 0.46; f *= 2.05; ox += 17.3;
+    }
+    r /= sum;
+    const mountain = Math.pow(r, 1.8) * 1150 + N3(px * 0.003, pz * 0.003) * 18 * r;
+    h = lerp(low, low * 0.35 + mountain, m);
+  }
+  // ríos (solo en tierras bajas) y lagos
+  let wet = 0;
+  const lowMask = 1 - smooth(0.12, 0.5, m);
+  if (lowMask > 0.001) {
+    const rn = Math.abs(N1(px * 0.00052 + 100.0, pz * 0.00052 - 40.0));
+    const flood = (1 - smooth(0.035, 0.34, rn)) * lowMask;       // llanura aluvial
+    h = lerp(h, Math.min(h, 7 + N2(px * 0.01, pz * 0.01) * 1.5), flood);
+    const ch = (1 - smooth(0.02, 0.1, rn)) * lowMask;         // cauce
+    h = lerp(h, WL - 3.5, ch);
+    const lk = smooth(0.66, 0.84, N2(px * 0.00031 - 55.0, pz * 0.00031 + 20.0) * 0.5 + 0.5) * lowMask;
+    h = lerp(h, -9 - lk * 14, lk);
+    wet = Math.max(flood * 0.8, lk);
+  }
+  out.h = h;
+  if (full) {
+    const fn = N1(px * 0.0011 + 300, pz * 0.0011 + 300) * 0.5 + 0.5;
+    let fo = smooth(0.34, 0.58, fn + N2(px * 0.006, pz * 0.006) * 0.12);
+    fo *= 1 - smooth(260, 430, h);             // línea de árboles
+    fo *= smooth(3, 9, h);                     // sin árboles en la orilla
+    out.forest = fo; out.wet = wet;
+  }
+  return h;
+}
+function heightAt(x, z) { return terrain(x, z, _o, false); }
+function slopeAt(x, z) {
+  const e = 4, h = heightAt(x, z);
+  const dx = (heightAt(x + e, z) - h) / e, dz = (heightAt(x, z + e) - h) / e;
+  return Math.sqrt(dx * dx + dz * dz);
+}
+
+/* Torres de vigía: una cuadrícula de celdas de 1100 m; cada celda puede tener una torre. */
+const TOWER_CELL = 1100;
+function towerInCell(cx, cz) {
+  if (hash2(cx, cz, 777) > 0.62) return null;
+  const x = (cx + 0.15 + hash2(cx, cz, 11) * 0.7) * TOWER_CELL;
+  const z = (cz + 0.15 + hash2(cx, cz, 12) * 0.7) * TOWER_CELL;
+  const h = heightAt(x, z);
+  if (h < 9 || h > 300) return null;
+  if (slopeAt(x, z) > 0.28) return null;
+  // el cauce de un río queda siempre por debajo de 7 m: exigimos suelo claramente firme
+  return { id: cx + ',' + cz, x, z, y: h };
+}
+/* ============================================================
+   2. RENDER, CIELO, AGUA Y MATERIAL DE TERRENO (shaders)
+   ============================================================ */
+const canvasGL = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas: canvasGL, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+renderer.setClearColor(0x0d0a0f, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(78, 1, 0.25, 16000);
+scene.add(camera);
+
+const SUN_DIR = new THREE.Vector3(0.55, 0.22, -0.8).normalize();   // sol bajo, hora dorada
+const FOG_DENSITY = 0.00021;
+scene.fog = new THREE.FogExp2(0xd9a98a, FOG_DENSITY);
+const sunLight = new THREE.DirectionalLight(0xffc48a, 1.9);
+sunLight.position.copy(SUN_DIR).multiplyScalar(100);
+scene.add(sunLight);
+scene.add(new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95));
+
+// Textura de ruido repetible (3 canales a escalas distintas) para detalle de terreno y olas
+function makeNoiseTexture(size) {
+  const data = new Uint8Array(size * size * 4);
+  const P = [4, 16, 64];
+  const lattices = P.map((per, k) => { const a = new Float32Array(per * per); for (let i = 0; i < a.length; i++) a[i] = hash2(i, per * 31 + k, 4242 + k); return a; });
+  const fade = t => t * t * (3 - 2 * t);
+  const sample = (lat, per, u, v) => {
+    const x = u * per, y = v * per, x0 = Math.floor(x), y0 = Math.floor(y);
+    const fx = fade(x - x0), fy = fade(y - y0);
+    const a = lat[(y0 % per) * per + (x0 % per)], b = lat[(y0 % per) * per + ((x0 + 1) % per)];
+    const c = lat[((y0 + 1) % per) * per + (x0 % per)], d = lat[((y0 + 1) % per) * per + ((x0 + 1) % per)];
+    return lerp(lerp(a, b, fx), lerp(c, d, fx), fy);
+  };
+  for (let j = 0; j < size; j++) for (let i = 0; i < size; i++) {
+    const u = i / size, v = j / size, o = (j * size + i) * 4;
+    // R: grandes manchas · G: media escala · B: grano fino (cada canal suma dos octavas)
+    const r = sample(lattices[0], 4, u, v) * 0.65 + sample(lattices[1], 16, u, v) * 0.35;
+    const g = sample(lattices[1], 16, u, v) * 0.6 + sample(lattices[2], 64, u, v) * 0.4;
+    const b = sample(lattices[2], 64, u, v) * 0.7 + sample(lattices[1], 16, (u * 2) % 1, (v * 2) % 1) * 0.3;
+    data[o] = clamp(r * 255, 0, 255); data[o + 1] = clamp(g * 255, 0, 255); data[o + 2] = clamp(b * 255, 0, 255); data[o + 3] = 255;
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+  return tex;
+}
+const noiseTex = makeNoiseTexture(256);
+
+const GLSL_COMMON = `
+uniform vec3 uSunDir;
+float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
+  return mix(mix(hash21(i), hash21(i+vec2(1.0,0.0)), f.x), mix(hash21(i+vec2(0.0,1.0)), hash21(i+vec2(1.0,1.0)), f.x), f.y); }
+float fbm5(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++){ s += a*vnoise(p); p = p*2.03 + vec2(11.7, 3.1); a *= 0.5; } return s; }
+vec3 skyColor(vec3 d){
+  float h = clamp(d.y, 0.0, 1.0);
+  vec3 zen = vec3(0.10, 0.22, 0.50), mid = vec3(0.50, 0.60, 0.78), hor = vec3(0.90, 0.68, 0.52);
+  vec3 c = mix(zen, mid, pow(1.0 - h, 1.7));
+  c = mix(c, hor, pow(1.0 - h, 4.5));
+  float sd = max(dot(d, uSunDir), 0.0);
+  c += vec3(1.0, 0.52, 0.22) * pow(sd, 5.0) * 0.30 + vec3(1.0, 0.74, 0.42) * pow(sd, 40.0) * 0.55;
+  c += vec3(1.0, 0.92, 0.75) * smoothstep(0.9996, 0.99985, sd) * 3.0;
+  return c;
+}
+`;
+
+/* ---------- Cielo ---------- */
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
+  uniforms: { uSunDir: { value: SUN_DIR }, uTime: { value: 0 } },
+  vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * viewMatrix * vec4(position + cameraPosition, 1.0); }`,
+  fragmentShader: GLSL_COMMON + `
+  uniform float uTime; varying vec3 vDir;
+  void main(){
+    vec3 d = normalize(vDir);
+    vec3 c = skyColor(d);
+    if (d.y > 0.015) {
+      vec2 uv = d.xz / (d.y + 0.14) * 1.15 + vec2(uTime * 0.006, uTime * 0.002);
+      float n = fbm5(uv * 1.4);
+      float cov = smoothstep(0.50, 0.74, n) * smoothstep(0.015, 0.20, d.y);
+      float n2 = fbm5(uv * 1.4 + uSunDir.xz * 0.10);
+      float lit = clamp((n - n2) * 3.2 + 0.62, 0.0, 1.0);
+      float sd = max(dot(d, uSunDir), 0.0);
+      vec3 cloudShade = vec3(0.42, 0.40, 0.55);
+      vec3 cloudLit = mix(vec3(0.98, 0.84, 0.74), vec3(1.0, 0.62, 0.34), pow(sd, 3.0));
+      vec3 cc = mix(cloudShade, cloudLit, lit);
+      c = mix(c, cc, cov * 0.92);
+    }
+    gl_FragColor = vec4(c, 1.0);
+  }`
+});
+const skyMesh = new THREE.Mesh(new THREE.SphereGeometry(9000, 32, 16), skyMat);
+skyMesh.frustumCulled = false; skyMesh.renderOrder = -100;
+scene.add(skyMesh);
+
+/* ---------- Agua ---------- */
+const waterMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, fog: false,
+  uniforms: { uSunDir: { value: SUN_DIR }, uTime: { value: 0 }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex } },
+  vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: GLSL_COMMON + `
+  uniform float uTime, uFog; uniform sampler2D uNoise; varying vec3 vW;
+  float wh(vec2 p){
+    float a = texture2D(uNoise, p * 0.0135 + vec2(uTime * 0.021, uTime * 0.014)).g;
+    float b = texture2D(uNoise, p * 0.041 - vec2(uTime * 0.034, -uTime * 0.025)).b;
+    return a * 0.6 + b * 0.4;
+  }
+  void main(){
+    vec3 Vv = cameraPosition - vW; float dist = length(Vv); vec3 v = Vv / dist;
+    float e = 0.7;
+    float h0 = wh(vW.xz), hx = wh(vW.xz + vec2(e, 0.0)), hz = wh(vW.xz + vec2(0.0, e));
+    float k = mix(7.0, 0.8, smoothstep(150.0, 3500.0, dist));
+    vec3 N = normalize(vec3(-(hx - h0) * k, 1.0, -(hz - h0) * k));
+    float ndv = max(dot(N, v), 0.0);
+    float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);
+    vec3 R = reflect(-v, N); R.y = abs(R.y) + 0.02; R = normalize(R);
+    vec3 refl = skyColor(R);
+    vec3 body = mix(vec3(0.03, 0.12, 0.15), vec3(0.07, 0.24, 0.26), h0);
+    float sunUp = clamp(uSunDir.y * 3.0 + 0.35, 0.0, 1.0);
+    body *= 0.6 + 0.7 * sunUp;
+    float sp = pow(max(dot(R, uSunDir), 0.0), 520.0) * 9.0 + pow(max(dot(R, uSunDir), 0.0), 50.0) * 0.35;
+    vec3 col = mix(body, refl, clamp(fres + 0.10, 0.0, 1.0)) + vec3(1.0, 0.78, 0.5) * sp;
+    float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+    vec3 fd = normalize(vec3(-v.x, 0.0, -v.z));
+    gl_FragColor = vec4(mix(col, skyColor(fd), fogF), mix(0.72, 0.97, fres));
+  }`
+});
+const waterMesh = new THREE.Mesh(new THREE.PlaneGeometry(36000, 36000), waterMat);
+waterMesh.rotation.x = -Math.PI / 2; waterMesh.position.y = WL; waterMesh.frustumCulled = false; waterMesh.renderOrder = 2;
+scene.add(waterMesh);
+
+/* ---------- Terreno ---------- */
+const terrainUniforms = {
+  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex }
+};
+const terrainVS = `
+attribute vec2 aux; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vAux = aux; gl_Position = projectionMatrix * viewMatrix * w; }`;
+const terrainFS = GLSL_COMMON + `
+uniform float uFog; uniform sampler2D uNoise; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+void main(){
+  vec3 N = normalize(vN);
+  float h = vW.y;
+  vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+  float detailFade = 1.0 - smoothstep(600.0, 2600.0, dist);
+  float n1 = texture2D(uNoise, vW.xz * 0.0019).r;
+  float n2 = mix(0.5, texture2D(uNoise, vW.xz * 0.0155).g, detailFade);
+  float n3 = mix(0.5, texture2D(uNoise, vW.xz * 0.113).b, detailFade);
+  float slope = 1.0 - N.y;
+  // hierba: más seca y amarillenta con la altura, más oscura bajo el bosque
+  vec3 grass = mix(vec3(0.20, 0.34, 0.11), vec3(0.45, 0.47, 0.19), smoothstep(0.30, 0.72, n1));
+  grass = mix(grass, vec3(0.52, 0.50, 0.30), smoothstep(160.0, 380.0, h) * 0.7);
+  grass *= 0.82 + 0.34 * n2; grass *= 0.90 + 0.20 * n3;
+  grass = mix(grass, vec3(0.06, 0.16, 0.07) * (0.8 + 0.5 * n2), vAux.x * 0.92);
+  // roca con estratos
+  vec3 rk = mix(vec3(0.40, 0.35, 0.31), vec3(0.24, 0.22, 0.21), n1);
+  rk *= 0.78 + 0.44 * n3; rk *= 0.96 + 0.04 * sin(h * 0.085 + n1 * 7.0) * detailFade;
+  float rockMix = smoothstep(0.13, 0.30, slope + (n2 - 0.5) * 0.10);
+  vec3 col = mix(grass, rk, rockMix);
+  // nieve
+  float snowLine = 560.0 + (n1 - 0.5) * 180.0;
+  float sn = smoothstep(snowLine, snowLine + 110.0, h) * (1.0 - smoothstep(0.30, 0.55, slope));
+  col = mix(col, vec3(0.93, 0.95, 1.0) * (0.92 + 0.08 * n3), sn);
+  // orilla, arena y lecho
+  float sandM = (1.0 - smoothstep(1.2, 5.5, h)) * smoothstep(-4.0, 0.2, h) * (1.0 - rockMix);
+  col = mix(col, vec3(0.68, 0.60, 0.42) * (0.88 + 0.22 * n2), sandM);
+  float dep = clamp(-h / 14.0, 0.0, 1.0);
+  vec3 bed = mix(vec3(0.20, 0.34, 0.31), vec3(0.03, 0.10, 0.17), dep);
+  col = mix(col, bed, smoothstep(0.4, -0.6, h));
+  // iluminación: sol cálido rasante + ambiente de cielo
+  float ndl = dot(N, uSunDir);
+  float wrap = max((ndl + 0.20) / 1.20, 0.0);
+  vec3 sunC = vec3(1.0, 0.70, 0.43) * 1.70;
+  vec3 amb = mix(vec3(0.20, 0.20, 0.28), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5);
+  vec3 lit = col * (sunC * wrap + amb * 0.95);
+  lit *= 1.0 - 0.18 * smoothstep(0.25, 0.7, slope) * (1.0 - sn);
+  // bruma atmosférica: el color del cielo en la dirección de la vista
+  float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+  vec3 fd = normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z));
+  gl_FragColor = vec4(mix(lit, skyColor(fd), fogF), 1.0);
+}`;
+const terrainMats = [];
+function terrainMaterial(level) {
+  if (!terrainMats[level]) {
+    terrainMats[level] = new THREE.ShaderMaterial({
+      uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide,
+      polygonOffset: true, polygonOffsetFactor: level * 0.6, polygonOffsetUnits: level * 3
+    });
+  }
+  return terrainMats[level];
+}
+
+function onResize() {
+  const w = window.innerWidth, h = window.innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h; camera.updateProjectionMatrix();
+  const hud = document.getElementById('hud'), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  hud.width = Math.floor(w * dpr); hud.height = Math.floor(h * dpr);
+}
+window.addEventListener('resize', onResize);
+onResize();
+/* ============================================================
+   3. TERRENO INFINITO: quadtree de chunks con LOD y faldones
+   Nivel L tiene tamaño 128·2^L m y siempre 32×32 celdas (4 m, 8 m, ... 256 m).
+   ============================================================ */
+const TL_BASE = 128, TL_MAX = 6, TL_N = 32, TL_SPLIT = 1.15;
+const terrainGroup = new THREE.Group();
+scene.add(terrainGroup);
+const chunks = new Map();            // clave -> { key, L, ix, iz, x0, z0, size, mesh, trees }
+const chunkHooks = { onCreate: null, onRemove: null };
+const chunkKey = (L, ix, iz) => L + ':' + ix + ':' + iz;
+const terrainState = { desired: [], pending: [], lastX: 1e9, lastZ: 1e9, lastT: -1, lastDy: 0 };
+
+function buildChunk(L, ix, iz) {
+  const S = TL_BASE * (1 << L), N = TL_N, s = S / N, x0 = ix * S, z0 = iz * S, G = N + 3;
+  const hs = new Float32Array(G * G), fo = new Float32Array(G * G), we = new Float32Array(G * G);
+  for (let j = 0; j < G; j++) for (let i = 0; i < G; i++) {
+    terrain(x0 + (i - 1) * s, z0 + (j - 1) * s, _o, true);
+    const k = j * G + i; hs[k] = _o.h; fo[k] = _o.forest; we[k] = _o.wet;
+  }
+  const W = N + 1, V = W * W, total = V + 4 * W;
+  const pos = new Float32Array(total * 3), nor = new Float32Array(total * 3), aux = new Float32Array(total * 2);
+  for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+    const v = j * W + i, g = (j + 1) * G + (i + 1);
+    pos[v * 3] = i * s; pos[v * 3 + 1] = hs[g]; pos[v * 3 + 2] = j * s;
+    const dx = (hs[g + 1] - hs[g - 1]) / (2 * s), dz = (hs[g + G] - hs[g - G]) / (2 * s);
+    const il = 1 / Math.sqrt(dx * dx + 1 + dz * dz);
+    nor[v * 3] = -dx * il; nor[v * 3 + 1] = il; nor[v * 3 + 2] = -dz * il;
+    aux[v * 2] = fo[g]; aux[v * 2 + 1] = we[g];
+  }
+  const skirt = s * 2.6 + 4;
+  const edge = (e, k) => e === 0 ? k : e === 1 ? N * W + k : e === 2 ? k * W : k * W + N;
+  for (let e = 0; e < 4; e++) for (let k = 0; k <= N; k++) {
+    const b = edge(e, k), sv = V + e * W + k;
+    pos[sv * 3] = pos[b * 3]; pos[sv * 3 + 1] = pos[b * 3 + 1] - skirt; pos[sv * 3 + 2] = pos[b * 3 + 2];
+    nor[sv * 3] = nor[b * 3]; nor[sv * 3 + 1] = nor[b * 3 + 1]; nor[sv * 3 + 2] = nor[b * 3 + 2];
+    aux[sv * 2] = aux[b * 2]; aux[sv * 2 + 1] = aux[b * 2 + 1];
+  }
+  const idx = new Uint16Array(N * N * 6 + 4 * N * 6);
+  let t = 0;
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const a = j * W + i, b = (j + 1) * W + i, c = j * W + i + 1, d = (j + 1) * W + i + 1;
+    idx[t++] = a; idx[t++] = b; idx[t++] = c; idx[t++] = c; idx[t++] = b; idx[t++] = d;
+  }
+  for (let e = 0; e < 4; e++) for (let k = 0; k < N; k++) {
+    const b0 = edge(e, k), b1 = edge(e, k + 1), s0 = V + e * W + k, s1 = V + e * W + k + 1;
+    idx[t++] = b0; idx[t++] = s0; idx[t++] = b1; idx[t++] = b1; idx[t++] = s0; idx[t++] = s1;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  geo.setAttribute('aux', new THREE.BufferAttribute(aux, 2));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, terrainMaterial(L));
+  mesh.position.set(x0, 0, z0);
+  mesh.matrixAutoUpdate = false; mesh.updateMatrix();
+  terrainGroup.add(mesh);
+  const ch = { key: chunkKey(L, ix, iz), L, ix, iz, x0, z0, size: S, mesh, trees: null, hs, G, s };
+  chunks.set(ch.key, ch);
+  if (chunkHooks.onCreate) chunkHooks.onCreate(ch);
+  return ch;
+}
+function removeChunk(ch) {
+  if (chunkHooks.onRemove) chunkHooks.onRemove(ch);
+  terrainGroup.remove(ch.mesh); ch.mesh.geometry.dispose();
+  chunks.delete(ch.key);
+}
+
+function selectLeaves(px, pz, dy) {
+  const leaves = [];
+  const topS = TL_BASE * (1 << TL_MAX);
+  const visit = (L, ix, iz) => {
+    const S = TL_BASE * (1 << L), x0 = ix * S, z0 = iz * S;
+    const dx = Math.max(x0 - px, 0, px - (x0 + S)), dz = Math.max(z0 - pz, 0, pz - (z0 + S));
+    const d = Math.sqrt(dx * dx + dz * dz + dy * dy);
+    if (L > 0 && d < S * TL_SPLIT) {
+      visit(L - 1, ix * 2, iz * 2); visit(L - 1, ix * 2 + 1, iz * 2);
+      visit(L - 1, ix * 2, iz * 2 + 1); visit(L - 1, ix * 2 + 1, iz * 2 + 1);
+    } else leaves.push({ L, ix, iz, d, x0, z0, S });
+  };
+  const cx = Math.floor(px / topS), cz = Math.floor(pz / topS);
+  for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) visit(TL_MAX, cx + i, cz + j);
+  return leaves;
+}
+
+/* Recalcula qué chunks hacen falta cuando el jugador se ha movido; devuelve nº de chunks pendientes. */
+function refreshTerrainSelection(px, py, pz, force) {
+  const agl = clamp(py - heightAt(px, pz), 0, 500);
+  const dy = agl * 0.65;
+  const st = terrainState;
+  if (!force && Math.abs(px - st.lastX) < 20 && Math.abs(pz - st.lastZ) < 20 && Math.abs(dy - st.lastDy) < 40) return;
+  st.lastX = px; st.lastZ = pz; st.lastDy = dy;
+  st.desired = selectLeaves(px, pz, dy);
+  st.pending = st.desired.filter(l => !chunks.has(chunkKey(l.L, l.ix, l.iz))).sort((a, b) => a.d - b.d);
+}
+function pruneTerrain() {
+  const st = terrainState;
+  const want = new Set(st.desired.map(l => chunkKey(l.L, l.ix, l.iz)));
+  for (const ch of Array.from(chunks.values())) {
+    if (want.has(ch.key)) continue;
+    let covered = true;
+    for (const l of st.desired) {
+      if (l.x0 < ch.x0 + ch.size && l.x0 + l.S > ch.x0 && l.z0 < ch.z0 + ch.size && l.z0 + l.S > ch.z0) {
+        if (!chunks.has(chunkKey(l.L, l.ix, l.iz))) { covered = false; break; }
+      }
+    }
+    if (covered) removeChunk(ch);
+  }
+}
+/* Construye chunks pendientes dentro de un presupuesto de milisegundos. */
+function pumpTerrain(budgetMs) {
+  const st = terrainState, t0 = performance.now();
+  let built = 0;
+  while (st.pending.length && (built === 0 || performance.now() - t0 < budgetMs)) {
+    const l = st.pending.shift();
+    if (!chunks.has(chunkKey(l.L, l.ix, l.iz))) { buildChunk(l.L, l.ix, l.iz); built++; }
+  }
+  const now = performance.now();
+  if ((built || st.pending.length === 0) && now - (st.lastPrune || 0) > 180) { st.lastPrune = now; pruneTerrain(); }
+  return st.pending.length;
+}
+/* ============================================================
+   4. VEGETACIÓN (árboles instanciados por chunk) Y TORRES ENEMIGAS
+   ============================================================ */
+const _q = new THREE.Quaternion(), _v3 = new THREE.Vector3(), _s3 = new THREE.Vector3(), _e = new THREE.Euler();
+function M4(x, y, z, sx, sy, sz, rx, ry, rz) {
+  _e.set(rx || 0, ry || 0, rz || 0); _q.setFromEuler(_e);
+  return new THREE.Matrix4().compose(_v3.set(x, y, z), _q, _s3.set(sx == null ? 1 : sx, sy == null ? (sx == null ? 1 : sx) : sy, sz == null ? (sx == null ? 1 : sx) : sz));
+}
+function partGeo(geo, color, m4) {
+  const g = geo.index ? geo.toNonIndexed() : geo.clone();
+  g.applyMatrix4(m4); g.computeVertexNormals();
+  const n = g.attributes.position.count, c = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { c[i * 3] = color[0]; c[i * 3 + 1] = color[1]; c[i * 3 + 2] = color[2]; }
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return g;
+}
+function mergeParts(list) {
+  let n = 0; list.forEach(g => n += g.attributes.position.count);
+  const P = new Float32Array(n * 3), Nn = new Float32Array(n * 3), C = new Float32Array(n * 3);
+  let o = 0;
+  list.forEach(g => {
+    P.set(g.attributes.position.array, o * 3); Nn.set(g.attributes.normal.array, o * 3); C.set(g.attributes.color.array, o * 3);
+    o += g.attributes.position.count;
+  });
+  const out = new THREE.BufferGeometry();
+  out.setAttribute('position', new THREE.BufferAttribute(P, 3));
+  out.setAttribute('normal', new THREE.BufferAttribute(Nn, 3));
+  out.setAttribute('color', new THREE.BufferAttribute(C, 3));
+  out.computeBoundingSphere();
+  return out;
+}
+
+/* ---------- Árboles ---------- */
+const treeGeos = (() => {
+  const trunk = new THREE.CylinderGeometry(0.28, 0.4, 1, 5);
+  const cone = new THREE.ConeGeometry(1, 1, 6);
+  const blob = new THREE.IcosahedronGeometry(1, 0);
+  const brown = [0.26, 0.18, 0.11];
+  const conifer = mergeParts([
+    partGeo(trunk, brown, M4(0, 1.0, 0, 1, 2.0, 1)),
+    partGeo(cone, [0.06, 0.19, 0.10], M4(0, 3.7, 0, 2.5, 4.4, 2.5)),
+    partGeo(cone, [0.08, 0.24, 0.12], M4(0, 5.7, 0, 2.0, 3.8, 2.0)),
+    partGeo(cone, [0.11, 0.29, 0.14], M4(0, 7.5, 0, 1.4, 3.2, 1.4))
+  ]);
+  const broad = mergeParts([
+    partGeo(trunk, brown, M4(0, 1.6, 0, 1.2, 3.2, 1.2)),
+    partGeo(blob, [0.16, 0.33, 0.09], M4(0, 5.0, 0, 2.7, 2.3, 2.7, 0, 0.4)),
+    partGeo(blob, [0.21, 0.39, 0.11], M4(1.4, 4.2, 0.7, 1.9, 1.7, 1.9, 0.3, 1.1)),
+    partGeo(blob, [0.18, 0.35, 0.10], M4(-1.3, 4.4, -0.8, 1.8, 1.6, 1.8, 0.2, 2.0))
+  ]);
+  return { conifer, broad };
+})();
+const treeMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const treeGroup = new THREE.Group();
+scene.add(treeGroup);
+const TREE_CELL = TL_BASE / 12;
+const _dummy = new THREE.Object3D(), _col = new THREE.Color();
+
+function makeTrees(ch) {
+  if (ch.L > 2) return;
+  const stride = ch.L <= 1 ? 1 : 2, nFine = Math.round(ch.size / TREE_CELL);
+  const gi0 = Math.round(ch.x0 / TREE_CELL), gj0 = Math.round(ch.z0 / TREE_CELL);
+  const list = { conifer: [], broad: [] };
+  for (let j = 0; j < nFine; j += stride) for (let i = 0; i < nFine; i += stride) {
+    const gi = gi0 + i, gj = gj0 + j;
+    const x = (gi + hash2(gi, gj, 1)) * TREE_CELL, z = (gj + hash2(gi, gj, 2)) * TREE_CELL;
+    terrain(x, z, _o, true);
+    if (_o.forest < 0.05 || hash2(gi, gj, 3) > _o.forest * 0.78) continue;
+    // altura y pendiente sobre la malla de este chunk (así los árboles tocan el suelo visible)
+    const fx = (x - ch.x0) / ch.s + 1, fz = (z - ch.z0) / ch.s + 1, ix = Math.floor(fx), iz = Math.floor(fz), tx = fx - ix, tz = fz - iz, G = ch.G, hs = ch.hs;
+    const k = iz * G + ix;
+    if (ix < 0 || iz < 0 || ix >= G - 1 || iz >= G - 1) continue;
+    const y = lerp(lerp(hs[k], hs[k + 1], tx), lerp(hs[k + G], hs[k + G + 1], tx), tz);
+    const sl = Math.max(Math.abs(hs[k + 1] - hs[k]), Math.abs(hs[k + G] - hs[k])) / ch.s;
+    if (sl > 0.75 || y < 3) continue;
+    const conif = hash2(gi, gj, 4) < 0.22 + smooth(60, 280, y) * 0.7;
+    (conif ? list.conifer : list.broad).push(x, y, z, hash2(gi, gj, 5), hash2(gi, gj, 6));
+  }
+  ch.trees = [];
+  for (const type of ['conifer', 'broad']) {
+    const arr = list[type], n = arr.length / 5;
+    if (!n) continue;
+    const im = new THREE.InstancedMesh(treeGeos[type], treeMat, n);
+    im.frustumCulled = false;
+    for (let t = 0; t < n; t++) {
+      const sc = (0.8 + arr[t * 5 + 3] * 0.95) * (stride === 2 ? 1.25 : 1);
+      _dummy.position.set(arr[t * 5], arr[t * 5 + 1] - 0.3, arr[t * 5 + 2]);
+      _dummy.rotation.set(0, arr[t * 5 + 4] * 6.283, 0);
+      _dummy.scale.set(sc, sc * (0.9 + arr[t * 5 + 4] * 0.35), sc);
+      _dummy.updateMatrix(); im.setMatrixAt(t, _dummy.matrix);
+      const v = 0.82 + arr[t * 5 + 4] * 0.4;
+      _col.setRGB(v, v * (0.95 + arr[t * 5 + 3] * 0.1), v * 0.95); im.setColorAt(t, _col);
+    }
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    treeGroup.add(im); ch.trees.push(im);
+  }
+}
+function disposeTrees(ch) {
+  if (!ch.trees) return;
+  ch.trees.forEach(im => { treeGroup.remove(im); im.dispose && im.dispose(); });
+  ch.trees = null;
+}
+chunkHooks.onCreate = makeTrees;
+chunkHooks.onRemove = disposeTrees;
+
+/* ---------- Torres de vigía ---------- */
+const towerGeo = (() => {
+  const cyl = new THREE.CylinderGeometry(1, 1, 1, 10), box = new THREE.BoxGeometry(1, 1, 1), cone = new THREE.ConeGeometry(1, 1, 10);
+  const stone = [0.50, 0.47, 0.43], stone2 = [0.42, 0.40, 0.37], wood = [0.30, 0.19, 0.11], roof = [0.55, 0.16, 0.11], dark = [0.08, 0.07, 0.07], cloth = [0.78, 0.12, 0.10];
+  const parts = [
+    partGeo(cyl, stone2, M4(0, 2.5, 0, 6.4, 5, 6.4)),
+    partGeo(cyl, stone, M4(0, 15, 0, 4.4, 20, 4.4)),
+    partGeo(cyl, stone2, M4(0, 25.4, 0, 5.4, 1.6, 5.4)),
+    partGeo(box, dark, M4(0, 1.4, 4.1, 1.8, 2.8, 0.6)),
+    partGeo(box, dark, M4(3.9, 14, 0, 0.6, 2.2, 1.0)),
+    partGeo(box, dark, M4(-3.9, 18, 0, 0.6, 2.2, 1.0)),
+    partGeo(cone, roof, M4(0, 31, 0, 6.4, 9, 6.4)),
+    partGeo(cyl, wood, M4(0, 38.5, 0, 0.16, 6, 0.16)),
+    partGeo(box, cloth, M4(1.5, 39.5, 0, 3.0, 1.7, 0.1))
+  ];
+  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; parts.push(partGeo(box, stone, M4(Math.cos(a) * 5.2, 27.1, Math.sin(a) * 5.2, 1.5, 1.7, 1.5, 0, -a))); }
+  // plataforma con ballesta
+  parts.push(partGeo(box, wood, M4(0, 26.3, 0, 3.4, 0.4, 3.4)));
+  parts.push(partGeo(box, wood, M4(0, 27.0, 0.0, 0.5, 0.5, 4.2, 0.15, 0, 0)));
+  parts.push(partGeo(box, wood, M4(0, 27.0, -1.4, 3.2, 0.25, 0.3)));
+  return mergeParts(parts);
+})();
+const ruinGeo = (() => {
+  const cyl = new THREE.CylinderGeometry(1, 1.1, 1, 8), box = new THREE.BoxGeometry(1, 1, 1);
+  const c1 = [0.20, 0.18, 0.17], c2 = [0.12, 0.11, 0.11];
+  const parts = [partGeo(cyl, c1, M4(0, 1.6, 0, 6.2, 3.2, 6.2))];
+  for (let i = 0; i < 9; i++) { const a = i * 2.4, r = 5 + (i % 3) * 2.4; parts.push(partGeo(box, i % 2 ? c1 : c2, M4(Math.cos(a) * r, 0.9, Math.sin(a) * r, 1.8 + (i % 4) * 0.7, 1.6, 1.4 + (i % 3) * 0.8, 0.2 * i, a, 0.15 * i))); }
+  return mergeParts(parts);
+})();
+const towerMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+const towerGroup = new THREE.Group();
+scene.add(towerGroup);
+
+const towerSites = new Map();       // caché de celdas
+const towers = new Map();           // id -> torre viva o ruina cargada
+const towerState = { destroyed: new Set(), score: 0, kills: 0 };
+const TOWER_LOAD = 3600, TOWER_UNLOAD = 4600, TOWER_RANGE = 1150, TOWER_HP = 3;
+
+function siteAt(cx, cz) {
+  const k = cx + ',' + cz;
+  if (!towerSites.has(k)) towerSites.set(k, towerInCell(cx, cz));
+  return towerSites.get(k);
+}
+function updateTowerStreaming(px, pz) {
+  const c0x = Math.floor((px - TOWER_LOAD) / TOWER_CELL), c1x = Math.floor((px + TOWER_LOAD) / TOWER_CELL);
+  const c0z = Math.floor((pz - TOWER_LOAD) / TOWER_CELL), c1z = Math.floor((pz + TOWER_LOAD) / TOWER_CELL);
+  for (let cz = c0z; cz <= c1z; cz++) for (let cx = c0x; cx <= c1x; cx++) {
+    const s = siteAt(cx, cz);
+    if (!s || towers.has(s.id)) continue;
+    if (Math.hypot(s.x - px, s.z - pz) > TOWER_LOAD) continue;
+    const dead = towerState.destroyed.has(s.id);
+    const mesh = new THREE.Mesh(dead ? ruinGeo : towerGeo, towerMat);
+    mesh.position.set(s.x, s.y - 0.5, s.z); mesh.rotation.y = hash2(cx, cz, 9) * 6.28;
+    towerGroup.add(mesh);
+    towers.set(s.id, { id: s.id, x: s.x, y: s.y, z: s.z, hp: dead ? 0 : TOWER_HP, dead, mesh, cool: 1.5 + Math.random() * 2.5, smokeT: 0 });
+  }
+  for (const [id, t] of towers) {
+    if (Math.hypot(t.x - px, t.z - pz) > TOWER_UNLOAD) { towerGroup.remove(t.mesh); towers.delete(id); }
+  }
+}
+function losClear(ax, ay, az, bx, by, bz) {
+  for (let i = 1; i < 10; i++) {
+    const f = i / 10;
+    if (heightAt(lerp(ax, bx, f), lerp(az, bz, f)) > lerp(ay, by, f) - 1) return false;
+    if (islandAt(lerp(ax, bx, f), lerp(ay, by, f), lerp(az, bz, f), 2)) return false;
+  }
+  return true;
+}
+function damageTower(t, amount) {
+  if (t.dead) return;
+  t.hp -= amount;
+  if (t.hp > 0) {
+    explode(t.x, t.y + 20, t.z, 0.55); sfx.hit();
+    return;
+  }
+  t.dead = true; towerState.destroyed.add(t.id);
+  towerState.score += 100; towerState.kills++;
+  towerGroup.remove(t.mesh);
+  t.mesh = new THREE.Mesh(ruinGeo, towerMat);
+  t.mesh.position.set(t.x, t.y - 0.5, t.z); t.mesh.rotation.y = Math.random() * 6.28;
+  towerGroup.add(t.mesh);
+  explode(t.x, t.y + 14, t.z, 1.6); explode(t.x, t.y + 28, t.z, 1.1); sfx.boom(1.0);
+  debris(t.x, t.y + 12, t.z);
+  toast('Torre destruida  +100');
+}
+/* ============================================================
+   4b. ISLAS FLOTANTES
+   Rejilla fina de 900 m (islas pequeñas y medianas) + rejilla grande de 2600 m (islas grandes con satélites).
+   Cada isla es una "lente" de roca con un perfil analítico: cara superior con relieve suave y cara inferior colgante.
+   El MISMO perfil genera la malla y las colisiones (dragón, bolas de fuego, ballestas y puntería).
+   Las alturas se reparten en tres planos (bajo, medio, alto) y siempre quedan por encima de las montañas de debajo.
+   ============================================================ */
+const ISL_FINE = 900, ISL_BIG = 2600, ISL_DATA_R = 9500;
+const ISL_P_FINE = 0.46, ISL_P_BIG = 0.42;           // probabilidad de isla por celda fina / grande
+const islCells = new Map();                           // caché de celdas -> [islas]
+const islActive = [];                                 // islas con datos cargados (colisión)
+const islLoaded = new Map();                          // id -> isla con malla en escena
+const islPending = [];
+const islGroup = new THREE.Group(); scene.add(islGroup);
+
+/* ---------- Perfil analítico ---------- */
+const islRadAng = (s, a) => {
+  let f = a / 6.283185307; f -= Math.floor(f); f *= 32;
+  const i0 = f | 0, t = f - i0, r0 = s.rad[i0 & 31], r1 = s.rad[(i0 + 1) & 31];
+  return s.R * (r0 + (r1 - r0) * t * t * (3 - 2 * t));
+};
+const islRad = (s, dx, dz) => islRadAng(s, Math.atan2(dz, dx));
+function islTop(s, dx, dz, q) {
+  const wx = s.x + dx, wz = s.z + dz, f = 1 / (s.R * 0.55 + 40);
+  const rel = N2(wx * f * 1.3, wz * f * 1.3) * 0.65 + N3(wx * f * 4.1, wz * f * 4.1) * 0.35;
+  const roll = s.t0 * 0.55 * smooth(0.82, 1.0, q);
+  return s.cy + (s.dome + s.A * rel) * (1 - q * q) - roll;
+}
+function islBot(s, dx, dz, q) {
+  const wx = s.x + dx, wz = s.z + dz, f = 1 / (s.R * 0.35 + 30);
+  const n = N3(wx * f, wz * f) * 0.6 + N1(wx * f * 2.7 + 9.1, wz * f * 2.7 - 4.3) * 0.4;
+  const sh = Math.pow(Math.max(1 - q, 0), 0.8) * (1 + 0.35 * q);
+  return s.cy - s.t0 - s.D * sh * (1 + 0.28 * n);
+}
+function insideIsland(s, x, y, z, m) {
+  if (y > s.yMax + m || y < s.yMin - m) return false;
+  const dx = x - s.x, dz = z - s.z, d2 = dx * dx + dz * dz, lim = s.rb + m;
+  if (d2 > lim * lim) return false;
+  const Rt = islRad(s, dx, dz), q = Math.sqrt(d2) / Rt;
+  if (q >= 1 + m / Rt) return false;
+  const qq = q < 1 ? q : 1;
+  return y < islTop(s, dx, dz, qq) + m && y > islBot(s, dx, dz, qq) - m;
+}
+function islandAt(x, y, z, m) {
+  for (let n = 0; n < islActive.length; n++) if (insideIsland(islActive[n], x, y, z, m)) return islActive[n];
+  return null;
+}
+/* ¿Hay roca de alguna isla en la columna (x,z) entre las alturas y0 e y1? (piloto automático del menú) */
+function islandColumn(x, z, y0, y1, m) {
+  for (let n = 0; n < islActive.length; n++) {
+    const s = islActive[n];
+    if (y1 < s.yMin - m || y0 > s.yMax + m) continue;
+    const dx = x - s.x, dz = z - s.z, d2 = dx * dx + dz * dz, lim = s.rb + m;
+    if (d2 > lim * lim) continue;
+    const Rt = islRad(s, dx, dz), q = Math.sqrt(d2) / Rt;
+    if (q >= 1 + m / Rt) continue;
+    const qq = q < 1 ? q : 1;
+    if (islBot(s, dx, dz, qq) - m < y1 && islTop(s, dx, dz, qq) + m > y0) return s;
+  }
+  return null;
+}
+/* Distancia al primer impacto del rayo con una isla (Infinity si no hay). */
+function islandRayHit(o, d, maxT) {
+  let best = Infinity;
+  for (let n = 0; n < islActive.length; n++) {
+    const s = islActive[n];
+    const cy = (s.yMax + s.yMin) * 0.5, rr = Math.max(s.rb, (s.yMax - s.yMin) * 0.5) * 1.04;
+    const ox = o.x - s.x, oy = o.y - cy, oz = o.z - s.z;
+    const b = ox * d.x + oy * d.y + oz * d.z, c = ox * ox + oy * oy + oz * oz - rr * rr, disc = b * b - c;
+    if (disc < 0) continue;
+    const sq = Math.sqrt(disc); let t0 = -b - sq, t1 = -b + sq;
+    const lim = Math.min(maxT, best);
+    if (t1 < 0 || t0 > lim) continue;
+    t0 = Math.max(t0, 0); t1 = Math.min(t1, lim);
+    const step = clamp(s.R * 0.015, 2.5, 9);
+    for (let t = t0; t <= t1; t += step) {
+      if (insideIsland(s, o.x + d.x * t, o.y + d.y * t, o.z + d.z * t, 0)) { best = t; break; }
+    }
+  }
+  return best;
+}
+
+/* ---------- Generación determinista por celdas ---------- */
+function pickBand(h1, h2) {
+  if (h1 < 0.34) return 430 + h2 * 280;       // plano bajo
+  if (h1 < 0.74) return 820 + h2 * 520;       // plano medio
+  return 1450 + h2 * 800;                      // plano alto
+}
+function makeIsland(id, seed, x, z, R, cyBase, big) {
+  const D = Math.min(R * (0.42 + hash2(seed, 1, 5) * 0.38), 330);
+  const t0 = Math.max(4, R * 0.05), A = clamp(R * 0.045, 1.5, 20), dome = clamp(R * 0.04, 1.5, 22);
+  let hmax = Math.max(heightAt(x, z), WL);
+  for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283, rr = R * (i % 2 ? 0.55 : 1.15); hmax = Math.max(hmax, heightAt(x + Math.cos(a) * rr, z + Math.sin(a) * rr)); }
+  const cy = Math.max(cyBase, hmax + 110 + D + t0 + 6);          // nunca roza las montañas de debajo
+  const rad = new Float32Array(32);
+  for (let i = 0; i < 32; i++) { const a = i / 32 * 6.283185; rad[i] = clamp(1 + 0.28 * N1(Math.cos(a) * 1.15 + seed * 0.37, Math.sin(a) * 1.15 - seed * 0.21), 0.68, 1.32); }
+  const s = { id, seed, x, z, R, D, t0, A, dome, cy, rad, rb: R * 1.34 + 6, yMax: cy + dome + A + 2, yMin: cy - t0 - D * 1.32 - 2,
+    big, mesh: null, trees: [], wf: null, wfMesh: null, tower: null, _d: 0 };
+  // torre de vigía sobre las islas más grandes
+  const pt = hash2(seed, 40, 41);
+  if ((R >= 300 && pt < 0.7) || (R >= 170 && R < 300 && pt < 0.32)) {
+    const a = hash2(seed, 42, 43) * 6.283, q = 0.10 + hash2(seed, 44, 45) * 0.32;
+    const dx = Math.cos(a) * q * islRadAng(s, a), dz = Math.sin(a) * q * islRadAng(s, a);
+    s.tower = { id: 'i' + id, x: x + dx, z: z + dz, y: islTop(s, dx, dz, q) };
+  }
+  // cascada desde el borde de las islas grandes
+  if (R >= 260 && hash2(seed, 50, 51) < 0.72) {
+    const a = hash2(seed, 52, 53) * 6.283, Rt = islRadAng(s, a), q = 1.012;
+    const dx = Math.cos(a) * Rt * q, dz = Math.sin(a) * Rt * q;
+    s.wf = { a, x: x + dx, z: z + dz, y: islTop(s, dx, dz, 1) + 0.5, w: clamp(R * 0.032, 7, 20), len: clamp(D * 0.85 + 90, 150, 400) };
+  }
+  return s;
+}
+function bigCell(cx, cz) {
+  const key = 'b' + cx + ',' + cz;
+  let c = islCells.get(key); if (c) return c;
+  c = [];
+  const seed = (Math.imul(cx, 73856093) ^ Math.imul(cz, 19349663) ^ 0x51ed27) | 0;
+  if (hash2(seed, 1, 101) < ISL_P_BIG) {
+    const x = (cx + 0.3 + hash2(seed, 2, 102) * 0.4) * ISL_BIG, z = (cz + 0.3 + hash2(seed, 3, 103) * 0.4) * ISL_BIG;
+    const R = 330 + hash2(seed, 4, 104) * 270;
+    const big = makeIsland('b' + cx + ',' + cz + ',0', seed, x, z, R, pickBand(hash2(seed, 5, 105), hash2(seed, 6, 106)), true);
+    c.push(big);
+    const ns = 2 + Math.floor(hash2(seed, 7, 107) * 3.99);        // islotes satélite
+    for (let k = 0; k < ns; k++) {
+      const sd = (seed + (k + 1) * 7919) | 0;
+      const a = hash2(sd, 1, 108) * 6.283, dist = R * 1.3 + 90 + hash2(sd, 2, 109) * 320, r = 28 + hash2(sd, 3, 110) * 42;
+      c.push(makeIsland('b' + cx + ',' + cz + ',' + (k + 1), sd, x + Math.cos(a) * dist, z + Math.sin(a) * dist, r, big.cy + (hash2(sd, 4, 111) - 0.5) * 520, false));
+    }
+  }
+  islCells.set(key, c); return c;
+}
+function fineCell(fx, fz) {
+  const key = 'f' + fx + ',' + fz;
+  let c = islCells.get(key); if (c) return c;
+  c = [];
+  const seed = (Math.imul(fx, 83492791) ^ Math.imul(fz, 49979687) ^ 0x2f0b13) | 0;
+  if (hash2(seed, 1, 201) < ISL_P_FINE) {
+    const x = (fx + 0.3 + hash2(seed, 2, 202) * 0.4) * ISL_FINE, z = (fz + 0.3 + hash2(seed, 3, 203) * 0.4) * ISL_FINE;
+    const med = hash2(seed, 4, 204) > 0.62;
+    const R = med ? 110 + hash2(seed, 5, 205) * 140 : 34 + hash2(seed, 5, 205) * 58;
+    let ok = true;
+    const bx = Math.floor(x / ISL_BIG), bz = Math.floor(z / ISL_BIG);
+    for (let j = -1; j <= 1 && ok; j++) for (let i = -1; i <= 1 && ok; i++) for (const o of bigCell(bx + i, bz + j)) {
+      if (Math.hypot(x - o.x, z - o.z) < R + o.R * 1.35 + 50) { ok = false; break; }
+    }
+    if (ok) c.push(makeIsland('f' + fx + ',' + fz, seed, x, z, R, pickBand(hash2(seed, 6, 206), hash2(seed, 7, 207)), false));
+  }
+  islCells.set(key, c); return c;
+}
+function islandsInRange(px, pz, range) {
+  const out = [];
+  const f0x = Math.floor((px - range) / ISL_FINE), f1x = Math.floor((px + range) / ISL_FINE);
+  const f0z = Math.floor((pz - range) / ISL_FINE), f1z = Math.floor((pz + range) / ISL_FINE);
+  for (let fz = f0z; fz <= f1z; fz++) for (let fx = f0x; fx <= f1x; fx++) for (const s of fineCell(fx, fz)) if (Math.hypot(s.x - px, s.z - pz) < range + s.R) out.push(s);
+  const b0x = Math.floor((px - range) / ISL_BIG) - 1, b1x = Math.floor((px + range) / ISL_BIG) + 1;
+  const b0z = Math.floor((pz - range) / ISL_BIG) - 1, b1z = Math.floor((pz + range) / ISL_BIG) + 1;
+  for (let bz = b0z; bz <= b1z; bz++) for (let bx = b0x; bx <= b1x; bx++) for (const s of bigCell(bx, bz)) if (Math.hypot(s.x - px, s.z - pz) < range + s.R) out.push(s);
+  return out;
+}
+
+/* ---------- Materiales ---------- */
+const islandFS = GLSL_COMMON + `
+uniform float uFog; uniform sampler2D uNoise; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+void main(){
+  vec3 N = normalize(vN);
+  vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+  float detail = 1.0 - smoothstep(500.0, 2200.0, dist);
+  float n1 = texture2D(uNoise, vW.xz * 0.0031).r;
+  float n2 = mix(0.5, texture2D(uNoise, vW.xz * 0.0155).g, detail);
+  float n3 = mix(0.5, texture2D(uNoise, vW.xz * 0.113).b, detail);
+  float ns = texture2D(uNoise, vec2((vW.x + vW.z) * 0.011, vW.y * 0.021)).g;
+  float ns2 = mix(0.5, texture2D(uNoise, vec2((vW.x - vW.z) * 0.047, vW.y * 0.06)).b, detail);
+  // hierba lozana (algo más viva que la del suelo, para dar aire fantástico)
+  vec3 grass = mix(vec3(0.22, 0.46, 0.12), vec3(0.52, 0.60, 0.21), smoothstep(0.30, 0.75, n1));
+  grass *= 0.84 + 0.30 * n2; grass *= 0.90 + 0.20 * n3;
+  // roca con estratos: cálida arriba, más violácea y oscura hacia la punta
+  vec3 rk = mix(vec3(0.50, 0.41, 0.33), vec3(0.28, 0.23, 0.26), clamp(vAux.y * 1.15 + ns * 0.25, 0.0, 1.0));
+  rk *= 0.80 + 0.40 * ns; rk *= 0.90 + 0.20 * ns2;
+  rk *= 0.95 + 0.05 * sin(vW.y * 0.17 + ns * 6.0) * detail;
+  float up = smoothstep(0.36, 0.70, N.y);
+  float onTop = up * (1.0 - smoothstep(0.90, 1.0, vAux.x));
+  vec3 col = mix(rk, grass, onTop);
+  col = mix(col, vec3(0.40, 0.29, 0.18), smoothstep(0.86, 0.98, vAux.x) * up * 0.85);     // borde de tierra
+  float moss = (1.0 - smoothstep(0.0, 0.30, vAux.y)) * (1.0 - up) * smoothstep(0.30, 0.75, n2);
+  col = mix(col, grass * 0.62, moss * 0.75);                                               // musgo bajo el borde
+  float ndl = dot(N, uSunDir);
+  float wrap = max((ndl + 0.20) / 1.20, 0.0);
+  vec3 sunC = vec3(1.0, 0.70, 0.43) * 1.70;
+  vec3 amb = mix(vec3(0.30, 0.22, 0.22), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5);
+  vec3 lit = col * (sunC * wrap + amb * 0.95);
+  float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+  vec3 fd = normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z));
+  gl_FragColor = vec4(mix(lit, skyColor(fd), fogF), 1.0);
+}`;
+const islandMat = new THREE.ShaderMaterial({ uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: islandFS, side: THREE.DoubleSide });
+const wfUniforms = { uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uTime: { value: 0 } };
+const waterfallMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: wfUniforms,
+  vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader: GLSL_COMMON + `
+  uniform float uFog, uTime; varying vec2 vUv; varying vec3 vW;
+  void main(){
+    float t = 1.0 - vUv.y;
+    float st = vnoise(vec2(vUv.x * 11.0, t * 2.4 - uTime * 1.5)) * 0.55 + vnoise(vec2(vUv.x * 27.0 + 3.0, t * 6.0 - uTime * 2.6)) * 0.45;
+    float edge = smoothstep(0.0, 0.2, vUv.x) * smoothstep(1.0, 0.8, vUv.x);
+    float a = edge * (0.30 + 0.70 * st) * (1.0 - smoothstep(0.50, 1.0, t)) * smoothstep(0.0, 0.03, t);
+    vec3 col = mix(vec3(0.60, 0.80, 0.92), vec3(1.0, 0.98, 0.95), st);
+    vec3 Vv = vW - cameraPosition; float dist = length(Vv);
+    float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+    vec3 fd = normalize(vec3(Vv.x, 0.0, Vv.z));
+    gl_FragColor = vec4(mix(col, skyColor(fd), fogF), a * 0.85);
+  }`
+});
+
+/* ---------- Malla de una isla ---------- */
+function buildIslandMesh(s) {
+  const R = s.R, NA = R > 300 ? 64 : R > 110 ? 40 : 24, NT = R > 300 ? 20 : R > 110 ? 12 : 7, NB = R > 300 ? 18 : R > 110 ? 12 : 7;
+  const nV = 1 + NT * NA + NB * NA + 1;
+  const pos = new Float32Array(nV * 3), aux = new Float32Array(nV * 2);
+  let v = 0;
+  const put = (dx, y, dz, q, dep) => { pos[v * 3] = dx; pos[v * 3 + 1] = y - s.cy; pos[v * 3 + 2] = dz; aux[v * 2] = q; aux[v * 2 + 1] = dep; return v++; };
+  put(0, islTop(s, 0, 0, 0), 0, 0, 0);
+  const rt = [], rb = [];
+  for (let i = 1; i <= NT; i++) {
+    const q = i / NT; rt.push(v);
+    for (let k = 0; k < NA; k++) { const a = k / NA * 6.283185, r = q * islRadAng(s, a), dx = Math.cos(a) * r, dz = Math.sin(a) * r; put(dx, islTop(s, dx, dz, q), dz, q, 0); }
+  }
+  for (let j = 0; j < NB; j++) {
+    const q = 1 - Math.pow(j / NB, 1.6); rb.push(v);
+    for (let k = 0; k < NA; k++) {
+      const a = k / NA * 6.283185, r = q * islRadAng(s, a), dx = Math.cos(a) * r, dz = Math.sin(a) * r;
+      put(dx, islBot(s, dx, dz, q), dz, q, Math.pow(Math.max(1 - q, 0), 0.8) * (1 + 0.35 * q));
+    }
+  }
+  const tip = put(0, islBot(s, 0, 0, 0), 0, 0, 1);
+  const idx = new Uint16Array(NA * 3 + (NT - 1) * NA * 6 + NA * 6 + (NB - 1) * NA * 6 + NA * 3);
+  let t = 0;
+  const quad = (A, B, C, D) => { idx[t++] = A; idx[t++] = B; idx[t++] = C; idx[t++] = B; idx[t++] = D; idx[t++] = C; };
+  for (let k = 0; k < NA; k++) { idx[t++] = 0; idx[t++] = rt[0] + (k + 1) % NA; idx[t++] = rt[0] + k; }
+  for (let i = 0; i < NT - 1; i++) for (let k = 0; k < NA; k++) quad(rt[i] + k, rt[i] + (k + 1) % NA, rt[i + 1] + k, rt[i + 1] + (k + 1) % NA);
+  for (let k = 0; k < NA; k++) quad(rt[NT - 1] + k, rt[NT - 1] + (k + 1) % NA, rb[0] + k, rb[0] + (k + 1) % NA);
+  for (let j = 0; j < NB - 1; j++) for (let k = 0; k < NA; k++) quad(rb[j] + k, rb[j] + (k + 1) % NA, rb[j + 1] + k, rb[j + 1] + (k + 1) % NA);
+  for (let k = 0; k < NA; k++) { idx[t++] = rb[NB - 1] + k; idx[t++] = rb[NB - 1] + (k + 1) % NA; idx[t++] = tip; }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('aux', new THREE.BufferAttribute(aux, 2));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  geo.computeVertexNormals(); geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, islandMat);
+  mesh.position.set(s.x, s.cy, s.z);
+  islGroup.add(mesh);
+  return mesh;
+}
+function buildIslandTrees(s) {
+  const n = s.R < 50 ? 2 : clamp(Math.round(s.R * s.R * 0.0009), 3, 220);
+  const list = { conifer: [], broad: [] };
+  for (let i = 0; i < n; i++) {
+    const a = hash2(s.seed, i, 61) * 6.283, q = Math.sqrt(hash2(s.seed, i, 62)) * 0.80;
+    const r = q * islRadAng(s, a), dx = Math.cos(a) * r, dz = Math.sin(a) * r;
+    if (s.tower && Math.hypot(s.x + dx - s.tower.x, s.z + dz - s.tower.z) < 14) continue;
+    (hash2(s.seed, i, 63) < 0.7 ? list.broad : list.conifer).push(s.x + dx, islTop(s, dx, dz, q), s.z + dz, hash2(s.seed, i, 64), hash2(s.seed, i, 65));
+  }
+  for (const type of ['conifer', 'broad']) {
+    const arr = list[type], m = arr.length / 5;
+    if (!m) continue;
+    const im = new THREE.InstancedMesh(treeGeos[type], treeMat, m);
+    im.frustumCulled = false;
+    for (let t = 0; t < m; t++) {
+      const sc = 0.9 + arr[t * 5 + 3] * 0.8;
+      _dummy.position.set(arr[t * 5], arr[t * 5 + 1] - 0.3, arr[t * 5 + 2]);
+      _dummy.rotation.set(0, arr[t * 5 + 4] * 6.283, 0);
+      _dummy.scale.set(sc, sc * (0.9 + arr[t * 5 + 4] * 0.35), sc);
+      _dummy.updateMatrix(); im.setMatrixAt(t, _dummy.matrix);
+      const vv = 0.85 + arr[t * 5 + 4] * 0.4;
+      _col.setRGB(vv * 0.95, vv, vv * 0.9); im.setColorAt(t, _col);
+    }
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    treeGroup.add(im); s.trees.push(im);
+  }
+}
+function buildWaterfall(s) {
+  const w = s.wf, g = new THREE.Group();
+  const geo = new THREE.PlaneGeometry(w.w, w.len, 1, 10);
+  const p1 = new THREE.Mesh(geo, waterfallMat), p2 = new THREE.Mesh(geo, waterfallMat);
+  p2.rotation.y = Math.PI / 2;
+  p1.renderOrder = p2.renderOrder = 3; p1.frustumCulled = p2.frustumCulled = false;
+  g.add(p1); g.add(p2);
+  g.position.set(w.x, w.y - w.len / 2, w.z); g.rotation.y = Math.PI / 2 - w.a;
+  g.userData.geo = geo;
+  islGroup.add(g);
+  return g;
+}
+function loadIsland(s) {
+  s.mesh = buildIslandMesh(s);
+  buildIslandTrees(s);
+  if (s.wf) s.wfMesh = buildWaterfall(s);
+  islLoaded.set(s.id, s);
+}
+function unloadIsland(s) {
+  if (s.mesh) { islGroup.remove(s.mesh); s.mesh.geometry.dispose(); s.mesh = null; }
+  s.trees.forEach(im => { treeGroup.remove(im); im.dispose && im.dispose(); }); s.trees = [];
+  if (s.wfMesh) { islGroup.remove(s.wfMesh); s.wfMesh.userData.geo.dispose(); s.wfMesh = null; }
+  if (s.tower) { const t = towers.get(s.tower.id); if (t) { towerGroup.remove(t.mesh); towers.delete(s.tower.id); } }
+  islLoaded.delete(s.id);
+}
+const islLoadR = s => s.R < 100 ? 3400 : s.R < 260 ? 5600 : 8200;
+
+function ensureIslandTowers(px, pz) {
+  for (const s of islLoaded.values()) {
+    const tw = s.tower;
+    if (!tw || towers.has(tw.id) || Math.hypot(tw.x - px, tw.z - pz) > TOWER_LOAD) continue;
+    const dead = towerState.destroyed.has(tw.id);
+    const mesh = new THREE.Mesh(dead ? ruinGeo : towerGeo, towerMat);
+    mesh.position.set(tw.x, tw.y - 0.5, tw.z); mesh.rotation.y = hash2(s.seed, 9, 9) * 6.28;
+    towerGroup.add(mesh);
+    towers.set(tw.id, { id: tw.id, x: tw.x, y: tw.y, z: tw.z, hp: dead ? 0 : TOWER_HP, dead, mesh, cool: 1.5 + Math.random() * 2.5, smokeT: 0 });
+  }
+}
+function updateIslandStreaming(px, pz) {
+  const list = islandsInRange(px, pz, ISL_DATA_R);
+  islActive.length = 0;
+  for (const s of list) islActive.push(s);
+  islPending.length = 0;
+  for (const s of list) {
+    if (s.mesh) continue;
+    const d = Math.hypot(s.x - px, s.z - pz);
+    if (d < islLoadR(s)) { s._d = d; islPending.push(s); }
+  }
+  islPending.sort((a, b) => a._d - b._d);
+  for (const s of Array.from(islLoaded.values())) if (Math.hypot(s.x - px, s.z - pz) > islLoadR(s) * 1.2) unloadIsland(s);
+  ensureIslandTowers(px, pz);
+}
+function pumpIslands(budgetMs) {
+  const t0 = performance.now(); let built = 0;
+  while (islPending.length && (built === 0 || performance.now() - t0 < budgetMs)) {
+    const s = islPending.shift();
+    if (!s.mesh) { loadIsland(s); built++; }
+  }
+  return islPending.length;
+}
+/* bruma al pie de las cascadas */
+function updateWaterfalls(dt) {
+  wfUniforms.uTime.value = gameTime;
+  const p = dragon.position;
+  for (const s of islLoaded.values()) {
+    const w = s.wf; if (!w) continue;
+    const d = Math.hypot(w.x - p.x, w.z - p.z); if (d > 2600) continue;
+    if (Math.random() < dt * 16) emit(fxSmoke, w.x + rnd(-w.w, w.w) * 0.6, w.y - w.len + rnd(-6, 6), w.z + rnd(-w.w, w.w) * 0.6, rnd(-1.5, 1.5), rnd(0.5, 2.5), rnd(-1.5, 1.5), rnd(2.2, 3.4), 8, 36, 0.92, 0.96, 1.0, 0.20, 0.5, 0);
+  }
+}
+/* ============================================================
+   5. EL DRAGÓN: cuello articulado, cabeza con mandíbula y alas con aleteo
+   Sistema local del dragón: -Z adelante, +Y arriba, +X derecha.
+   La cámara va sobre los hombros: se ve el cuello, la cabeza y la raíz de las alas.
+   ============================================================ */
+const PAL_RED = { base: '#5d1d12', hi: [170, 70, 38], lo: [92, 30, 18], m: ['#c4552a', '#a63a1c', '#6e2214'] };
+const PAL_YEL = { base: '#6b5512', hi: [238, 196, 56], lo: [150, 112, 24], m: ['#e6c03a', '#c49a24', '#7a5a16'] };
+function makeScaleTexture(pal) {
+  pal = pal || PAL_RED;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = pal.base; g.fillRect(0, 0, 256, 256);
+  const r = 16;
+  for (let row = 0; row < 21; row++) for (let col = -1; col < 9; col++) {
+    const x = col * r * 2 + (row % 2 ? r : 0), y = row * r * 0.8;
+    const grd = g.createRadialGradient(x, y - r * 0.2, r * 0.1, x, y + r * 0.2, r * 1.15);
+    const k = 0.75 + 0.25 * hash2(col + 50, row + 50, 31);
+    grd.addColorStop(0, `rgb(${Math.round(pal.hi[0] * k)},${Math.round(pal.hi[1] * k)},${Math.round(pal.hi[2] * k)})`);
+    grd.addColorStop(1, `rgb(${Math.round(pal.lo[0] * k)},${Math.round(pal.lo[1] * k)},${Math.round(pal.lo[2] * k)})`);
+    g.beginPath(); g.arc(x, y, r, 0, Math.PI); g.closePath(); g.fillStyle = grd; g.fill();
+    g.lineWidth = 2; g.strokeStyle = 'rgba(25,6,3,.7)'; g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3); t.anisotropy = 4;
+  return t;
+}
+function makeMembraneTexture(pal) {
+  pal = pal || PAL_RED;
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), S = 256;
+  const base = g.createLinearGradient(0, 0, S, S * 0.4);
+  base.addColorStop(0, pal.m[0]); base.addColorStop(0.55, pal.m[1]); base.addColorStop(1, pal.m[2]);
+  g.fillStyle = base; g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 260; i++) {                               // moteado
+    const x = hash2(i, 5, 71) * S, y = hash2(i, 6, 71) * S, r = 6 + hash2(i, 7, 71) * 22;
+    const d = hash2(i, 8, 71) > 0.5;
+    g.fillStyle = d ? 'rgba(60,14,8,0.10)' : 'rgba(255,170,90,0.07)';
+    g.beginPath(); g.arc(x, y, r, 0, 6.283); g.fill();
+  }
+  const W = [0.41 * S, 0.29 * S];                              // muñeca (en UV)
+  const tips = [[0.935, 0.14], [0.895, 0.59], [0.75, 0.86], [0.59, 0.91]];
+  g.lineCap = 'round';
+  tips.forEach(t => {
+    for (let k = 0; k < 4; k++) {
+      const tx = lerp(W[0], t[0] * S, 1), ty = lerp(W[1], t[1] * S, 1);
+      g.strokeStyle = k === 0 ? 'rgba(48,10,6,0.85)' : 'rgba(80,20,10,0.35)';
+      g.lineWidth = k === 0 ? 4 : 1.5;
+      g.beginPath(); g.moveTo(W[0], W[1]); g.lineTo(tx + (k ? (k - 2) * 7 : 0), ty + (k ? (k - 2) * 5 : 0)); g.stroke();
+    }
+  });
+  g.strokeStyle = 'rgba(60,14,8,0.4)'; g.lineWidth = 1.4;
+  for (let i = 0; i < 9; i++) { g.beginPath(); g.moveTo(0.02 * S, 0.19 * S); g.lineTo(0.05 * S + i * 5, 0.62 * S + i * 10); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.anisotropy = 4; return t;
+}
+function makeDragonMats(pal, eyeColor, emissive, headTint) {
+  const tex = makeScaleTexture(pal);
+  return {
+    skin: new THREE.MeshStandardMaterial({ color: 0xffffff, map: tex, bumpMap: tex, bumpScale: 1.6, roughness: 0.55, metalness: 0.08 }),
+    head: new THREE.MeshStandardMaterial({ color: headTint, map: tex, bumpMap: tex, bumpScale: 1.2, roughness: 0.5, metalness: 0.1 }),
+    bone: new THREE.MeshStandardMaterial({ color: pal === PAL_YEL ? 0x6b4a14 : 0x5a2a1c, roughness: 0.7 }),
+    horn: new THREE.MeshStandardMaterial({ color: 0xd8c8a8, roughness: 0.5 }),
+    memb: new THREE.MeshStandardMaterial({ color: 0xffffff, map: makeMembraneTexture(pal), emissive, roughness: 0.8, side: THREE.DoubleSide }),
+    eye: new THREE.MeshBasicMaterial({ color: eyeColor })
+  };
+}
+const ENEMY_MATS = makeDragonMats(PAL_YEL, 0xff2418, 0x4a3508, 0xfff0b8);
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xff6a1a, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
+
+const dragon = new THREE.Group();
+scene.add(dragon);
+dragon.add(camera);
+const UP = new THREE.Vector3(0, 1, 0), ZERO = new THREE.Vector3(), Y_AXIS = new THREE.Vector3(0, 1, 0);
+const _m4 = new THREE.Matrix4(), _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3(), _qA = new THREE.Quaternion();
+const sphereGeo = new THREE.SphereGeometry(1, 12, 9); sphereGeo.rotateX(Math.PI / 2);   // polos sobre el eje Z (largo del cuerpo)
+const coneGeo = new THREE.ConeGeometry(1, 1, 6), cylGeo = new THREE.CylinderGeometry(1, 1, 1, 7);
+
+function buildRig(parent, mats, withLight) {
+  const root = new THREE.Group(); parent.add(root);
+  const glow = glowMat.clone();
+  const skinMat = mats.skin, headMat = mats.head, boneMat = mats.bone, hornMat = mats.horn, membMat = mats.memb, eyeMat = mats.eye;
+  const mk = (geo, mat, parent) => { const m = new THREE.Mesh(geo, mat); (parent || root).add(m); return m; };
+
+  // Cuello: 15 segmentos + espinas dorsales
+  const NSEG = 15;
+  const neck = [], spikes = [];
+  for (let i = 0; i < NSEG; i++) {
+    neck.push(mk(sphereGeo, skinMat));
+    if (i % 2 === 0) spikes.push({ i, m: mk(coneGeo, hornMat) });
+  }
+  // Cuerpo y cola (se ven sobre todo en cámara exterior)
+  const body = mk(sphereGeo, skinMat); body.scale.set(1.35, 1.05, 3.1); body.position.set(0, -0.1, 1.9);
+  const chest = mk(sphereGeo, skinMat); chest.scale.set(1.2, 1.1, 1.6); chest.position.set(0, 0.0, -0.5);
+  const tail = [], TN = 14;
+  for (let i = 0; i < TN; i++) tail.push(mk(sphereGeo, skinMat));
+  const tailSpikes = [];
+  for (let i = 0; i < TN; i += 2) tailSpikes.push({ i, m: mk(coneGeo, hornMat) });
+
+  // Cabeza (modelo orientado hacia -Z, origen en la nuca)
+  const head = new THREE.Group(); root.add(head);
+  const hm = new THREE.Group(); hm.scale.setScalar(1.7); head.add(hm);
+  const skull = mk(sphereGeo, headMat, hm); skull.scale.set(0.60, 0.36, 0.95); skull.position.set(0, 0, -0.55);
+  const snout = mk(sphereGeo, headMat, hm); snout.scale.set(0.36, 0.24, 1.35); snout.position.set(0, 0.0, -1.75);
+  const snoutTip = mk(sphereGeo, headMat, hm); snoutTip.scale.set(0.30, 0.2, 0.45); snoutTip.position.set(0, -0.02, -2.65);
+  const brow = mk(sphereGeo, headMat, hm); brow.scale.set(0.72, 0.13, 0.5); brow.position.set(0, 0.22, -0.95);
+  const jawPivot = new THREE.Group(); jawPivot.position.set(0, -0.2, -0.45); hm.add(jawPivot);
+  const jaw = mk(sphereGeo, headMat, jawPivot); jaw.scale.set(0.30, 0.14, 1.2); jaw.position.set(0, -0.05, -1.1);
+  const throat = mk(sphereGeo, glow, jawPivot); throat.scale.set(0.22, 0.12, 0.95); throat.position.set(0, 0.02, -1.1);
+  for (let i = 0; i < 4; i++) {                                 // cresta dorsal de la cabeza
+    const cr = mk(coneGeo, hornMat, hm); cr.scale.set(0.12, 0.4 - i * 0.05, 0.12); cr.position.set(0, 0.30 - i * 0.01, -0.2 - i * 0.28);
+    cr.rotation.x = 0.35;
+  }
+  for (const sx of [-1, 1]) {
+    const horn = mk(coneGeo, hornMat, hm); horn.scale.set(0.17, 2.1, 0.17); horn.position.set(sx * 0.38, 0.26, 0.25);
+    horn.rotation.set(Math.PI / 2 - 0.45, 0, -sx * 0.30);
+    const horn2 = mk(coneGeo, hornMat, hm); horn2.scale.set(0.10, 0.95, 0.10); horn2.position.set(sx * 0.50, 0.02, -0.05);
+    horn2.rotation.set(Math.PI / 2 - 0.12, 0, -sx * 0.95);
+    const eye = mk(sphereGeo, eyeMat, hm); eye.scale.setScalar(0.13); eye.position.set(sx * 0.46, 0.15, -1.0);
+    const nost = mk(sphereGeo, glow, hm); nost.scale.setScalar(0.075); nost.position.set(sx * 0.12, 0.02, -2.9);
+  }
+  const mouthLight = withLight ? new THREE.PointLight(0xff7a2a, 0, 55, 2) : null;
+  if (mouthLight) { mouthLight.position.set(0, -0.12, -4.8); head.add(mouthLight); }
+
+  // Alas: huesos como cilindros orientados entre articulaciones + membrana dinámica
+  const wings = [];
+  for (const side of [-1, 1]) {
+    const bones = [];
+    for (let b = 0; b < 6; b++) bones.push(mk(cylGeo, boneMat));
+    const claw = mk(coneGeo, hornMat);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9 * 3), 3));
+    const uv = new Float32Array(9 * 2);
+    [[0.0225, 0.19], [0.21, 0.03], [0.41, 0.29], [0.935, 0.14], [0.895, 0.59], [0.75, 0.86], [0.59, 0.91], [0.03, 0.65], [0.03, 0.65]].forEach((p, i) => { uv[i * 2] = side < 0 ? p[0] : p[0]; uv[i * 2 + 1] = p[1]; });
+    geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+    geo.setIndex([2, 3, 4, 2, 4, 5, 2, 5, 6, 2, 6, 7, 2, 7, 1, 1, 7, 0]);
+    const mem = new THREE.Mesh(geo, membMat); mem.frustumCulled = false; root.add(mem);
+    wings.push({ side, bones, claw, geo, mem, pts: [0, 1, 2, 3, 4, 5, 6, 7, 8].map(() => new THREE.Vector3()) });
+  }
+  return { root, neck, spikes, tail, tailSpikes, head, jawPivot, mouthLight, wings, body, chest, glow };
+}
+
+function placeBone(mesh, a, b, r) {
+  _vA.subVectors(b, a); const len = _vA.length();
+  mesh.position.copy(a).addScaledVector(_vA, 0.5);
+  mesh.quaternion.setFromUnitVectors(Y_AXIS, _vA.multiplyScalar(1 / (len || 1)));
+  mesh.scale.set(r, len, r);
+}
+const WING_FINGER_SWEEP = [-0.12, 0.26, 0.62, 0.98], WING_FINGER_LEN = [10.5, 10.0, 8.4, 6.4];
+const _bz = new THREE.Vector3(), _bt = new THREE.Vector3(), _bp = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const wingDir = (out, side, phi, beta) => out.set(side * Math.cos(phi) * Math.cos(beta), Math.sin(phi) * Math.cos(beta), Math.sin(beta));
+const bez = (out, a, b, c, d, t) => {
+  const u = 1 - t, w0 = u * u * u, w1 = 3 * u * u * t, w2 = 3 * u * t * t, w3 = t * t * t;
+  return out.set(a.x * w0 + b.x * w1 + c.x * w2 + d.x * w3, a.y * w0 + b.y * w1 + c.y * w2 + d.y * w3, a.z * w0 + b.z * w1 + c.z * w2 + d.z * w3);
+};
+const _n0 = new THREE.Vector3(), _n1 = new THREE.Vector3(), _n2 = new THREE.Vector3(), _n3 = new THREE.Vector3(), _bp1 = new THREE.Vector3(), _bp2 = new THREE.Vector3(), _tan = new THREE.Vector3(), _up2 = new THREE.Vector3();
+const dragonAnim = { phase: 0, flap: 0.6, headYaw: 0, headPitch: 0, jaw: 0, tailYaw: 0, tailLag: 0, time: 0, tuck: 0, cam: 0, fire: 0 };
+
+/* st: { throttle, flapTarget, aimLocal (Vector3), yawRate, pitchRate, fire (0..1), third (bool), hover (0..1), boost (0..1), climb (-1..1, solo en hover) } */
+function animateRig(rig, A, dt, st) {
+  A.time += dt;
+  A.flap += (st.flapTarget - A.flap) * (1 - Math.exp(-dt * 2.2));
+  const hv = st.hover || 0, bs = st.boost || 0;
+  // hover: aleteo constante y enérgico (como un colibrí gigante); boost: golpes de ala más rápidos
+  const freq = lerp(0.9 + 1.5 * st.throttle * (0.5 + 0.5 * A.flap), 2.0 + 0.45 * (st.climb || 0), hv) + 0.55 * bs;
+  A.phase += dt * freq * Math.PI * 2;
+  const ph = A.phase, amp = 0.10 + 0.72 * A.flap, base = 0.15 + 0.10 * A.flap + 0.05 * hv;
+  const sweep = hv * 0.30 * Math.cos(ph);                  // en hover las alas barren hacia delante en el golpe descendente
+
+  // cabeza: sigue el marcador
+  const a = st.aimLocal;
+  const ty = clamp(Math.atan2(-a.x, -a.z) * 0.55, -0.7, 0.7), tp = clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * 0.55, -0.5, 0.55);
+  const k = 1 - Math.exp(-dt * 5);
+  A.headYaw += (ty - A.headYaw) * k; A.headPitch += (tp - A.headPitch) * k;
+  A.jaw += (st.fire * 0.55 - A.jaw) * (1 - Math.exp(-dt * 14));
+  A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
+
+  // cuello (Bézier cúbica)
+  const bob = Math.sin(ph - 0.4) * 0.07 * A.flap * (1 + hv);
+  _n0.set(0, 0.0, -0.1);
+  _n1.set(-A.headYaw * 0.35, 1.7 + A.headPitch * 0.5, -2.0);
+  _n2.set(-A.headYaw * 1.5, -0.30 + A.headPitch * 1.3 + bob, -4.7);
+  _n3.set(-A.headYaw * 2.5, -0.50 + A.headPitch * 2.4 + bob * 1.4, -6.7);
+  const NSEG = rig.neck.length;
+  for (let i = 0; i < NSEG; i++) {
+    const t = (i + 0.5) / NSEG, t2 = Math.min(1, t + 0.02);
+    bez(_bp1, _n0, _n1, _n2, _n3, t); bez(_bp2, _n0, _n1, _n2, _n3, t2);
+    _tan.subVectors(_bp2, _bp1).normalize();
+    const r = lerp(0.78, 0.46, Math.pow(t, 0.8)), seg = rig.neck[i];
+    seg.position.copy(_bp1); seg.scale.set(r, r * 0.92, 0.80);
+    _m4.lookAt(ZERO, _tan, UP); seg.quaternion.setFromRotationMatrix(_m4);
+    seg.userData.r = r; seg.userData.tan = seg.userData.tan || new THREE.Vector3(); seg.userData.tan.copy(_tan);
+  }
+  for (const sp of rig.spikes) {
+    const seg = rig.neck[sp.i], r = seg.userData.r, tan = seg.userData.tan;
+    _up2.crossVectors(tan, UP).cross(tan); if (_up2.lengthSq() < 1e-6) _up2.copy(UP); _up2.normalize();
+    sp.m.position.copy(seg.position).addScaledVector(_up2, r * 0.9);
+    sp.m.quaternion.setFromUnitVectors(Y_AXIS, _up2);
+    const s = 0.16 + (1 - sp.i / NSEG) * 0.12; sp.m.scale.set(s, 0.5 + s * 1.4, s);
+  }
+  // orientación de la cabeza = tangente final del cuello
+  bez(_bp1, _n0, _n1, _n2, _n3, 0.97); _tan.subVectors(_n3, _bp1).normalize();
+  _tan.x += -A.headYaw * 0.25; _tan.y += A.headPitch * 0.35 + A.jaw * 0.25 + 0.0; _tan.normalize();
+  rig.head.position.copy(_n3);
+  _m4.lookAt(ZERO, _tan, UP); rig.head.quaternion.setFromRotationMatrix(_m4);
+  rig.jawPivot.rotation.x = -A.jaw;
+  rig.glow.opacity = clamp(st.fire * 0.95, 0, 0.95);
+  if (rig.mouthLight) rig.mouthLight.intensity = st.fire * 3.2;
+
+  // cola (para la cámara exterior)
+  const TN = rig.tail.length;
+  for (let i = 0; i < TN; i++) {
+    const f = i / (TN - 1), z = 3.2 + i * 1.05;
+    const sway = Math.sin(A.time * 1.6 - i * 0.55) * (0.12 + f * 0.45) + A.tailYaw * f * f * 6.0;
+    const y = -0.15 - f * 0.25 + Math.sin(ph - i * 0.4) * 0.05 * f;
+    const r = lerp(0.85, 0.12, Math.pow(f, 0.85)), m = rig.tail[i];
+    m.position.set(sway, y, z); m.scale.set(r, r * 0.9, 0.75);
+    if (i % 2 === 0) { const ts = rig.tailSpikes[i / 2]; ts.m.position.set(sway, y + r * 0.9, z); ts.m.scale.set(0.11, 0.38 + r * 0.5, 0.11); }
+  }
+
+  // alas
+  for (const w of rig.wings) {
+    const s = w.side, p = w.pts;
+    const phi1 = base + amp * Math.sin(ph), phi2 = base * 0.8 + amp * 0.95 * Math.sin(ph - 0.75), phi3 = base * 0.5 + amp * 1.05 * Math.sin(ph - 1.5);
+    p[0].set(s * 1.0, 0.55, -0.45);                                          // hombro
+    wingDir(_bz, s, phi1, -0.65 + sweep); p[1].copy(p[0]).addScaledVector(_bz, 4.0);  // codo
+    wingDir(_bz, s, phi2, 0.85 + sweep * 1.2); p[2].copy(p[1]).addScaledVector(_bz, 4.6);   // muñeca
+    for (let f = 0; f < 4; f++) {
+      const droop = -0.10 * f - 0.14 * Math.max(0, Math.sin(ph - 1.9 - f * 0.3)) * A.flap;
+      wingDir(_bz, s, phi3 + droop, WING_FINGER_SWEEP[f] + sweep * 1.2);
+      p[3 + f].copy(p[2]).addScaledVector(_bz, WING_FINGER_LEN[f]);
+    }
+    p[7].set(s * 1.05, 0.0, 3.8);                                           // raíz trasera de la membrana
+    p[8].set(s * 1.6, -0.2, 4.6);
+    placeBone(w.bones[0], p[0], p[1], 0.30); placeBone(w.bones[1], p[1], p[2], 0.22);
+    for (let f = 0; f < 4; f++) placeBone(w.bones[2 + f], p[2], p[3 + f], 0.14 - f * 0.012);
+    const c = w.claw; c.position.copy(p[2]); c.scale.set(0.16, 0.7, 0.16); c.quaternion.setFromUnitVectors(Y_AXIS, _vA.set(-s * 0.3, 0.6, -0.8).normalize());
+    const pos = w.geo.attributes.position;
+    // vértices de la membrana: 0 hombro, 1 codo, 2 muñeca, 3-6 puntas, 7-8 raíz trasera
+    for (let i = 0; i < 9; i++) pos.setXYZ(i, p[i].x, p[i].y, p[i].z);
+    pos.needsUpdate = true; w.geo.computeVertexNormals();
+  }
+  // balanceo del cuerpo con el aleteo
+  rig.root.position.y = Math.sin(ph - 0.3) * 0.06 * A.flap * (1 + 1.5 * hv);
+}
+const newAnim = () => ({ phase: Math.random() * 6.283, flap: 0.6, headYaw: 0, headPitch: 0, jaw: 0, tailYaw: 0, tailLag: 0, time: Math.random() * 10 });
+
+/* ============================================================
+   5c. DRAGÓN HUMANOIDE DEL JUGADOR (modelo GLB riggeado, cámara siempre en tercera persona)
+   Modelo: «Dragon Character 3d» de Oscar Creativo (Sketchfab, CC BY-NC 4.0), optimizado con herramientas/optimizar_modelo.mjs
+   (50 000 triángulos, una sola malla y un atlas de texturas). El modelo está de pie: +Y arriba, pecho hacia +Z, su izquierda en +X.
+   Para volar se tumba en horizontal, tipo Superman: cabeza hacia delante (-Z del dragón) y barriga hacia el suelo.
+   · Alas: mezcla de dos poses del clip original (alas arriba a los 6,0 s y abajo a los 10,5 s) más un giro por código del
+     antebrazo y la mano con retraso, que hace de onda. Plegadas = pose de reposo (cuelgan a lo largo del cuerpo): boost y picado.
+   · Cuerpo: la cabeza mira al frente y sigue al marcador; brazos pegados (Iron Man); piernas y cola estiradas hacia atrás.
+   · Hover: el cuerpo se pone casi vertical, las piernas cuelgan y las alas baten hacia delante y hacia atrás.
+   Los giros de huesos se expresan en el espacio del modelo (rotModel) y se pasan al espacio de cada padre: así no dependen
+   de cómo estén orientados los ejes locales de cada hueso del rig.
+   ============================================================ */
+const HERO_URL = '../modelos/dragon_01_web.glb';          // solo si el HTML no lleva el modelo incrustado
+const HERO_SCALE = 11;                                    // el modelo mide 1,55 → unos 17 m tumbado
+const HERO_PIVOT_Y = 1.1;                                 // altura del pecho en el modelo: el dragón gira alrededor de este punto
+const HERO_MOUTH = [0, 1.405, 0.30];                      // boca en el modelo en reposo (de aquí salen las bolas de fuego)
+const HERO_CAM = [[10, 32, -0.05], [15, 50, -0.09]];      // cámara cerca / lejos (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula)
+const HERO_HOVER_PITCH = -0.22;                           // inclinación del cuerpo en hover (0 = vertical)
+const HERO_EMISSIVE = 2.2;                                // brillo de ojos y venas
+// Poses de las alas (rotaciones locales x, y, z, w) sacadas del clip «MOTION» del modelo original
+const WING_UP = {
+  shoulder_dupli_001_l_081: [0.1132, -0.3831, -0.1887, 0.8971], arm_stretch_dupli_001_l_082: [0.0684, -0.5422, -0.5203, 0.6562], arm_twist_dupli_001_l_083: [0, 0.0316, 0, 0.9995],
+  'c_arm_feather_01_01_01_dupli_001_l_084': [0.1057, -0.1787, 0.9596, 0.1897], forearm_stretch_dupli_001_l_085: [-0.6359, -0.0544, 0.4957, 0.589], 'c_forearm_feather_01_01_01_dupli_001_l_086': [-0.1145, -0.1122, 0.2321, 0.9594],
+  forearm_twist_dupli_001_l_087: [0, 0.0802, 0, 0.9968], hand_dupli_001_l_088: [-0.1504, 0.059, 0.1093, 0.9808], 'c_hand_feather_01_01_01_dupli_001_l_089': [-0.0548, -0.0184, -0.0093, 0.9983],
+  shoulder_dupli_001_r_090: [0.1111, 0.3983, 0.1953, 0.8893], arm_stretch_dupli_001_r_091: [0.0615, 0.5707, 0.4591, 0.678], arm_twist_dupli_001_r_092: [0, -0.0522, 0, 0.9986],
+  'c_arm_feather_01_01_01_dupli_001_r_093': [-0.1166, -0.1604, 0.9525, -0.2314], forearm_stretch_dupli_001_r_094: [-0.6359, 0.0544, -0.4957, 0.589], 'c_forearm_feather_01_01_01_dupli_001_r_095': [-0.1056, 0.1087, -0.2426, 0.9582],
+  forearm_twist_dupli_001_r_096: [0, -0.1367, 0, 0.9906], hand_dupli_001_r_097: [-0.1236, -0.1106, -0.142, 0.9759], 'c_hand_feather_01_01_01_dupli_001_r_098': [-0.0548, 0.0184, 0.0093, 0.9983]
+};
+const WING_DOWN = Object.assign({}, WING_UP, {          // en el clip solo cambian el omóplato y el brazo
+  shoulder_dupli_001_l_081: [0.6581, -0.1586, -0.3351, 0.6554], arm_stretch_dupli_001_l_082: [0.0096, -0.5416, -0.5889, 0.5998],
+  shoulder_dupli_001_r_090: [0.6899, 0.1803, 0.3303, 0.6183], arm_stretch_dupli_001_r_091: [0.0204, 0.5516, 0.5454, 0.6308]
+});
+const WING_STROKE = { arm_stretch_dupli: 0.16, forearm_stretch_dupli: 0.30, hand_dupli: 0.32 };   // giro extra por código (rad) de cada tramo
+
+const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: [], wings: [], mouthLocal: new THREE.Vector3(), glow: null, light: null };
+hero.wrap.scale.setScalar(HERO_SCALE);
+hero.wrap.rotation.set(-Math.PI / 2, Math.PI, 0);
+dragon.add(hero.wrap);
+
+/* Carga: del <script id="modelo-glb"> en base64 si lo hay; si no, del archivo .glb (necesita un servidor local). */
+function loadHero() {
+  const tag = document.getElementById('modelo-glb'), b64 = tag ? tag.textContent.replace(/\s+/g, '') : '';
+  const src = b64.length > 1000
+    ? Promise.resolve().then(() => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })
+    : fetch(HERO_URL).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
+  return src.then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)))
+    .then(setupHero)
+    .catch(err => { hero.error = err; console.error('No se pudo cargar el dragón:', err); });
+}
+function setupHero(gltf) {
+  const model = gltf.scene;
+  model.position.y = -HERO_PIVOT_Y;
+  hero.wrap.add(model); hero.model = model;
+  model.traverse(o => {
+    if (o.isBone) { hero.B[o.name.replace(/_\d+$/, '')] = o; hero.rest.push([o, o.quaternion.clone()]); }
+    if (o.isMesh) {
+      o.frustumCulled = false;                             // la caja de una malla con esqueleto no sigue a la pose
+      const m = o.material;
+      for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].encoding = THREE.LinearEncoding;   // como el resto de la escena (salida lineal)
+      if (m.emissiveMap) m.emissiveIntensity = HERO_EMISSIVE;
+      m.needsUpdate = true;
+    }
+  });
+  for (const name in WING_UP) {
+    const b = model.getObjectByName(name); if (!b) continue;
+    const short = name.replace(/_\d+$/, ''), kind = /forearm/.test(short) ? 1 : /hand/.test(short) ? 2 : 0;
+    const main = Object.keys(WING_STROKE).find(k => short.startsWith(k));
+    hero.wings.push({ b, kind, side: short.endsWith('_l') ? 1 : -1, stroke: main ? WING_STROKE[main] : 0,
+      up: new THREE.Quaternion().fromArray(WING_UP[name]), down: new THREE.Quaternion().fromArray(WING_DOWN[name]), rest: b.quaternion.clone() });
+  }
+  dragon.updateMatrixWorld(true);
+  hero.mouthLocal.set(HERO_MOUTH[0], HERO_MOUTH[1], HERO_MOUTH[2]);
+  model.localToWorld(hero.mouthLocal); hero.B.head_x.worldToLocal(hero.mouthLocal);
+  hero.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+  hero.glow.renderOrder = 7; hero.glow.visible = false; scene.add(hero.glow);
+  hero.light = new THREE.PointLight(0xff7a2a, 0, 70, 2); scene.add(hero.light);
+  hero.ready = true;
+}
+
+/* ---------- Ayudantes: giros de huesos en el espacio del modelo ---------- */
+const _hQ = new THREE.Quaternion(), _hQ2 = new THREE.Quaternion(), _hR = new THREE.Quaternion(), _hMQi = new THREE.Quaternion(), _hWQi = new THREE.Quaternion(), _hId = new THREE.Quaternion();
+const _hP = new THREE.Vector3(), _hP2 = new THREE.Vector3(), _hS = new THREE.Vector3(), _hT = new THREE.Vector3(), _hD = new THREE.Vector3(), _hD2 = new THREE.Vector3(), _hMinv = new THREE.Matrix4();
+const _hUp = new THREE.Vector3(), _hRt = new THREE.Vector3(), H_AXIS = new THREE.Vector3(0, 1, 0);   // H_AXIS: eje largo del cuerpo (modelo)
+function heroQuat(o, out) { o.updateWorldMatrix(true, false); o.matrixWorld.decompose(_hP, out, _hS); return out.premultiply(_hMQi); }
+function heroPos(o, out) { o.updateWorldMatrix(true, false); return out.setFromMatrixPosition(o.matrixWorld).applyMatrix4(_hMinv); }
+/* Gira el hueso b con R (rotación en el espacio del modelo) alrededor de su articulación. */
+function rotModel(b, R) { heroQuat(b.parent, _hQ); _hQ2.copy(_hQ).invert().multiply(R).multiply(_hQ); b.quaternion.premultiply(_hQ2); }
+function rotAxis(b, axis, ang) { if (Math.abs(ang) > 1e-5) rotModel(b, _hR.setFromAxisAngle(axis, ang)); }
+/* Orienta el hueso b para que el tramo b→c apunte hacia dir (espacio del modelo, unitario). */
+function aimModel(b, c, dir) { heroPos(b, _hP); heroPos(c, _hP2); _hP2.sub(_hP).normalize(); rotModel(b, _hR.setFromUnitVectors(_hP2, dir)); }
+/* Dirección dada en ejes del dragón (x derecha, y arriba, z atrás) → espacio del modelo */
+const d2m = (out, x, y, z) => out.set(x, y, z).normalize().applyQuaternion(_hWQi);
+const mix3 = (out, a, b, t) => out.set(lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t));
+/* Boca del dragón en el mundo (de donde salen las bolas de fuego). */
+function heroMouth(out) {
+  if (!hero.ready) return dragon.localToWorld(out.set(0, 0, -9));
+  hero.B.head_x.updateWorldMatrix(true, false);
+  return hero.B.head_x.localToWorld(out.copy(hero.mouthLocal));
+}
+
+/* ---------- Animación por fotograma (y cámara de tercera persona) ----------
+   st: { throttle, flapTarget, aimLocal, yawRate, fire, third, hover, boost, climb, dive } */
+const _hA = [0, 0, 0], _hB = [0, 0, 0];
+function animateHero(dt, st) {
+  const A = dragonAnim;
+  A.time += dt;
+  A.flap += (st.flapTarget - A.flap) * (1 - Math.exp(-dt * 2.2));
+  const hv = st.hover || 0, bs = st.boost || 0;
+  const freq = lerp(0.75 + 1.15 * st.throttle * (0.5 + 0.5 * A.flap), 1.75 + 0.4 * (st.climb || 0), hv) + 0.45 * bs;
+  A.phase += dt * freq * Math.PI * 2;
+  const k5 = 1 - Math.exp(-dt * 5), a = st.aimLocal;
+  A.headYaw += (clamp(Math.atan2(-a.x, -a.z) * 0.6, -0.8, 0.8) - A.headYaw) * k5;
+  A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * 0.6, -0.5, 0.5) - A.headPitch) * k5;
+  A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
+  A.tuck += (clamp(Math.max(bs * 0.85, (st.dive || 0) * 0.6), 0, 1) * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));
+  A.fire = st.fire;
+  // cámara: siempre detrás del dragón (C alterna cerca / lejos)
+  A.cam += ((st.third ? 1 : 0) - A.cam) * (1 - Math.exp(-dt * 4));
+  camera.position.set(0, lerp(HERO_CAM[0][0], HERO_CAM[1][0], A.cam), lerp(HERO_CAM[0][1], HERO_CAM[1][1], A.cam));
+  camera.rotation.set(lerp(HERO_CAM[0][2], HERO_CAM[1][2], A.cam), 0, 0);
+  if (!hero.ready) return;
+
+  const ph = A.phase, B = hero.B;
+  // 1. cuerpo: horizontal en vuelo, casi vertical en hover; sube y baja con cada aletazo
+  const bob = Math.sin(ph - 0.4) * A.flap * (1 - 0.6 * A.tuck);
+  const bodyPitch = lerp(-Math.PI / 2, HERO_HOVER_PITCH, hv) + bob * 0.03;
+  hero.wrap.rotation.set(bodyPitch, Math.PI, 0);
+  hero.wrap.position.set(0, bob * 0.45 * (1 + hv), 0);
+  hero.model.updateWorldMatrix(true, false);
+  hero.model.matrixWorld.decompose(_hP, _hMQi, _hS); _hMQi.invert(); _hMinv.copy(hero.model.matrixWorld).invert();
+  _hWQi.copy(hero.wrap.quaternion).invert();
+  _hUp.set(0, 1, 0).applyQuaternion(_hWQi); _hRt.set(1, 0, 0).applyQuaternion(_hWQi);   // ejes del dragón vistos desde el modelo
+  // 2. todos los huesos a la pose de reposo
+  for (const r of hero.rest) r[0].quaternion.copy(r[1]);
+  // 3. alas: pose arriba ↔ abajo según la fase (con retraso hacia la punta) y plegado hacia la pose de reposo
+  const amp = A.flap * (1 - A.tuck);
+  for (const w of hero.wings) {
+    const u = Math.sin(ph - w.kind * 0.45);                                   // +1: arriba, -1: abajo
+    w.b.quaternion.copy(w.up).slerp(w.down, clamp(0.35 - 0.65 * u * amp, 0, 1)).slerp(w.rest, A.tuck);
+  }
+  for (const w of hero.wings) if (w.stroke) rotAxis(w.b, H_AXIS, w.side * w.stroke * Math.sin(ph - w.kind * 0.45) * amp);
+  // 4. espalda, cuello y cabeza: mirar al frente (compensa el cuerpo tumbado) y seguir al marcador
+  const look = -bodyPitch;
+  rotAxis(B.spine_03_x, _hRt, look * 0.15);
+  rotAxis(B.neck_x, _hRt, look * 0.40 + A.headPitch * 0.4 - A.fire * 0.12); rotAxis(B.neck_x, _hUp, A.headYaw * 0.45);
+  rotAxis(B.head_x, _hRt, look * 0.45 + A.headPitch * 0.6); rotAxis(B.head_x, _hUp, A.headYaw * 0.55);
+  // 5. brazos (pegados y hacia atrás, aún más en boost; en hover cuelgan algo adelantados) y piernas (estiradas; en hover cuelgan)
+  const kick = Math.sin(A.time * 2.3) * 0.07 * (1 - hv);
+  for (const s of [1, -1]) {
+    const L = s > 0 ? 'l' : 'r', sx = -s;                                     // sx: lado en ejes del dragón (el +X del modelo queda a su izquierda)
+    mix3(_hD, [sx * 0.30, -0.28, 0.91], [sx * 0.14, -0.12, 0.98], bs); _hA[0] = _hD.x; _hA[1] = _hD.y; _hA[2] = _hD.z;
+    mix3(_hD, _hA, [sx * 0.30, -0.92, -0.25], hv);
+    aimModel(B['arm_stretch_' + L], B['forearm_stretch_' + L], d2m(_hD2, _hD.x, _hD.y, _hD.z));
+    aimModel(B['forearm_stretch_' + L], B['hand_' + L], d2m(_hD2, _hD.x, _hD.y - 0.15, _hD.z));
+    mix3(_hD, [sx * 0.10, -0.04 + kick * s, 1], [sx * 0.14, -0.97, 0.12], hv);
+    aimModel(B['thigh_stretch_' + L], B['leg_stretch_' + L], d2m(_hD2, _hD.x, _hD.y, _hD.z));
+    mix3(_hD, [sx * 0.06, -0.10 + kick * s * 1.4, 1], [sx * 0.08, -0.93, 0.36], hv);
+    aimModel(B['leg_stretch_' + L], B['foot_' + L], d2m(_hD2, _hD.x, _hD.y, _hD.z));
+    mix3(_hD, [0, 0.12, 1], [0, -0.85, -0.5], hv);                                // en vuelo, dedos hacia atrás (se ve el talón)
+    aimModel(B['foot_' + L], B['toes_01_' + L], d2m(_hD2, _hD.x, _hD.y, _hD.z));
+  }
+  // 6. cola: sigue la línea del cuerpo y ondula (de lado con el giro, arriba y abajo con el aleteo)
+  mix3(_hD, [0, 0.06, 1], [0, -0.75, 0.66], hv);
+  aimModel(B.c_tail_00_x, B.c_tail_03_x, d2m(_hD2, _hD.x, _hD.y, _hD.z));
+  for (let i = 1; i <= 6; i++) {
+    const t = B['c_tail_0' + i + '_x'];
+    rotAxis(t, _hUp, Math.sin(A.time * 1.6 - i * 0.55) * (0.04 + 0.03 * i / 6) + A.tailYaw * 0.12);
+    rotAxis(t, _hRt, Math.sin(ph - i * 0.5) * 0.05 * A.flap);
+  }
+  // 7. fuego en la boca
+  heroMouth(_hT);
+  const f = A.fire, g = hero.glow;
+  g.visible = f > 0.02; g.position.copy(_hT); g.scale.setScalar(2.5 + 7 * f); g.material.opacity = clamp(f * 1.1, 0, 1);
+  hero.light.position.copy(_hT); hero.light.intensity = f * 3.4;
+}
+/* ============================================================
+   6. PARTÍCULAS, PROYECTILES Y SONIDO PROCEDURAL
+   ============================================================ */
+let camShake = 0;
+
+/* ---------- Partículas (puntos con shader) ---------- */
+function makeParticles(cap, additive) {
+  const P = {
+    cap, i: 0,
+    pos: new Float32Array(cap * 3), col: new Float32Array(cap * 4), size: new Float32Array(cap),
+    vel: new Float32Array(cap * 3), life: new Float32Array(cap), max: new Float32Array(cap),
+    s0: new Float32Array(cap), s1: new Float32Array(cap), a0: new Float32Array(cap), drag: new Float32Array(cap), grav: new Float32Array(cap)
+  };
+  const geo = new THREE.BufferGeometry();
+  P.aPos = new THREE.BufferAttribute(P.pos, 3); P.aCol = new THREE.BufferAttribute(P.col, 4); P.aSize = new THREE.BufferAttribute(P.size, 1);
+  P.aPos.setUsage(THREE.DynamicDrawUsage); P.aCol.setUsage(THREE.DynamicDrawUsage); P.aSize.setUsage(THREE.DynamicDrawUsage);
+  geo.setAttribute('position', P.aPos); geo.setAttribute('aColor', P.aCol); geo.setAttribute('aSize', P.aSize);
+  P.mat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+    uniforms: { uScale: { value: 600 } },
+    vertexShader: `attribute vec4 aColor; attribute float aSize; uniform float uScale; varying vec4 vC;
+      void main(){ vC = aColor; vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+        gl_PointSize = clamp(aSize * uScale / max(-mv.z, 0.5), 0.0, 700.0); }`,
+    fragmentShader: `varying vec4 vC;
+      void main(){ vec2 d = gl_PointCoord - 0.5; float r = length(d) * 2.0; if (r > 1.0) discard;
+        float a = smoothstep(1.0, 0.0, r); a *= a;
+        gl_FragColor = vec4(vC.rgb, vC.a * a); }`
+  });
+  P.points = new THREE.Points(geo, P.mat);
+  P.points.frustumCulled = false; P.points.renderOrder = additive ? 6 : 4;
+  scene.add(P.points);
+  return P;
+}
+const fxAdd = makeParticles(2600, true), fxSmoke = makeParticles(1400, false);
+function emit(P, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav) {
+  const i = P.i; P.i = (P.i + 1) % P.cap;
+  P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
+  P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
+  P.life[i] = life; P.max[i] = life; P.s0[i] = s0; P.s1[i] = s1; P.a0[i] = a; P.drag[i] = drag; P.grav[i] = grav;
+  P.col[i * 4] = r; P.col[i * 4 + 1] = g; P.col[i * 4 + 2] = b;
+}
+function updateParticles(P, dt) {
+  for (let i = 0; i < P.cap; i++) {
+    const l = P.life[i];
+    if (l <= 0) { P.size[i] = 0; P.col[i * 4 + 3] = 0; continue; }
+    const nl = l - dt; P.life[i] = nl;
+    if (nl <= 0) { P.size[i] = 0; P.col[i * 4 + 3] = 0; continue; }
+    const k = Math.exp(-P.drag[i] * dt);
+    P.vel[i * 3] *= k; P.vel[i * 3 + 1] = P.vel[i * 3 + 1] * k - P.grav[i] * dt; P.vel[i * 3 + 2] *= k;
+    P.pos[i * 3] += P.vel[i * 3] * dt; P.pos[i * 3 + 1] += P.vel[i * 3 + 1] * dt; P.pos[i * 3 + 2] += P.vel[i * 3 + 2] * dt;
+    const f = 1 - nl / P.max[i];
+    P.size[i] = lerp(P.s0[i], P.s1[i], f);
+    P.col[i * 4 + 3] = P.a0[i] * (1 - f) * Math.min(1, f * 12 + 0.25);
+  }
+  P.aPos.needsUpdate = true; P.aCol.needsUpdate = true; P.aSize.needsUpdate = true;
+}
+const rnd = (a, b) => a + Math.random() * (b - a);
+function explode(x, y, z, power) {
+  const n = Math.round(46 * power);
+  emit(fxAdd, x, y, z, 0, 0, 0, 0.22, 22 * power, 55 * power, 1, 0.9, 0.7, 1, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * 6.283, c = rnd(-1, 1), s = Math.sqrt(1 - c * c), sp = rnd(6, 34) * power;
+    emit(fxAdd, x, y, z, Math.cos(a) * s * sp, c * sp * 0.8 + 6, Math.sin(a) * s * sp, rnd(0.5, 1.2), rnd(5, 9) * power, rnd(12, 24) * power, 1, rnd(0.35, 0.65), 0.12, 0.95, 1.6, -3);
+  }
+  for (let i = 0; i < Math.round(26 * power); i++) {
+    const a = Math.random() * 6.283, sp = rnd(3, 16) * power;
+    emit(fxSmoke, x + rnd(-3, 3), y + rnd(-2, 3), z + rnd(-3, 3), Math.cos(a) * sp * 0.5, rnd(4, 14) * power, Math.sin(a) * sp * 0.5, rnd(2.2, 4.4), rnd(8, 14) * power, rnd(26, 46) * power, 0.16, 0.14, 0.14, 0.55, 0.7, -1.5);
+  }
+  for (let i = 0; i < Math.round(30 * power); i++) {
+    const a = Math.random() * 6.283, c = rnd(-0.2, 1), s = Math.sqrt(1 - c * c), sp = rnd(25, 70) * power;
+    emit(fxAdd, x, y, z, Math.cos(a) * s * sp, c * sp, Math.sin(a) * s * sp, rnd(0.6, 1.4), 0.7, 0.2, 1, 0.85, 0.4, 1, 0.3, 24);
+  }
+  const d = Math.hypot(x - dragon.position.x, y - dragon.position.y, z - dragon.position.z);
+  camShake = Math.max(camShake, power * 0.55 * clamp(1 - d / 900, 0, 1));
+  sfx.boom(power * clamp(1.2 - d / 1800, 0.15, 1));
+}
+function debris(x, y, z) {
+  for (let i = 0; i < 42; i++) {
+    const a = Math.random() * 6.283, sp = rnd(8, 34);
+    emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(10, 38), Math.sin(a) * sp, rnd(2.2, 3.6), rnd(2.4, 4.2), rnd(2, 3.6), 0.22, 0.18, 0.15, 1, 0.1, 22);
+  }
+}
+function splash(x, z, power) {
+  for (let i = 0; i < Math.round(26 * power); i++) {
+    const a = Math.random() * 6.283, sp = rnd(4, 18) * power;
+    emit(fxSmoke, x, WL + 0.5, z, Math.cos(a) * sp, rnd(6, 24) * power, Math.sin(a) * sp, rnd(0.9, 1.7), rnd(2, 4), rnd(5, 9), 0.85, 0.92, 0.95, 0.55, 0.9, 16);
+  }
+}
+
+/* ---------- Bolas de fuego del jugador ---------- */
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), grd = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grd.addColorStop(0, 'rgba(255,255,235,1)'); grd.addColorStop(0.25, 'rgba(255,190,90,0.85)'); grd.addColorStop(0.6, 'rgba(255,90,20,0.25)'); grd.addColorStop(1, 'rgba(255,60,0,0)');
+  g.fillStyle = grd; g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTex = glowTexture();
+const fireballs = [], bolts = [];
+const fbLight = new THREE.PointLight(0xff8a3a, 0, 190, 2); scene.add(fbLight);
+const FIREBALL_SPEED = 340, FIREBALL_LIFE = 6;
+function spawnFireball(from, dir, enemy, vol) {
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  core.scale.setScalar(7); core.renderOrder = 7; scene.add(core);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
+  halo.scale.setScalar(22); halo.renderOrder = 7; scene.add(halo);
+  fireballs.push({ pos: from.clone(), vel: dir.clone().multiplyScalar(FIREBALL_SPEED), life: FIREBALL_LIFE, core, halo, enemy: !!enemy });
+  sfx.fire(vol);
+}
+function killFireball(i) {
+  const f = fireballs[i]; scene.remove(f.core); scene.remove(f.halo); f.core.material.dispose(); f.halo.material.dispose();
+  fireballs.splice(i, 1);
+}
+const _fo = new THREE.Vector3(), _fs = new THREE.Vector3(), _fc = new THREE.Vector3();
+function segHitsSphere(a, b, c, r) {                      // ¿el segmento a→b atraviesa la esfera (c, r)?
+  _fs.subVectors(b, a); const l2 = _fs.lengthSq();
+  const t = l2 > 1e-9 ? clamp(_fc.subVectors(c, a).dot(_fs) / l2, 0, 1) : 0;
+  return _fc.copy(a).addScaledVector(_fs, t).distanceToSquared(c) < r * r;
+}
+function updateFireballs(dt) {
+  let near = null, nearD = 700;
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    const f = fireballs[i];
+    const steps = 2, h = dt / steps;
+    let hit = false;
+    for (let s = 0; s < steps && !hit; s++) {
+      _fo.copy(f.pos);
+      f.pos.addScaledVector(f.vel, h);
+      const gy = Math.max(heightAt(f.pos.x, f.pos.z), WL);
+      if (f.pos.y < gy) {
+        hit = true;
+        if (heightAt(f.pos.x, f.pos.z) < WL) { splash(f.pos.x, f.pos.z, 1.3); sfx.hit(); } else explode(f.pos.x, gy + 1, f.pos.z, 0.75);
+      } else if (f.enemy) {
+        // bola de fuego enemiga: solo daña al jugador
+        if (state === 'playing' && segHitsSphere(_fo, f.pos, dragon.position, PLAYER_HIT_R)) { hit = true; hurtDragon(ENEMY_DMG, 'Un dragón enemigo te derribó'); }
+      } else {
+        // bola de fuego del jugador: torres y dragones enemigos
+        for (const t of towers.values()) {
+          if (t.dead) continue;
+          const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
+          if (dx * dx + dz * dz < 64 && f.pos.y > t.y - 1 && f.pos.y < t.y + 42) { hit = true; damageTower(t, 1); break; }
+        }
+        if (!hit) for (const e of enemies) if (!e.dead && segHitsSphere(_fo, f.pos, e.pos, ENEMY_HIT_R)) { hit = true; damageEnemy(e, 1, f.pos); break; }
+      }
+      if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; explode(f.pos.x, f.pos.y, f.pos.z, 0.75); }
+    }
+    f.life -= dt;
+    if (hit || f.life <= 0) { killFireball(i); continue; }
+    f.core.position.copy(f.pos); f.halo.position.copy(f.pos);
+    const dP = f.pos.distanceTo(dragon.position);
+    if (dP < nearD) { nearD = dP; near = f; }
+    if (f.enemy && state === 'playing' && dP < 700) {      // aviso de proyectil enemigo que se acerca a tu trayectoria
+      _fs.subVectors(dragon.position, f.pos); const along = _fs.dot(f.vel) / FIREBALL_SPEED;
+      if (along > 0 && dP * dP - along * along < 3600) boltWarn = Math.max(boltWarn, 1 - dP / 700);
+    }
+    const fl = 1 + Math.sin(performance.now() * 0.05 + i) * 0.12; f.core.scale.setScalar(7 * fl); f.halo.scale.setScalar(22 * fl);
+    if (!f.enemy || dP < 2600) {
+      for (let k = 0; k < 3; k++) {
+        const o = rnd(0, dt * FIREBALL_SPEED);
+        emit(fxAdd, f.pos.x - f.vel.x / FIREBALL_SPEED * o + rnd(-0.6, 0.6), f.pos.y - f.vel.y / FIREBALL_SPEED * o + rnd(-0.6, 0.6), f.pos.z - f.vel.z / FIREBALL_SPEED * o + rnd(-0.6, 0.6),
+          rnd(-3, 3), rnd(-1, 4), rnd(-3, 3), rnd(0.35, 0.7), rnd(3.2, 4.6), rnd(0.8, 1.6), 1, rnd(0.45, 0.7), 0.15, 0.8, 1.2, 0);
+      }
+      if (Math.random() < 0.6) emit(fxSmoke, f.pos.x, f.pos.y, f.pos.z, rnd(-2, 2), rnd(0, 3), rnd(-2, 2), rnd(0.8, 1.5), 2.5, 7, 0.18, 0.15, 0.14, 0.35, 0.8, 0);
+    }
+  }
+  if (near) { fbLight.position.copy(near.pos); fbLight.intensity = 4.2; } else fbLight.intensity = Math.max(0, fbLight.intensity - dt * 20);
+}
+
+/* ---------- Proyectiles enemigos ---------- */
+const boltGeo = new THREE.CylinderGeometry(0.14, 0.14, 4.5, 5); boltGeo.rotateX(Math.PI / 2);
+const boltMat = new THREE.MeshBasicMaterial({ color: 0xffd8a0 });
+function spawnBolt(from, dir) {
+  const mesh = new THREE.Mesh(boltGeo, boltMat); mesh.position.copy(from);
+  mesh.lookAt(from.clone().add(dir)); scene.add(mesh);
+  bolts.push({ pos: from.clone(), vel: dir.clone().multiplyScalar(215), life: 7, mesh });
+}
+let boltWarn = 0;
+function updateBolts(dt) {
+  boltWarn = 0;
+  for (let i = bolts.length - 1; i >= 0; i--) {
+    const b = bolts[i];
+    b.pos.addScaledVector(b.vel, dt); b.life -= dt; b.mesh.position.copy(b.pos);
+    emit(fxAdd, b.pos.x, b.pos.y, b.pos.z, 0, 0, 0, 0.5, 2.2, 0.4, 1, 0.7, 0.35, 0.7, 0, 0);
+    const d = b.pos.distanceTo(dragon.position);
+    if (d < 400) boltWarn = Math.max(boltWarn, 1 - d / 400);
+    let remove = b.life <= 0 || b.pos.y < Math.max(heightAt(b.pos.x, b.pos.z), WL) || !!islandAt(b.pos.x, b.pos.y, b.pos.z, 0);
+    if (d < 7.5 && state === 'playing') { hurtDragon(12); remove = true; }
+    if (remove) { scene.remove(b.mesh); bolts.splice(i, 1); }
+  }
+}
+function updateTowerAI(dt) {
+  for (const t of towers.values()) {
+    if (t.dead) {
+      t.smokeT -= dt;
+      if (t.smokeT <= 0 && Math.hypot(t.x - dragon.position.x, t.z - dragon.position.z) < 1800) {
+        t.smokeT = 0.22;
+        emit(fxSmoke, t.x + rnd(-2, 2), t.y + 3, t.z + rnd(-2, 2), rnd(-1, 1), rnd(6, 10), rnd(-1, 1), rnd(3.5, 5), 4, 16, 0.12, 0.11, 0.11, 0.5, 0.3, -0.5);
+        emit(fxAdd, t.x + rnd(-3, 3), t.y + 2, t.z + rnd(-3, 3), 0, rnd(3, 6), 0, 0.6, 3, 1, 1, 0.45, 0.1, 0.7, 0.5, 0);
+      }
+      continue;
+    }
+    const d = Math.hypot(t.x - dragon.position.x, t.z - dragon.position.z);
+    if (d > TOWER_RANGE || state !== 'playing') continue;
+    t.cool -= dt;
+    if (t.cool > 0) continue;
+    const from = new THREE.Vector3(t.x, t.y + 27, t.z);
+    if (!losClear(from.x, from.y, from.z, dragon.position.x, dragon.position.y, dragon.position.z)) { t.cool = 0.6; continue; }
+    const tt = from.distanceTo(dragon.position) / 215;
+    const aim = dragon.position.clone().addScaledVector(dragonVel, tt * 0.9);
+    aim.x += rnd(-9, 9); aim.y += rnd(-6, 6); aim.z += rnd(-9, 9);
+    spawnBolt(from, aim.sub(from).normalize());
+    t.cool = 2.4 + Math.random() * 1.6;
+  }
+}
+
+/* ---------- Sonido procedural (Web Audio) ---------- */
+const sfx = (() => {
+  let ctx = null, master = null, noiseBuf = null, wind = null, rumble = null, muted = false;
+  const S = {
+    get ready() { return !!ctx; }, get muted() { return muted; },
+    init() {
+      if (ctx) { if (ctx.state === 'suspended') ctx.resume(); return; }
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+      ctx = new AC(); master = ctx.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ctx.destination);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0); let b = 0;
+      for (let i = 0; i < d.length; i++) { const w = Math.random() * 2 - 1; b = (b + 0.04 * w) / 1.04; d[i] = b * 3.2; }   // ruido marrón
+      const ws = ctx.createBufferSource(); ws.buffer = noiseBuf; ws.loop = true;
+      const wf = ctx.createBiquadFilter(); wf.type = 'bandpass'; wf.Q.value = 0.8; wf.frequency.value = 400;
+      const wg = ctx.createGain(); wg.gain.value = 0.0;
+      ws.connect(wf); wf.connect(wg); wg.connect(master); ws.start();
+      wind = { f: wf, g: wg };
+      const ro = ctx.createOscillator(); ro.type = 'sawtooth'; ro.frequency.value = 46;
+      const rf = ctx.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 120;
+      const rg = ctx.createGain(); rg.gain.value = 0.05;
+      ro.connect(rf); rf.connect(rg); rg.connect(master); ro.start();
+      rumble = { o: ro, g: rg };
+    },
+    toggleMute() { muted = !muted; if (master) master.gain.value = muted ? 0 : 0.55; return muted; },
+    update(speedNorm, throttle, boost, hover) {
+      if (!ctx) return;
+      boost = boost || 0; hover = hover || 0;
+      const t = ctx.currentTime;
+      wind.g.gain.setTargetAtTime(0.04 + 0.42 * speedNorm * speedNorm + 0.16 * boost, t, 0.15);
+      wind.f.frequency.setTargetAtTime(260 + speedNorm * 1300 + boost * 900, t, 0.2);
+      rumble.o.frequency.setTargetAtTime(42 + throttle * 20 + boost * 26 - hover * 8, t, 0.3);
+      rumble.g.gain.setTargetAtTime(0.03 + throttle * 0.05 * (1 - hover * 0.6) + boost * 0.07 + hover * 0.02, t, 0.3);
+    },
+    noise(dur, type, f0, f1, vol, q) {
+      if (!ctx) return;
+      const t = ctx.currentTime, s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+      const f = ctx.createBiquadFilter(); f.type = type; f.Q.value = q || 1; f.frequency.setValueAtTime(f0, t); f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.04, dur * 0.2)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(master); s.start(t, Math.random() * 1.5); s.stop(t + dur + 0.05);
+    },
+    tone(type, f0, f1, dur, vol) {
+      if (!ctx) return;
+      const t = ctx.currentTime, o = ctx.createOscillator(); o.type = type;
+      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(18, f1), t + dur);
+      const g = ctx.createGain(); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+    },
+    flap(amount) { this.noise(0.42, 'lowpass', 520, 140, 0.22 + 0.5 * amount, 0.7); },
+    fire(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(0.65, 'bandpass', 2200, 260, 0.55 * v, 0.9); this.tone('sawtooth', 150, 48, 0.5, 0.16 * v); },
+    roar(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(1.1, 'bandpass', 700, 180, 0.5 * v, 1.2); this.tone('sawtooth', 120, 52, 0.9, 0.2 * v); },
+    boom(size) { if (size < 0.05) return; this.noise(1.6, 'lowpass', 900, 50, 0.95 * Math.min(1, size), 0.7); this.tone('sine', 78, 22, 1.2, 0.8 * Math.min(1, size)); },
+    hit() { this.noise(0.3, 'lowpass', 1200, 200, 0.4, 0.8); this.tone('sine', 120, 40, 0.25, 0.3); },
+    hurt() { this.noise(0.5, 'lowpass', 700, 90, 0.8, 0.8); this.tone('sine', 90, 30, 0.4, 0.6); },
+    lock() { this.tone('square', 1320, 1320, 0.06, 0.07); setTimeout(() => this.tone('square', 1760, 1760, 0.09, 0.07), 70); },
+    beep() { this.tone('square', 880, 880, 0.09, 0.07); },
+    boost() { this.noise(0.9, 'bandpass', 350, 3200, 0.55, 0.7); this.tone('sawtooth', 70, 140, 0.55, 0.12); },
+    hoverOn() { this.noise(0.8, 'lowpass', 900, 160, 0.5, 0.7); },
+    hoverOff() { this.noise(0.6, 'bandpass', 300, 1800, 0.4, 0.8); },
+    empty() { this.tone('square', 220, 160, 0.16, 0.06); }
+  };
+  return S;
+})();
+
+/* ============================================================
+   6b. DRAGONES ENEMIGOS (IA sencilla)
+   Mismo modelo que el del jugador (paleta amarilla), mismas bolas de fuego, misma velocidad
+   máxima sin boost. Ciclo de combate: patrulla → (detección) → pasada de ataque con aproximación
+   en arco → rompe y se aleja → se recoloca para atacar por la espalda → nueva pasada.
+   Al derribar uno, tras unos segundos reaparece otro lejos del jugador (siempre hay ENEMY_COUNT).
+   Todos los valores de ajuste están aquí arriba.
+   ============================================================ */
+const ENEMY_COUNT = 6;                // dragones simultáneos en el mapa
+const ENEMY_HP = 4;                   // impactos de bola de fuego para derribarlo
+const ENEMY_DMG = 15;                 // daño de su bola de fuego sobre el jugador
+const ENEMY_SCORE = 300;              // puntos por derribo (una torre da 100)
+const ENEMY_VMAX = 105;               // = velocidad máxima del jugador SIN boost
+const ENEMY_DETECT = 2000;            // radio de detección (m)
+const ENEMY_LOSE = 3800;              // más allá de esta distancia pierden al jugador
+const ENEMY_FIRE_RANGE = 1000;        // alcance de disparo (m)
+const ENEMY_FIRE_CD = [1.7, 2.9];     // pausa entre bolas de fuego (s)
+const ENEMY_AIM_ERR = 0.022;          // imprecisión de la puntería (rad): ±2,2 % de la distancia
+const ENEMY_STAGGER = 0.4;            // separación mínima entre disparos de distintos dragones (s)
+const ENEMY_SCALE = 1.5;              // tamaño respecto al dragón del jugador (+50 %)
+const ENEMY_BREAK = 230;              // a esta distancia rompen la pasada
+const ENEMY_HIT_R = 13 * ENEMY_SCALE, PLAYER_HIT_R = 10;   // radios de impacto (m)
+const ENEMY_RESPAWN = [6, 10];        // segundos hasta que aparece un sustituto
+const TRAIL_LEN = 1100;               // longitud de la estela amarilla (m); se desvanece a lo largo de ella
+const TRAIL_STEP = 14, TRAIL_MAXP = 96;
+const TRAIL_PX = 3.6;                 // grosor mínimo en pantalla (px), para verla a gran distancia
+
+const enemies = [];
+const enemyState = { kills: 0 };
+const enemyLock = { e: null };          // dragón fijado con el clic derecho
+let enemyLastShot = -9;
+
+const _Etp = new THREE.Vector3(), _Etn = new THREE.Vector3(), _Eef = new THREE.Vector3(), _Ewant = new THREE.Vector3(), _Elead = new THREE.Vector3();
+const _Esf = new THREE.Vector3(), _Esr = new THREE.Vector3(), _Esu = new THREE.Vector3(), _Esl = new THREE.Vector3(), _Esd = new THREE.Vector3(), _Esax = new THREE.Vector3();
+const _Edq = new THREE.Quaternion(), _Eiq = new THREE.Quaternion();
+const _Emo = new THREE.Vector3(), _Eai = new THREE.Vector3(), _Ead = new THREE.Vector3(), _Epf = new THREE.Vector3();
+const _Etl = new THREE.Vector3(), _Ecam = new THREE.Vector3(), _Ev1 = new THREE.Vector3(), _Ev2 = new THREE.Vector3(), _Eside = new THREE.Vector3(), _Epside = new THREE.Vector3(), _Evn = new THREE.Vector3();
+const _Est = { throttle: 0, flapTarget: 0, aimLocal: new THREE.Vector3(0, 0, -1), yawRate: 0, pitchRate: 0, fire: 0, third: false, hover: 0, boost: 0, climb: 0 };
+
+const groundAt = (x, z) => Math.max(heightAt(x, z), WL);
+function rotY(v, a) { const c = Math.cos(a), s = Math.sin(a), x = v.x * c + v.z * s, z = -v.x * s + v.z * c; v.x = x; v.z = z; return v; }
+/* Sube un punto hasta que queda libre de terreno e islas. */
+function safeY(x, y, z) {
+  y = Math.max(y, groundAt(x, z) + 130);
+  for (let i = 0, s; i < 5 && (s = islandAt(x, y, z, 90)); i++) y = s.yMax + 130;
+  return y;
+}
+
+/* ---------- Estela amarilla ----------
+   Cinta (triangle strip) orientada hacia la cámara. Su ancho nunca baja de TRAIL_PX píxeles, así se ve a kilómetros
+   (ignora la niebla). El alfa cae con la distancia recorrida a lo largo de la estela hasta 0 en TRAIL_LEN. */
+const trailMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide,
+  vertexShader: `attribute float aA; attribute float aU; varying float vA; varying float vU;
+    void main(){ vA = aA; vU = aU; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+  fragmentShader: `varying float vA; varying float vU;
+    void main(){ float u = abs(vU);
+      vec3 col = mix(vec3(1.0, 0.58, 0.04), vec3(1.0, 0.95, 0.32), smoothstep(0.95, 0.2, u));
+      gl_FragColor = vec4(col, vA * smoothstep(1.0, 0.6, u)); }`
+});
+const trailIndex = (() => { const a = []; for (let i = 0; i < TRAIL_MAXP - 1; i++) a.push(i * 2, i * 2 + 1, i * 2 + 2, i * 2 + 1, i * 2 + 3, i * 2 + 2); return a; })();
+function makeTrail() {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(TRAIL_MAXP * 6), aA = new Float32Array(TRAIL_MAXP * 2), aU = new Float32Array(TRAIL_MAXP * 2);
+  for (let i = 0; i < TRAIL_MAXP; i++) { aU[i * 2] = -1; aU[i * 2 + 1] = 1; }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aA', new THREE.BufferAttribute(aA, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aU', new THREE.BufferAttribute(aU, 1));
+  geo.setIndex(trailIndex); geo.setDrawRange(0, 0);
+  const mesh = new THREE.Mesh(geo, trailMat); mesh.frustumCulled = false; mesh.renderOrder = 5; mesh.visible = false; scene.add(mesh);
+  return { pts: [], geo, mesh, pos, aA, fade: 1 };
+}
+function resetTrail(e) { e.trail.pts.length = 0; e.trail.fade = 1; e.trail.mesh.visible = false; }
+function updateTrail(e, dt) {
+  const T = e.trail, P = T.pts;
+  if (e.dead) { T.fade -= dt / 2.5; if (T.fade <= 0) { resetTrail(e); return; } }
+  else {
+    _Etl.set(0, -0.5, 18).multiplyScalar(ENEMY_SCALE).applyQuaternion(e.q).add(e.pos);       // punta de la cola
+    if (!P.length) { P.push(_Etl.clone(), _Etl.clone()); }
+    else { P[0].copy(_Etl); if (P[0].distanceToSquared(P[1]) > TRAIL_STEP * TRAIL_STEP) { P.unshift(_Etl.clone()); if (P.length > TRAIL_MAXP) P.length = TRAIL_MAXP; } }
+  }
+  if (P.length < 2) { T.mesh.visible = false; return; }
+  const tf = Math.tan(camera.fov * Math.PI / 360), pxW = 2 * tf * TRAIL_PX / Math.max(window.innerHeight, 200);   // metros por unidad de distancia = 1 px·TRAIL_PX
+  let s = 0, n = P.length;
+  _Epside.set(0, 0, 0);
+  for (let i = 0; i < P.length; i++) {
+    const p = P[i];
+    if (i > 0) { s += p.distanceTo(P[i - 1]); if (s > TRAIL_LEN) { n = i; break; } }
+    const a = P[Math.max(i - 1, 0)], b = P[Math.min(i + 1, P.length - 1)];
+    _Ev1.subVectors(a, b);                                              // tangente
+    _Ev2.subVectors(p, _Ecam);                                          // hacia la cámara
+    const dcam = _Ev2.length() || 1;
+    _Eside.crossVectors(_Ev1, _Ev2);
+    if (_Eside.lengthSq() < 1e-6) _Eside.set(1, 0, 0); _Eside.normalize();
+    if (_Eside.dot(_Epside) < 0) _Eside.negate();                       // sin torsiones
+    _Epside.copy(_Eside);
+    const f = s / TRAIL_LEN, w = Math.max(6 * (1 - 0.7 * f), dcam * pxW * (1 - 0.45 * f)) * 0.5;
+    const al = Math.pow(1 - f, 1.15) * T.fade;
+    const o = i * 6;
+    T.pos[o] = p.x - _Eside.x * w; T.pos[o + 1] = p.y - _Eside.y * w; T.pos[o + 2] = p.z - _Eside.z * w;
+    T.pos[o + 3] = p.x + _Eside.x * w; T.pos[o + 4] = p.y + _Eside.y * w; T.pos[o + 5] = p.z + _Eside.z * w;
+    T.aA[i * 2] = al; T.aA[i * 2 + 1] = al;
+  }
+  if (n < P.length) P.length = n;
+  T.geo.setDrawRange(0, Math.max(0, (n - 1) * 6));
+  T.geo.attributes.position.needsUpdate = true; T.geo.attributes.aA.needsUpdate = true;
+  T.mesh.visible = n > 1;
+}
+
+function makeEnemy() {
+  const g = new THREE.Group(); scene.add(g); g.visible = false; g.scale.setScalar(ENEMY_SCALE);
+  const r = buildRig(g, ENEMY_MATS, false);
+  return {
+    g, rig: r, trail: makeTrail(), A: newAnim(), pos: g.position, q: g.quaternion, vel: new THREE.Vector3(),
+    speed: 64, rate: { p: 0, y: 0, r: 0 }, bank: 0, hp: ENEMY_HP, dead: true, respawnT: 0,
+    mode: 'patrol', t: 0, alert: 0, far: 0, fireCool: 1.5, fireFlash: 0, hitFlash: 0, ramT: 0, avoidT: 0, animAcc: 0, frame: 0,
+    wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
+    aimLocal: new THREE.Vector3(0, 0, -1)
+  };
+}
+function placeEnemy(e, rmin, rmax) {
+  const P = dragon.position, a = Math.random() * 6.2832, r = rnd(rmin, rmax);
+  const x = P.x + Math.cos(a) * r, z = P.z + Math.sin(a) * r;
+  e.pos.set(x, safeY(x, groundAt(x, z) + rnd(250, 650), z), z);
+  const h = Math.random() * 6.2832; _Eef.set(Math.sin(h), 0, -Math.cos(h));
+  e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP));
+  e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
+  e.hasWp = false; setEnemyMode(e, 'patrol'); e.alert = 3;
+  resetTrail(e); if (enemyLock.e === e) enemyLock.e = null;
+}
+function reviveEnemy(e) {
+  e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3);
+  placeEnemy(e, 3500, 5500); e.g.visible = true;
+}
+function spawnEnemies() {
+  while (enemies.length < ENEMY_COUNT) enemies.push(makeEnemy());
+  enemyState.kills = 0; enemyLastShot = -9; enemyLock.e = null;
+  for (const e of enemies) { e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); placeEnemy(e, 2000, 5000); e.g.visible = true; }
+}
+/* El jugador reaparece: los enemigos pierden el rastro un momento. */
+function enemiesCalm() {
+  for (const e of enemies) if (!e.dead) { setEnemyMode(e, 'patrol'); e.alert = 7; e.hasWp = false; }
+  clearEnemyFireballs();
+}
+
+function setEnemyMode(e, m) {
+  e.mode = m; e.t = 0;
+  if (m === 'pass') { e.orbit = Math.random() < 0.5 ? -1 : 1; e.fireCool = Math.max(e.fireCool, rnd(0.5, 1.1)); }
+  else if (m === 'extend') {
+    _Eef.set(0, 0, -1).applyQuaternion(e.q); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize();
+    rotY(_Eef, rnd(-0.7, 0.7)); e.extDir.copy(_Eef); e.extDir.y = rnd(-0.10, 0.30); e.extDir.normalize();
+  } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
+}
+function newWaypoint(e) {
+  const P = dragon.position, far = e.pos.distanceTo(P) > 4500;
+  const cx = far ? P.x : e.pos.x, cz = far ? P.z : e.pos.z, a = Math.random() * 6.2832, r = far ? rnd(1500, 4200) : rnd(1800, 3800);
+  const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+  e.wp.set(x, safeY(x, groundAt(x, z) + rnd(260, 700), z), z);
+}
+
+/* ---------- Decisiones (qué dirección y velocidad quiere llevar) ---------- */
+function enemyMouth(e, out) { e.rig.head.updateWorldMatrix(true, false); return e.rig.head.localToWorld(out.set(0, -0.12, -4.9)); }
+function enemyShoot(e) {
+  if (gameTime - enemyLastShot < ENEMY_STAGGER) return false;
+  const P = dragon.position, mouth = enemyMouth(e, _Emo);
+  _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(P) / FIREBALL_SPEED * 0.9);                 // punto de adelanto
+  _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(_Eai) / FIREBALL_SPEED * 0.9);
+  const dd = mouth.distanceTo(_Eai), err = ENEMY_AIM_ERR * dd;
+  _Eai.x += rnd(-err, err); _Eai.y += rnd(-err, err); _Eai.z += rnd(-err, err);
+  _Ead.subVectors(_Eai, mouth).normalize();
+  _Eef.set(0, 0, -1).applyQuaternion(e.q);
+  if (_Eef.dot(_Ead) < 0.985) return false;                                                            // solo si el morro apunta (≈10°)
+  if (!losClear(mouth.x, mouth.y, mouth.z, P.x, P.y, P.z)) { e.fireCool = 0.5; return false; }
+  spawnFireball(mouth, _Ead, true, clamp(1.15 - dd / 1500, 0, 1));
+  for (let i = 0; i < 10; i++) emit(fxAdd, mouth.x, mouth.y, mouth.z, _Ead.x * rnd(30, 70) + rnd(-6, 6), _Ead.y * rnd(30, 70) + rnd(-6, 6), _Ead.z * rnd(30, 70) + rnd(-6, 6), rnd(0.2, 0.45), 2, 5, 1, rnd(0.5, 0.8), 0.2, 0.9, 1.5, 0);
+  e.fireFlash = 1; e.fireCool = rnd(ENEMY_FIRE_CD[0], ENEMY_FIRE_CD[1]); enemyLastShot = gameTime;
+  return true;
+}
+function thinkEnemy(e, dt, playing) {
+  const P = dragon.position, pv = dragonVel;
+  _Etp.subVectors(P, e.pos); const dist = _Etp.length() || 1;
+  _Etn.copy(_Etp).multiplyScalar(1 / dist);
+  _Eef.set(0, 0, -1).applyQuaternion(e.q);
+  const dotF = _Eef.dot(_Etn);
+  e.t += dt; e.fireCool -= dt; e.alert -= dt; e.ramT -= dt;
+  const want = _Ewant; let tSpeed = 62;
+  if (e.mode !== 'patrol') {
+    e.far = dist > ENEMY_LOSE ? e.far + dt : 0;
+    if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
+  }
+  if (e.mode === 'patrol') {
+    if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > 70) { newWaypoint(e); e.hasWp = true; e.t = 0; }
+    want.subVectors(e.wp, e.pos).normalize(); tSpeed = 62;
+    if (playing && e.alert <= 0 && dist < ENEMY_DETECT) { setEnemyMode(e, 'pass'); sfx.roar(clamp(1.1 - dist / 2200, 0.15, 1)); }
+  } else if (e.mode === 'pass') {
+    // persecución con adelanto; a media distancia se aproxima en arco (flanqueando) y luego se lanza de frente
+    const tl = clamp(dist / (e.speed + 140), 0, 2.2) * 0.8;
+    _Elead.copy(P).addScaledVector(pv, tl);
+    want.subVectors(_Elead, e.pos).normalize();
+    // el desvío del arco se limita para que siga acercándose aunque el jugador huya (cierre mínimo ≈ 25 m/s)
+    const w = smooth(650, 1150, dist) * (1 - smooth(1500, 2000, dist)), need = (pv.dot(_Etn) + 25) / Math.max(e.speed, 60);
+    const thMax = need >= 1 ? 0 : Math.acos(Math.max(need, -1));
+    if (w > 0.01) rotY(want, Math.min(w * 1.05, thMax) * e.orbit);
+    tSpeed = lerp(80, ENEMY_VMAX, smooth(200, 900, dist));
+    if (playing && e.fireCool <= 0 && dist < ENEMY_FIRE_RANGE && dist > 110) enemyShoot(e);
+    if (dist < ENEMY_BREAK || (dotF < 0 && dist < 800) || e.t > 28) setEnemyMode(e, 'extend');
+  } else if (e.mode === 'extend') {
+    want.copy(e.extDir); tSpeed = ENEMY_VMAX;
+    if ((e.t > 2.0 && dist > 700) || e.t > 6) setEnemyMode(e, 'reposition');
+  } else {                                               // reposition: ponerse a la espalda del jugador
+    _Epf.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Epf.y = 0; if (_Epf.lengthSq() < 1e-4) _Epf.set(0, 0, -1); _Epf.normalize();
+    _Elead.copy(P).addScaledVector(_Epf, -900); _Elead.x += -_Epf.z * e.side * 300; _Elead.z += _Epf.x * e.side * 300; _Elead.y = P.y + e.repY;
+    want.subVectors(_Elead, e.pos).normalize(); tSpeed = ENEMY_VMAX;
+    const behind = -_Etn.dot(_Epf) < -0.55;               // el dragón está a las 5-7 del jugador
+    if ((behind && dist < 1400 && e.t > 1.5) || e.t > 11) setEnemyMode(e, 'pass');
+  }
+  return tSpeed;
+}
+
+/* ---------- Vuelo: mismo modelo de giro que el jugador (tasas, banking), sin boost ---------- */
+const E_BANK_GAIN = 0.38, E_BANK_MAX = 0.65;
+function steerEnemy(e, tSpeed, dt) {
+  const q = e.q, pos = e.pos, d = _Esd.copy(_Ewant);
+  _Esf.set(0, 0, -1).applyQuaternion(q);
+  // ¿colisionó con una isla? recula y se aparta un momento
+  if (e.avoidT > 0) {
+    e.avoidT -= dt;
+    d.copy(e.avoidDir); d.y = 0.35; d.normalize();
+  }
+  // separación de otros dragones
+  for (const o of enemies) {
+    if (o === e || o.dead) continue;
+    const dx = pos.x - o.pos.x, dy = pos.y - o.pos.y, dz = pos.z - o.pos.z, dd = Math.hypot(dx, dy, dz);
+    if (dd < 230 && dd > 1) { const k = (1 - dd / 230) * 1.6 / dd; d.x += dx * k; d.y += dy * k; d.z += dz * k; }
+  }
+  d.normalize();
+  // evitar terreno, agua e islas por delante
+  const fl = Math.hypot(_Esf.x, _Esf.z) || 1, fx = _Esf.x / fl, fz = _Esf.z / fl;
+  let hl = Math.hypot(d.x, d.z), hx, hz;
+  if (hl > 1e-3) { hx = d.x / hl; hz = d.z / hl; } else { hx = fx; hz = fz; }
+  let pit = Math.asin(clamp(d.y, -1, 1)), reqPit = -9;
+  for (const dd of [0, 150, 350, 650, 1000]) {
+    const g = groundAt(pos.x + fx * dd, pos.z + fz * dd) + 110;
+    reqPit = Math.max(reqPit, Math.atan2(g - pos.y, Math.max(dd, 90)));
+  }
+  for (const dd of [200, 450, 800]) {
+    const isl = islandColumn(pos.x + fx * dd, pos.z + fz * dd, pos.y - 55, pos.y + 55, 90);
+    if (!isl) continue;
+    if (isl.yMax + 80 - pos.y < 260) reqPit = Math.max(reqPit, 0.55);                // roca baja: pasa por encima
+    else {                                                                             // isla alta: gira para esquivarla
+      const rt = (isl.x - pos.x) * -fz + (isl.z - pos.z) * fx;                        // >0: la isla queda a la derecha
+      rotY(_Esl.set(fx, 0, fz), (rt > 0 ? 1 : -1) * 1.1); hx = _Esl.x; hz = _Esl.z; pit = 0;
+    }
+    break;
+  }
+  if (pos.y < groundAt(pos.x, pos.z) + 55) reqPit = Math.max(reqPit, 0.6);
+  pit = clamp(Math.max(pit, Math.min(reqPit, 0.75)), -0.8, 0.8);
+  d.set(hx * Math.cos(pit), Math.sin(pit), hz * Math.cos(pit));
+  // tasas de giro hacia la dirección deseada
+  _Eiq.copy(q).invert(); _Esl.copy(d).applyQuaternion(_Eiq);
+  const yawErr = Math.atan2(_Esl.x, -_Esl.z), pitErr = Math.atan2(_Esl.y, Math.hypot(_Esl.x, _Esl.z));
+  const sn = clamp((e.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1), maxRate = lerp(1.75, 0.95, sn);
+  const tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
+  _Esr.set(1, 0, 0).applyQuaternion(q); _Esu.set(0, 1, 0).applyQuaternion(q);
+  const rollAng = Math.atan2(_Esr.y, _Esu.y) - e.bank;
+  const tRoll = -clamp(rollAng * 2.4, -1.5, 1.5) * (1 - smooth(0.9, 0.99, Math.abs(_Esf.y)));
+  const k = 1 - Math.exp(-dt * 6);
+  e.rate.y += (tYaw - e.rate.y) * k; e.rate.p += (tPit - e.rate.p) * k; e.rate.r += (tRoll - e.rate.r) * k;
+  const prevBank = e.bank;
+  e.bank += (clamp(e.rate.y * E_BANK_GAIN, -E_BANK_MAX, E_BANK_MAX) - e.bank) * (1 - Math.exp(-dt * 3.2));
+  const bankRate = (e.bank - prevBank) / Math.max(dt, 1e-4);
+  _Esax.set(e.rate.p, e.rate.y, e.rate.r + bankRate);
+  const ang = _Esax.length() * dt;
+  if (ang > 1e-6) { _Edq.setFromAxisAngle(_Esax.normalize(), ang); q.multiply(_Edq).normalize(); }
+  // velocidad (tope = el del jugador sin boost) y avance
+  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, ENEMY_VMAX);
+  _Esf.set(0, 0, -1).applyQuaternion(q);
+  e.vel.copy(_Esf).multiplyScalar(e.speed);
+  pos.addScaledVector(e.vel, dt);
+  // suelo / agua / islas
+  const gy = groundAt(pos.x, pos.z);
+  if (pos.y < gy + 40) pos.y = gy + 40;
+  const isl = islandAt(pos.x, pos.y, pos.z, 22);
+  if (isl) {
+    pos.addScaledVector(e.vel, -dt); e.avoidT = 1.6;
+    e.avoidDir.set(pos.x - isl.x, 0, pos.z - isl.z); if (e.avoidDir.lengthSq() < 1) e.avoidDir.copy(_Esf).negate(); e.avoidDir.normalize();
+    const still = islandAt(pos.x, pos.y, pos.z, 0); if (still) pos.y = still.yMax + 55;   // por si apareció dentro de una isla recién cargada
+  }
+}
+
+/* ---------- Daño y muerte ---------- */
+function damageEnemy(e, n, at) {
+  if (e.dead) return;
+  e.hp -= n; e.hitFlash = 1;
+  emit(fxAdd, at.x, at.y, at.z, 0, 0, 0, 0.18, 10, 26, 1, 0.85, 0.5, 1, 0, 0);
+  for (let i = 0; i < 26; i++) {
+    const a = Math.random() * 6.283, c = rnd(-1, 1), s = Math.sqrt(1 - c * c), sp = rnd(14, 46);
+    emit(fxAdd, at.x, at.y, at.z, Math.cos(a) * s * sp + e.vel.x * 0.5, c * sp + e.vel.y * 0.5, Math.sin(a) * s * sp + e.vel.z * 0.5, rnd(0.3, 0.8), rnd(2.2, 3.6), 0.4, 1, rnd(0.55, 0.9), 0.25, 1, 0.6, -6);
+  }
+  emit(fxSmoke, at.x, at.y, at.z, rnd(-3, 3), rnd(0, 4), rnd(-3, 3), rnd(1.5, 2.5), 5, 16, 0.2, 0.17, 0.13, 0.6, 0.8, 0);
+  sfx.hit();
+  if (e.mode === 'patrol' && state === 'playing') { setEnemyMode(e, 'pass'); e.alert = 0; }
+  if (e.hp <= 0) killEnemy(e);
+}
+function killEnemy(e) {
+  e.dead = true; e.g.visible = false; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
+  const p = e.pos;
+  explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
+  for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
+  if (enemyLock.e === e) enemyLock.e = null;
+  towerState.score += ENEMY_SCORE; enemyState.kills++;
+  toast('Dragón derribado  +' + ENEMY_SCORE);
+}
+function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
+
+/* Punto de interceptación: dónde hay que mandar una bola de fuego desde `from` para alcanzar al dragón e.
+   La bola vuela a FIREBALL_SPEED fija en el mundo (no hereda la velocidad del jugador) y el dragón se extrapola en línea recta.
+   Devuelve el tiempo de vuelo (s) y escribe el punto en `out`; -1 si no hay solución dentro del alcance. */
+function interceptPoint(e, from, out) {
+  const dx = e.pos.x - from.x, dy = e.pos.y - from.y, dz = e.pos.z - from.z, vx = e.vel.x, vy = e.vel.y, vz = e.vel.z;
+  const a = vx * vx + vy * vy + vz * vz - FIREBALL_SPEED * FIREBALL_SPEED, b = 2 * (dx * vx + dy * vy + dz * vz), c = dx * dx + dy * dy + dz * dz;
+  if (a >= 0) return -1;                                   // (los dragones son siempre más lentos que la bola de fuego)
+  const t = (-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+  if (!(t > 0) || t > FIREBALL_LIFE) return -1;
+  out.set(e.pos.x + vx * t, e.pos.y + vy * t, e.pos.z + vz * t); return t;
+}
+/* Dragón enemigo más cercano al que apunta el rayo (asistencia ligera de puntería). El disparo converge al punto de
+   interceptación del dragón —el mismo que marca el círculo gris del HUD—, no a su posición actual. Usa la boca del jugador (_mouth). */
+const enemyAimPt = new THREE.Vector3(), _Eic = new THREE.Vector3();
+function enemyRayHit(o, d, maxT) {
+  let best = Infinity;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    if (interceptPoint(e, _mouth, _Eic) < 0) _Eic.copy(e.pos);
+    const ox = _Eic.x - o.x, oy = _Eic.y - o.y, oz = _Eic.z - o.z, t = ox * d.x + oy * d.y + oz * d.z;
+    if (t < 25 || t > Math.min(maxT, best)) continue;
+    const c2 = ox * ox + oy * oy + oz * oz - t * t, r = ENEMY_HIT_R + 3;
+    if (c2 < r * r) { best = t; enemyAimPt.copy(_Eic); }
+  }
+  return best;
+}
+
+/* ---------- Actualización por fotograma ---------- */
+function updateEnemies(dt) {
+  if (!enemies.length) return;
+  const playing = state === 'playing', P = dragon.position;
+  camera.getWorldPosition(_Ecam);
+  for (const e of enemies) {
+    if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (e.respawnT <= 0 && state !== 'menu') reviveEnemy(e); continue; }
+    if (e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);
+    const tSpeed = thinkEnemy(e, dt, playing);
+    steerEnemy(e, tSpeed, dt);
+    e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
+    updateTrail(e, dt);
+    const dist = e.pos.distanceTo(P);
+    // choque con el jugador
+    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(25, 'Chocaste con un dragón enemigo'); damageEnemy(e, 2, e.pos); if (e.dead) continue; }
+    // mirada: hacia el jugador cuando combate
+    _Eiq.copy(e.q).invert();
+    if (e.mode === 'patrol') e.aimLocal.set(0, 0, -1);
+    else e.aimLocal.copy(P).sub(e.pos).applyQuaternion(_Eiq).normalize();
+    // visibilidad y animación (más barata a distancia)
+    e.g.visible = dist < 6500;
+    e.animAcc += dt;
+    if (e.g.visible && (dist < 2600 || (++e.frame % 3) === 0)) {
+      _Eef.set(0, 0, -1).applyQuaternion(e.q);
+      const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
+      _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
+      _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
+      animateRig(e.rig, e.A, e.animAcc, _Est); e.animAcc = 0;
+    }
+    // dañado: humo (y chispas con 1 de vida)
+    if (e.hp < ENEMY_HP && e.hp > 0 && dist < 2600 && Math.random() < (ENEMY_HP - e.hp) * 0.22) {
+      _Eef.set(0, 0, 1).applyQuaternion(e.q);
+      const sx = e.pos.x + _Eef.x * 9, sy = e.pos.y + _Eef.y * 9 + 1.5, sz = e.pos.z + _Eef.z * 9;
+      emit(fxSmoke, sx, sy, sz, rnd(-2, 2), rnd(1, 4), rnd(-2, 2), rnd(1.6, 2.6), 4.5, 16, 0.12, 0.1, 0.09, 0.6, 0.6, 0);
+      if (e.hp === 1) emit(fxAdd, sx, sy, sz, rnd(-4, 4), rnd(0, 4), rnd(-4, 4), rnd(0.3, 0.6), 2.5, 0.5, 1, 0.5, 0.12, 0.9, 0.8, 0);
+    }
+  }
+}
+
+/* ---------- Fijado de objetivo (clic derecho) ----------
+   Cada clic pasa al siguiente dragón enemigo que esté dentro del campo de visión (de más cerca a más lejos).
+   Si el único candidato ya es el fijado, se libera. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
+const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
+function enemyNdc(e, out) {                               // coordenadas normalizadas de pantalla; false si está detrás de la cámara
+  _Ev1.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
+  if (_Ev1.z > -1) return false;
+  const pm = camera.projectionMatrix.elements;
+  out.x = _Ev1.x * pm[0] / -_Ev1.z; out.y = _Ev1.y * pm[5] / -_Ev1.z; return true;
+}
+function cycleTarget() {
+  if (state !== 'playing' || !enemies.length) return;
+  const cand = [];
+  for (const e of enemies) if (!e.dead && enemyNdc(e, _Evn) && Math.abs(_Evn.x) < 0.98 && Math.abs(_Evn.y) < 0.98) cand.push(e);
+  if (!cand.length) { sfx.empty(); toast('Ningún dragón a la vista'); return; }
+  const P = dragon.position; cand.sort((a, b) => a.pos.distanceToSquared(P) - b.pos.distanceToSquared(P));
+  const i = cand.indexOf(enemyLock.e), next = i < 0 ? cand[0] : cand[(i + 1) % cand.length];
+  if (next === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
+  else { enemyLock.e = next; sfx.lock(); toast('Objetivo fijado  ·  ' + fmtDist(next.pos.distanceTo(P))); }
+}
+/* ============================================================
+   7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
+   Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
+   · Q/E alabeo · Shift boost · Espacio hover · clic = bola de fuego · R nivelar · C cámara · M sonido.
+   El dragón se orienta con un cuaternión: pitch/yaw/roll son siempre ejes LOCALES,
+   así arriba/abajo/adelante/atrás se mantienen correctos con cualquier alabeo.
+   ============================================================ */
+let state = 'loading';               // loading | menu | playing | paused | dead
+let gameTime = 0;
+const keys = {};
+const dragonVel = new THREE.Vector3();
+const F = {
+  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, lastHit: -99, fireCool: 0, fireFlash: 0,
+  aimWorld: new THREE.Vector3(0, 0, -1), aimLocal: new THREE.Vector3(0, 0, -1),
+  flapTarget: 0.6, third: false, sens: 1, locked: false, lockRequested: false, ndcX: 0, ndcY: 0, pdx: 0, pdy: 0,
+  firing: false, sink: 0, deadT: 0,
+  bank: 0,                                              // alabeo automático (rad, mismo signo que el roll: + = ala derecha arriba)
+  boost: 1, boostDelay: 0, boostExhausted: false, boosting: false, boostFx: 0,
+  hover: false, hoverK: 0, hvy: 0                        // hvy: velocidad vertical en hover (W/S)
+};
+const VMIN = 33, VMAX = 200, VCRUISE_MAX = 105;
+const BANK_GAIN = 0.30, BANK_MAX = 0.50;                // alabeo ≈ 0,30 rad por rad/s de guiñada (máx. ~29°)
+const BOOST_DRAIN = 0.25, BOOST_REFILL = 0.125, BOOST_DELAY = 2.0, BOOST_THRUST = 32, BOOST_STEER = 0.2;
+const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
+const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion();
+
+/* ---------- Entrada ---------- */
+const hudEl = document.getElementById('hud');
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' && (state === 'playing' || state === 'paused')) e.preventDefault();   // evita el scroll / activar botones
+  if (e.repeat) { keys[e.code] = true; return; }
+  keys[e.code] = true;
+  if (e.code === 'Space') { if (state === 'playing') toggleHover(); }
+  else if (e.code === 'KeyC') F.third = !F.third;
+  else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }
+  else if (e.code === 'Escape' || e.code === 'KeyP') { if (state === 'playing' && !F.locked) setPaused(true); else if (state === 'paused' && e.code === 'KeyP') resumeGame(); }
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; F.firing = false; });
+document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'playing') setPaused(true); });
+window.addEventListener('mousemove', e => {
+  if (F.locked) { F.pdx += e.movementX || 0; F.pdy += e.movementY || 0; }
+  else { F.ndcX = (e.clientX / window.innerWidth) * 2 - 1; F.ndcY = -((e.clientY / window.innerHeight) * 2 - 1); }
+});
+canvasGL.addEventListener('mousedown', e => {
+  if (e.button === 0 && state === 'playing') { F.firing = true; tryFire(); }
+  else if (e.button === 2 && state === 'playing') cycleTarget();      // clic derecho: fijar el siguiente dragón enemigo a la vista
+});
+window.addEventListener('mouseup', e => { if (e.button === 0) F.firing = false; });
+window.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('pointerlockchange', () => {
+  F.locked = document.pointerLockElement === canvasGL;
+  if (!F.locked && F.lockRequested && state === 'playing') setPaused(true);
+});
+document.addEventListener('pointerlockerror', () => { F.lockRequested = false; F.locked = false; });
+function requestLock() {
+  F.lockRequested = true;
+  try { const p = canvasGL.requestPointerLock(); if (p && p.catch) p.catch(() => { F.lockRequested = false; }); } catch (err) { F.lockRequested = false; }
+}
+const sensEl = document.getElementById('sens');
+sensEl.addEventListener('input', () => { F.sens = sensEl.value / 100; });
+
+/* ---------- Avisos de interfaz ---------- */
+const toastEl = document.getElementById('toast'), vigEl = document.getElementById('vig'), warnEl = document.getElementById('warn');
+let toastTimer = 0, vigAlpha = 0;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 2200); }
+
+/* ---------- Estados ---------- */
+const menuEl = document.getElementById('menu'), pauseEl = document.getElementById('pause'), deadEl = document.getElementById('dead');
+function setPaused(p) {
+  if (p && state === 'playing') { state = 'paused'; pauseEl.hidden = false; F.firing = false; if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); } }
+}
+function resumeGame() {
+  if (state !== 'paused') return;
+  pauseEl.hidden = true; state = 'playing'; requestLock(); canvasGL.focus();
+}
+pauseEl.addEventListener('click', resumeGame);
+function startGame() {
+  if (state !== 'menu') return;
+  sfx.init(); menuEl.hidden = true; state = 'playing';
+  F.health = 100; towerState.score = 0; towerState.kills = 0;
+  spawnEnemies();
+  F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boosting = false;
+  requestLock(); canvasGL.focus();
+  toast('W/S acelerar · Shift boost · Espacio hover · clic: fuego · C: cámara');
+}
+/* Hover: se frena del todo y se queda aleteando; al salir se reanuda el vuelo con un impulso de alas. */
+function toggleHover() {
+  if (state !== 'playing') return;
+  F.hover = !F.hover;
+  if (F.hover) { F.hvy = 0; sfx.hoverOn(); toast('HOVER  ·  W/S suben y bajan'); }
+  else { F.speed = Math.max(F.speed, HOVER_EXIT_SPEED); F.sink = 0; F.hvy = 0; sfx.hoverOff(); toast('Vuelo normal'); }
+}
+function crash(why) {
+  if (state !== 'playing') return;
+  state = 'dead'; F.deadT = 0; F.firing = false;
+  document.getElementById('deadwhy').textContent = why;
+  deadEl.hidden = false;
+  const p = dragon.position;
+  explode(p.x, p.y, p.z, 1.2); sfx.hurt(); camShake = 1.4;
+}
+function respawn() {
+  const p = dragon.position, g = Math.max(heightAt(p.x, p.z), WL);
+  p.y = Math.max(p.y, g + 40) > g + 300 ? p.y : g + 300;
+  for (let i = 0, s; i < 6 && (s = islandAt(p.x, p.y, p.z, 90)); i++) p.y = s.yMax + 130;
+  _f.set(0, 0, -1).applyQuaternion(dragon.quaternion); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize();
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
+  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = 100; F.aimWorld.copy(_f);
+  F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boosting = false;
+  deadEl.hidden = true; state = 'playing';
+  boltsClear(); enemiesCalm();
+}
+function boltsClear() { for (const b of bolts) scene.remove(b.mesh); bolts.length = 0; }
+function hurtDragon(n, why) {
+  F.health -= n; F.lastHit = gameTime; vigAlpha = 1; camShake = Math.max(camShake, 0.7);
+  sfx.hurt(); const p = dragon.position; explode(p.x, p.y - 2, p.z, 0.35);
+  if (F.health <= 0) { F.health = 0; crash(why || 'Las ballestas te derribaron'); }
+}
+
+/* ---------- Disparo ---------- */
+const _mouth = new THREE.Vector3(), _dir = new THREE.Vector3(), _org = new THREE.Vector3(), _hit = new THREE.Vector3();
+function aimPointFrom(origin, dir) {
+  // marcha a lo largo del rayo del marcador: terreno o torres; si no hay impacto, un punto lejano
+  let t = 25, last = 0;
+  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tI = Math.min(tIsl, tEn), limit = Math.min(maxT, tI);   // la isla (o el dragón enemigo) más cercano en el rayo
+  while (t < limit) {
+    _hit.copy(origin).addScaledVector(dir, t);
+    const gy = Math.max(heightAt(_hit.x, _hit.z), WL);
+    if (_hit.y < gy) {                        // refinar entre last y t
+      let a = last, b = t;
+      for (let i = 0; i < 6; i++) { const m = (a + b) / 2; _hit.copy(origin).addScaledVector(dir, m); if (_hit.y < Math.max(heightAt(_hit.x, _hit.z), WL)) b = m; else a = m; }
+      return _hit.copy(origin).addScaledVector(dir, b);
+    }
+    for (const tw of towers.values()) {
+      if (tw.dead) continue;
+      const dx = _hit.x - tw.x, dz = _hit.z - tw.z;
+      if (dx * dx + dz * dz < 100 && _hit.y > tw.y && _hit.y < tw.y + 40) return _hit;
+    }
+    last = t; t += Math.max(12, t * 0.05);
+  }
+  if (tI < maxT) return tEn <= tIsl ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, tIsl);
+  return _hit.copy(origin).addScaledVector(dir, 1400);
+}
+function tryFire() {
+  if (state !== 'playing' || F.fireCool > 0) return;
+  F.fireCool = 0.42; F.fireFlash = 1;
+  heroMouth(_mouth);
+  camera.getWorldPosition(_org);
+  const target = aimPointFrom(_org, F.aimWorld).clone();
+  _dir.subVectors(target, _mouth).normalize();
+  spawnFireball(_mouth, _dir);
+  for (let i = 0; i < 16; i++) emit(fxAdd, _mouth.x, _mouth.y, _mouth.z, _dir.x * rnd(30, 70) + rnd(-6, 6) + dragonVel.x, _dir.y * rnd(30, 70) + rnd(-6, 6) + dragonVel.y, _dir.z * rnd(30, 70) + rnd(-6, 6) + dragonVel.z, rnd(0.2, 0.45), 2, 5, 1, rnd(0.5, 0.8), 0.2, 0.9, 1.5, 0);
+}
+
+/* ---------- Puntería: marcador de ratón ---------- */
+const _qa = new THREE.Quaternion();
+function updateAim(dt, auto) {
+  const q = dragon.quaternion;
+  if (auto) {
+    // piloto automático del menú: rumbo suave y altura segura sobre el terreno
+    _f.set(0, 0, -1).applyQuaternion(q); const h = Math.hypot(_f.x, _f.z) || 1;
+    const hx = _f.x / h, hz = _f.z / h, p = dragon.position;
+    let g = 0; for (const d of [150, 450, 900, 1500]) g = Math.max(g, heightAt(p.x + hx * d, p.z + hz * d));
+    let wantY = Math.max(g + 190, Math.max(heightAt(p.x, p.z), WL) + 160);
+    for (const d of [0, 150, 400, 800, 1300]) {
+      const isl = islandColumn(p.x + hx * d, p.z + hz * d, Math.min(p.y, wantY) - 40, Math.max(p.y, wantY) + 40, 60);
+      if (isl) { wantY = Math.max(wantY, isl.yMax + 150); break; }
+    }
+    const pit = clamp(Math.atan2(wantY - p.y, 600), -0.35, 0.6);
+    const wob = Math.sin(gameTime * 0.15) * 0.22, cy = Math.cos(wob), sy = Math.sin(wob);
+    F.aimWorld.set((hx * cy - hz * sy) * Math.cos(pit), Math.sin(pit), (hx * sy + hz * cy) * Math.cos(pit));
+  } else if (F.locked) {
+    _iq.copy(q).invert();
+    _l.copy(F.aimWorld).applyQuaternion(_iq);
+    let yaw = Math.atan2(_l.x, -_l.z), pit = Math.asin(clamp(_l.y, -1, 1));
+    const k = 0.0021 * F.sens;
+    yaw += F.pdx * k; pit -= F.pdy * k; F.pdx = F.pdy = 0;
+    // en hover el cuerpo no cabecea: el marcador sí puede subir/bajar (cabeza y bolas de fuego lo siguen) dentro de un rango
+    yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : clamp(pit, -0.78, 0.78);
+    _l.set(Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit));
+    F.aimWorld.copy(_l).applyQuaternion(q);
+  } else {
+    const t = Math.tan(camera.fov * Math.PI / 360);
+    _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize().applyQuaternion(camera.quaternion).applyQuaternion(q);
+    F.aimWorld.copy(_l);
+  }
+  _iq.copy(q).invert();
+  F.aimLocal.copy(F.aimWorld).applyQuaternion(_iq).normalize();
+}
+
+/* ---------- Vuelo ---------- */
+function updateFlight(dt, auto) {
+  const q = dragon.quaternion, pos = dragon.position;
+  const hov = !auto && F.hover;
+  F.hoverK += ((hov ? 1 : 0) - F.hoverK) * (1 - Math.exp(-dt * 3));
+  // acelerador (en hover W/S no hacen nada)
+  const thr = (auto || hov) ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0));
+  F.throttle = clamp(F.throttle + thr * 0.5 * dt, 0, 1);
+  if (auto) F.throttle += (0.55 - F.throttle) * dt;
+  // hover: W sube y S baja (suave); se frena ante el suelo, el agua o la roca de una isla
+  if (hov) {
+    let vt = ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)) * HOVER_VSPEED;
+    F.hvy += (vt - F.hvy) * (1 - Math.exp(-dt * 3.5));
+    const gnd = Math.max(heightAt(pos.x, pos.z), WL);
+    if (F.hvy < 0 && (pos.y - gnd < 6 || islandAt(pos.x, pos.y - 8, pos.z, 0))) F.hvy = 0;
+    if (F.hvy > 0 && islandAt(pos.x, pos.y + 9, pos.z, 0)) F.hvy = 0;
+  } else F.hvy = 0;
+  // boost: la barra se gasta mientras se mantiene Shift; 2 s después de soltarlo empieza a recargarse
+  const shift = !auto && !hov && (keys.ShiftLeft || keys.ShiftRight);
+  let boosting = false;
+  if (shift) {
+    F.boostDelay = BOOST_DELAY;
+    if (!F.boostExhausted && F.boost > 0) {
+      boosting = true;
+      F.boost = Math.max(0, F.boost - BOOST_DRAIN * dt);
+      if (F.boost <= 0) { F.boostExhausted = true; sfx.empty(); }
+    }
+  } else {
+    F.boostDelay = Math.max(0, F.boostDelay - dt);
+    if (F.boostDelay <= 0) F.boost = Math.min(1, F.boost + BOOST_REFILL * dt);
+  }
+  if (F.boostExhausted && F.boost >= 0.2) F.boostExhausted = false;   // tras vaciarse hace falta un mínimo de carga
+  if (boosting && !F.boosting) sfx.boost();
+  F.boosting = boosting;
+  F.boostFx += ((boosting ? 1 : 0) - F.boostFx) * (1 - Math.exp(-dt * (boosting ? 3.2 : 1.8)));
+  _f.set(0, 0, -1).applyQuaternion(q);
+  let lack = 0;
+  if (hov) {
+    // hover: frenada total y sin hundimiento (el aleteo sostiene al dragón)
+    F.speed = Math.max(0, F.speed - F.speed * (1 - Math.exp(-dt * HOVER_BRAKE)) - 6 * dt);
+    if (F.speed < 0.4) F.speed = 0;
+    F.sink += (0 - F.sink) * (1 - Math.exp(-dt * 3));
+    if (F.sink < 0.05) F.sink = 0;
+  } else {
+    // velocidad: empuje (+boost) - resistencia + componente de la gravedad (picado acelera, ascenso frena)
+    const thrust = 2.0 + 18 * F.throttle + BOOST_THRUST * F.boostFx, drag = 0.0018 * F.speed * F.speed;
+    F.speed = clamp(F.speed + (thrust - drag + 9.8 * 0.55 * -_f.y) * dt, 18, VMAX);
+    // planeo: por debajo de la velocidad mínima pierde sustentación y se hunde, sin llegar a entrar en barrena
+    lack = clamp((VMIN - F.speed) / VMIN, 0, 1);
+    F.sink += ((lack * 34 + 2.5) - F.sink) * (1 - Math.exp(-dt * 1.5));
+  }
+  // giros hacia el marcador (el marcador fijo en el mundo, el dragón gira hacia él).
+  // Con boost la autoridad de giro del ratón cae a BOOST_STEER: se puede, pero muy poco.
+  const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1);
+  const maxRate = lerp(1.75, 0.95, sn), steer = lerp(1, BOOST_STEER, F.boostFx);
+  const a = F.aimLocal;
+  const yawErr = Math.atan2(a.x, -a.z), pitErr = Math.atan2(a.y, Math.hypot(a.x, a.z));
+  const tYaw = -clamp(yawErr * 2.6 * steer, -maxRate * steer, maxRate * steer);
+  let tPit = clamp(pitErr * 2.6 * steer, -maxRate * steer, maxRate * steer) - lack * 0.9;
+  _r.set(1, 0, 0).applyQuaternion(q); _u.set(0, 1, 0).applyQuaternion(q);
+  const rollAng = Math.atan2(_r.y, _u.y) - F.bank;       // alabeo del jugador (sin el banking automático)
+  let tRoll;
+  if (hov) {
+    // hover: siempre sobre el plano del horizonte; Q/E no hacen nada. Un pequeño cabeceo hacia arriba mientras frena.
+    const pAng = Math.asin(clamp(_f.y, -1, 1)), flare = 0.30 * smooth(4, 55, F.speed);
+    tPit = clamp((flare - pAng) * 3.0, -1.6, 1.6) * (_u.y > -0.05 ? 1 : -1);
+    tRoll = -clamp(rollAng * 3.0, -1.8, 1.8) * (1 - smooth(0.9, 0.99, Math.abs(_f.y)));
+  } else {
+    tRoll = ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 1.9;
+    if (auto) tRoll = 0;
+    if (keys.KeyR || auto) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);
+  }
+  const k = 1 - Math.exp(-dt * lerp(7.5, 4.5, F.boostFx));
+  F.rate.y += (tYaw - F.rate.y) * k; F.rate.p += (tPit - F.rate.p) * k; F.rate.r += (tRoll - F.rate.r) * k;
+  // banking: al virar hacia el marcador el dragón se inclina hacia ese lado (suave, se suma al alabeo de Q/E)
+  const bankTarget = clamp(F.rate.y * BANK_GAIN, -BANK_MAX, BANK_MAX) * (1 - F.hoverK);
+  const prevBank = F.bank;
+  F.bank += (bankTarget - F.bank) * (1 - Math.exp(-dt * 3.2));
+  const bankRate = (F.bank - prevBank) / Math.max(dt, 1e-4);
+  _ax.set(F.rate.p, F.rate.y, F.rate.r + bankRate);
+  const ang = _ax.length() * dt;
+  if (ang > 1e-6) { _dq.setFromAxisAngle(_ax.normalize(), ang); q.multiply(_dq).normalize(); }
+  // movimiento
+  _f.set(0, 0, -1).applyQuaternion(q);
+  dragonVel.copy(_f).multiplyScalar(F.speed); dragonVel.y -= F.sink; dragonVel.y += F.hvy;
+  pos.addScaledVector(dragonVel, dt);
+  // colisión con el terreno o el agua
+  const g = Math.max(heightAt(pos.x, pos.z), WL);
+  if (!auto && pos.y < g + 2.2) {
+    if (heightAt(pos.x, pos.z) < WL) { splash(pos.x, pos.z, 2.0); crash('Te sumergiste en el agua'); } else crash('Te estrellaste contra el terreno');
+  } else if (auto && pos.y < g + 60) pos.y = g + 60;
+  if (!auto && state === 'playing' && islandAt(pos.x, pos.y, pos.z, 2.6)) crash('Te estrellaste contra una isla flotante');
+  // rozar el agua levanta espuma
+  if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
+    for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);
+  }
+  // aleteo: más potente con el acelerador, planeo en picado
+  const dive = smooth(0.1, 0.55, -_f.y), climb = smooth(0.15, 0.5, _f.y);
+  F.flapTarget = hov ? 1 : clamp((0.25 + F.throttle * 0.75 + climb * 0.25) * (1 - 0.85 * dive) + 0.4 * F.boostFx, 0.04, 1);
+  // hover cerca del suelo o del agua: las alas levantan polvo / espuma
+  if (F.hoverK > 0.5 && pos.y - g < 55) {
+    const st = 1 - (pos.y - g) / 55, water = heightAt(pos.x, pos.z) < WL;
+    for (let i = 0; i < 2; i++) if (Math.random() < st + 0.2) {
+      const an = Math.random() * 6.283, sp = rnd(8, 22) * (0.5 + st);
+      emit(fxSmoke, pos.x + Math.cos(an) * rnd(1, 6), g + 0.6, pos.z + Math.sin(an) * rnd(1, 6), Math.cos(an) * sp, rnd(1, 5), Math.sin(an) * sp, rnd(1.0, 1.8), 2.5, rnd(9, 15), water ? 0.85 : 0.52, water ? 0.92 : 0.46, water ? 0.95 : 0.38, 0.32 * (0.4 + st), 1.6, 0);
+    }
+  }
+  F.fireCool = Math.max(0, F.fireCool - dt);
+  F.fireFlash = Math.max(0, F.fireFlash - dt * 3.2);
+  if (F.firing && state === 'playing') tryFire();
+  if (F.health < 100 && gameTime - F.lastHit > 7) F.health = Math.min(100, F.health + 3 * dt);
+}
+/* ============================================================
+   8. HUD (canvas 2D), BUCLE PRINCIPAL Y ARRANQUE
+   ============================================================ */
+const hctx = hudEl.getContext('2d');
+const C_BONE = '#f1e6d3', C_DIM = 'rgba(241,230,211,.62)', C_EMBER = '#ff7a2e', C_GOLD = '#f2b84b', C_DANGER = '#ff4a3a';
+const FM = n => `${n}px 'Share Tech Mono', ui-monospace, monospace`, FD = n => `700 ${n}px 'Cinzel', Georgia, serif`;
+const _pv = new THREE.Vector3(), _camP = new THREE.Vector3(), _sp = { x: 0, y: 0 };
+let HW = 1, HH = 1;
+function proj(x, y, z, out) {
+  _pv.set(x, y, z).applyMatrix4(camera.matrixWorldInverse);
+  if (_pv.z > -0.5) return false;
+  _pv.applyMatrix4(camera.projectionMatrix);
+  out.x = (_pv.x * 0.5 + 0.5) * HW; out.y = (-_pv.y * 0.5 + 0.5) * HH;
+  return true;
+}
+function hudText(str, x, y, font, color, align) {
+  hctx.font = font; hctx.fillStyle = color; hctx.textAlign = align || 'left'; hctx.fillText(str, x, y);
+}
+const COMPASS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SO', 270: 'O', 315: 'NO' };
+
+function drawCompass(heading) {
+  const cw = Math.min(520, HW - 40), cx = HW / 2, cy = 34, ppd = cw / 90;
+  hctx.save(); hctx.beginPath(); hctx.rect(cx - cw / 2, cy - 22, cw, 48); hctx.clip();
+  hctx.strokeStyle = C_BONE; hctx.lineWidth = 1;
+  for (let d = Math.floor(heading - 46); d <= Math.ceil(heading + 46); d++) {
+    if (d % 5) continue;
+    const x = cx + (d - heading) * ppd, n = ((d % 360) + 360) % 360, big = d % 15 === 0;
+    const edge = 1 - Math.pow(Math.abs(x - cx) / (cw / 2), 3);
+    hctx.globalAlpha = clamp(edge, 0, 1) * 0.9;
+    hctx.beginPath(); hctx.moveTo(x, cy + 6); hctx.lineTo(x, cy + (big ? -4 : 1)); hctx.stroke();
+    if (COMPASS[n] !== undefined) hudText(COMPASS[n], x, cy - 9, FM(n % 90 === 0 ? 15 : 12), n === 0 ? C_EMBER : C_BONE, 'center');
+  }
+  hctx.restore(); hctx.globalAlpha = 1;
+  hctx.fillStyle = C_GOLD; hctx.beginPath(); hctx.moveTo(cx, cy + 9); hctx.lineTo(cx - 5, cy + 17); hctx.lineTo(cx + 5, cy + 17); hctx.closePath(); hctx.fill();
+  hudText(String(Math.round(heading) % 360).padStart(3, '0') + '°', cx, cy + 34, FM(13), C_GOLD, 'center');
+}
+function drawLadder(fwd) {
+  const hl = Math.hypot(fwd.x, fwd.z);
+  let hx, hz; if (hl < 0.05) { hx = 0; hz = -1; } else { hx = fwd.x / hl; hz = fwd.z / hl; }
+  const rx = -hz, rz = hx, a = {}, b = {};
+  hctx.lineWidth = 1.4;
+  for (let d = -60; d <= 60; d += 10) {
+    const th = d * Math.PI / 180, dx = hx * Math.cos(th) * 1000, dy = Math.sin(th) * 1000, dz = hz * Math.cos(th) * 1000;
+    const wd = d === 0 ? 220 : 70;
+    const ok1 = proj(_camP.x + dx + rx * wd, _camP.y + dy, _camP.z + dz + rz * wd, a);
+    const ok2 = proj(_camP.x + dx - rx * wd, _camP.y + dy, _camP.z + dz - rz * wd, b);
+    if (!ok1 || !ok2) continue;
+    const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+    const dist = Math.hypot(mx - HW / 2, my - HH / 2) / (HH * 0.5);
+    const al = clamp(1.15 - dist, 0, 1) * (d === 0 ? 0.85 : 0.6);
+    if (al <= 0.02) continue;
+    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? C_GOLD : C_BONE;
+    const gap = d === 0 ? 0.18 : 0.30, ux = b.x - a.x, uy = b.y - a.y;
+    hctx.beginPath();
+    hctx.moveTo(a.x, a.y); hctx.lineTo(a.x + ux * (0.5 - gap), a.y + uy * (0.5 - gap));
+    hctx.moveTo(a.x + ux * (0.5 + gap), a.y + uy * (0.5 + gap)); hctx.lineTo(b.x, b.y);
+    hctx.stroke();
+    if (d !== 0) {
+      const tick = d > 0 ? 8 : -8;
+      hctx.beginPath(); hctx.moveTo(a.x, a.y); hctx.lineTo(a.x, a.y + tick); hctx.moveTo(b.x, b.y); hctx.lineTo(b.x, b.y + tick); hctx.stroke();
+      hudText(String(Math.abs(d)), a.x - 8, a.y + 4, FM(11), C_BONE, 'right');
+    }
+  }
+  hctx.globalAlpha = 1;
+}
+function drawMarkers(fwd) {
+  const p = {};
+  if (proj(_camP.x + fwd.x * 1000, _camP.y + fwd.y * 1000, _camP.z + fwd.z * 1000, p)) {
+    hctx.strokeStyle = C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;
+    hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
+    _sp.x = p.x; _sp.y = p.y;
+  } else { _sp.x = HW / 2; _sp.y = HH / 2; }
+  const a = {};
+  if (proj(_camP.x + F.aimWorld.x * 1000, _camP.y + F.aimWorld.y * 1000, _camP.z + F.aimWorld.z * 1000, a)) {
+    const hot = F.fireCool > 0;
+    if (Math.hypot(a.x - _sp.x, a.y - _sp.y) > 26) { hctx.globalAlpha = 0.35; hctx.strokeStyle = C_EMBER; hctx.lineWidth = 1; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(a.x, a.y); hctx.stroke(); }
+    hctx.globalAlpha = 1; hctx.strokeStyle = hot ? C_GOLD : C_EMBER; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.arc(a.x, a.y, 15, 0, 6.283); hctx.stroke();
+    hctx.beginPath(); hctx.moveTo(a.x - 25, a.y); hctx.lineTo(a.x - 15, a.y); hctx.moveTo(a.x + 15, a.y); hctx.lineTo(a.x + 25, a.y);
+    hctx.moveTo(a.x, a.y + 15); hctx.lineTo(a.x, a.y + 25); hctx.stroke();
+    hctx.fillStyle = hot ? C_GOLD : C_EMBER; hctx.beginPath(); hctx.arc(a.x, a.y, 2.2, 0, 6.283); hctx.fill();
+  }
+  hctx.globalAlpha = 1;
+}
+/* Marcador de triángulo rojo sobre cada dragón enemigo (visible a cualquier distancia) con distancia y vida restante.
+   El dragón fijado (clic derecho) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está. */
+function drawEnemyMarkers() {
+  const a = {}, lock = enemyLock.e;
+  let lockShown = false;
+  for (const e of enemies) {
+    if (e.dead) continue;
+    const d = e.pos.distanceTo(_camP), locked = e === lock;
+    if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;
+    const onScreen = a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20;
+    if (!onScreen && !(a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30)) continue;
+    let top = 14, half = 0;
+    if (locked && onScreen) {
+      lockShown = true;
+      const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360));
+      half = clamp(ENEMY_SCALE * 30 * pxm, 17, 96);
+      hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
+      hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
+      hctx.lineWidth = 3.5; hctx.beginPath();                                       // esquinas reforzadas
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
+        hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
+      }
+      hctx.stroke();
+      top = half + 6;
+    }
+    const s = 6 + 5 * (1 - smooth(250, 3000, d)), x = a.x, ay = a.y - top, by = ay - s * 1.7;
+    hctx.globalAlpha = e.mode === 'patrol' && !locked ? 0.82 : 1;
+    hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
+    hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
+    hudText(fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : C_BONE, 'center');
+    if (e.hp < ENEMY_HP) {                                   // pips de vida cuando está dañado
+      const py = locked && onScreen ? a.y + half + 6 : ay + 5;
+      for (let i = 0; i < ENEMY_HP; i++) { hctx.fillStyle = i < e.hp ? C_DANGER : 'rgba(241,230,211,.28)'; hctx.fillRect(x - ENEMY_HP * 3.5 + i * 7 + 0.5, py, 5, 4); }
+    }
+  }
+  hctx.globalAlpha = 1;
+  if (lock && !lock.dead) { if (lockShown) drawLeadPipper(lock); else drawLockArrow(lock); }
+}
+/* Indicador de adelanto (estilo Star Citizen): círculo gris donde hay que apuntar para que la bola de fuego alcance al dragón fijado. */
+const _lp = new THREE.Vector3(), _lm = new THREE.Vector3(), _lq = new THREE.Vector3();
+function drawLeadPipper(e) {
+  heroMouth(_lm);                                                                                            // boca del jugador: de donde sale la bola
+  if (interceptPoint(e, _lm, _lp) < 0) return;                                                               // fuera de alcance
+  _lq.subVectors(_lp, _lm).normalize().multiplyScalar(1400).add(_lm);                                        // el marcador de disparo va a un punto lejano de esa línea
+  const p = {}, a = {};
+  if (!proj(_lq.x, _lq.y, _lq.z, p) || p.x < 8 || p.x > HW - 8 || p.y < 8 || p.y > HH - 8) return;
+  const near = proj(_camP.x + F.aimWorld.x * 1000, _camP.y + F.aimWorld.y * 1000, _camP.z + F.aimWorld.z * 1000, a) && Math.hypot(a.x - p.x, a.y - p.y) < 20;   // retículo sobre el círculo
+  hctx.globalAlpha = 1; hctx.lineWidth = 4.5; hctx.strokeStyle = 'rgba(8,8,10,.55)';
+  hctx.beginPath(); hctx.arc(p.x, p.y, 7.5, 0, 6.283); hctx.stroke();
+  hctx.lineWidth = 2; hctx.strokeStyle = near ? 'rgba(245,245,245,.98)' : 'rgba(176,178,182,.95)';
+  hctx.beginPath(); hctx.arc(p.x, p.y, 7.5, 0, 6.283); hctx.stroke();
+  hctx.fillStyle = hctx.strokeStyle; hctx.beginPath(); hctx.arc(p.x, p.y, 1.7, 0, 6.283); hctx.fill();
+}
+/* Flecha en el borde de la pantalla hacia el dragón fijado que está fuera del campo de visión (estilo Ace Combat). */
+function drawLockArrow(e) {
+  _pv.set(e.pos.x, e.pos.y, e.pos.z).applyMatrix4(camera.matrixWorldInverse);       // espacio de cámara
+  const pm = camera.projectionMatrix.elements;
+  let dx = _pv.x * pm[0] * HW * 0.5, dy = -_pv.y * pm[5] * HH * 0.5;               // dirección en pantalla (y hacia abajo); válida también si está detrás
+  const l = Math.hypot(dx, dy);
+  if (l < 1e-3) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+  const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 84;               // márgenes: instrumentos a los lados, brújula arriba, vida abajo
+  const t = Math.min(Math.abs(dx) > 1e-4 ? hx / Math.abs(dx) : 1e9, Math.abs(dy) > 1e-4 ? hy / Math.abs(dy) : 1e9);
+  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, d = e.pos.distanceTo(_camP);
+  hctx.save(); hctx.globalAlpha = 0.8 + 0.2 * Math.sin(gameTime * 6);
+  hctx.fillStyle = 'rgba(13,10,15,.62)'; hctx.beginPath(); hctx.arc(x, y, 25, 0, 6.283); hctx.fill();   // fondo para leerla sobre cualquier cosa
+  hctx.translate(x, y); hctx.rotate(Math.atan2(dy, dx));
+  hctx.fillStyle = C_GOLD; hctx.strokeStyle = 'rgba(25,14,4,.9)'; hctx.lineWidth = 1.6;
+  hctx.beginPath(); hctx.moveTo(18, 0); hctx.lineTo(-11, -14); hctx.lineTo(-3, 0); hctx.lineTo(-11, 14); hctx.closePath(); hctx.fill(); hctx.stroke();
+  hctx.restore();
+  hctx.globalAlpha = 1;
+  hudText(fmtDist(d), x - dx * 44, y - dy * 36 + 4, FM(13), C_GOLD, 'center');
+}
+function drawRadar(heading, fwd) {
+  const R = clamp(HW * 0.075, 52, 70), cx = HW - R - 24, cy = HH - R - 24, range = 2400;
+  hctx.save();
+  hctx.fillStyle = 'rgba(13,10,15,.55)'; hctx.beginPath(); hctx.arc(cx, cy, R, 0, 6.283); hctx.fill();
+  hctx.strokeStyle = 'rgba(241,230,211,.28)'; hctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) { hctx.beginPath(); hctx.arc(cx, cy, R * i / 3, 0, 6.283); hctx.stroke(); }
+  hctx.beginPath(); hctx.moveTo(cx - R, cy); hctx.lineTo(cx + R, cy); hctx.moveTo(cx, cy - R); hctx.lineTo(cx, cy + R); hctx.stroke();
+  const hl = Math.hypot(fwd.x, fwd.z) || 1, fx = fwd.x / hl, fz = fwd.z / hl, rx = -fz, rz = fx, p = dragon.position;
+  let nearest = 1e9;
+  for (const t of towers.values()) {
+    if (t.dead) continue;
+    const dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz); nearest = Math.min(nearest, d);
+    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz;
+    const k = Math.min(1, range / Math.max(d, 1)) * R / range;
+    const sx = cx + right * k, sy = cy - ahead * k;
+    hctx.fillStyle = d > range ? 'rgba(255,74,58,.45)' : C_DANGER;
+    hctx.fillRect(sx - 3, sy - 3, 6, 6);
+  }
+  for (const e of enemies) {                               // dragones enemigos: triángulos rojos orientados según su rumbo
+    if (e.dead) continue;
+    const dx = e.pos.x - p.x, dz = e.pos.z - p.z, d = Math.hypot(dx, dz);
+    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz, k = Math.min(1, range / Math.max(d, 1)) * R / range;
+    _Eef.set(0, 0, -1).applyQuaternion(e.q);
+    hctx.save(); hctx.translate(cx + right * k, cy - ahead * k); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.fillStyle = d > range ? 'rgba(255,74,58,.55)' : C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.8)'; hctx.lineWidth = 1;
+    hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.fill(); hctx.stroke();
+    hctx.restore();
+    if (e === enemyLock.e) { hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(cx + right * k, cy - ahead * k, 8.5, 0, 6.283); hctx.stroke(); }
+  }
+  hctx.fillStyle = C_GOLD; hctx.beginPath(); hctx.moveTo(cx, cy - 6); hctx.lineTo(cx - 4, cy + 4); hctx.lineTo(cx + 4, cy + 4); hctx.closePath(); hctx.fill();
+  hctx.restore();
+  hudText('RADAR 2,4 km', cx, cy - R - 7, FM(11), C_DIM, 'center');
+  if (nearest < 1e8) hudText('Torre más cercana ' + (nearest >= 1000 ? (nearest / 1000).toFixed(1) + ' km' : Math.round(nearest) + ' m'), cx, cy + R + 16, FM(11), C_DIM, 'center');
+}
+/* Líneas radiales al usar el boost: refuerzan la sensación de velocidad sin tapar los instrumentos. */
+function drawSpeedLines(fx) {
+  const cx = HW / 2, cy = HH / 2, R = Math.hypot(cx, cy);
+  hctx.save(); hctx.lineCap = 'round'; hctx.strokeStyle = C_BONE;
+  for (let i = 0; i < 34; i++) {
+    const ang = (i * 2.399963) % 6.283185, t = (gameTime * (1.7 + (i % 5) * 0.25) + i * 0.173) % 1;
+    const r0 = R * (0.34 + 0.62 * t), len = R * (0.05 + 0.11 * t);
+    hctx.globalAlpha = fx * 0.30 * Math.sin(Math.PI * t);
+    hctx.lineWidth = 1 + (i % 3) * 0.6;
+    hctx.beginPath(); hctx.moveTo(cx + Math.cos(ang) * r0, cy + Math.sin(ang) * r0); hctx.lineTo(cx + Math.cos(ang) * (r0 + len), cy + Math.sin(ang) * (r0 + len)); hctx.stroke();
+  }
+  hctx.restore();
+}
+function drawHUD() {
+  HW = window.innerWidth; HH = window.innerHeight;
+  const dpr = hudEl.width / HW;
+  hctx.setTransform(dpr, 0, 0, dpr, 0, 0); hctx.clearRect(0, 0, HW, HH);
+  if (state === 'menu' || state === 'loading') return;
+  hctx.shadowColor = 'rgba(0,0,0,.65)'; hctx.shadowBlur = 5;
+  camera.getWorldPosition(_camP);
+  const fwd = _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
+  const heading = ((Math.atan2(fwd.x, -fwd.z) * 180 / Math.PI) + 360) % 360;
+  if (F.boostFx > 0.02) drawSpeedLines(F.boostFx);
+  drawCompass(heading);
+  drawMarkers(fwd);
+  drawEnemyMarkers();
+  drawRadar(heading, fwd);
+  const p = dragon.position, agl = p.y - Math.max(heightAt(p.x, p.z), WL);
+  // velos suaves tras los instrumentos laterales para leerlos sobre cualquier fondo
+  const gl = hctx.createRadialGradient(0, HH * 0.5 + 25, 0, 0, HH * 0.5 + 25, 270); gl.addColorStop(0, 'rgba(13,10,15,.55)'); gl.addColorStop(1, 'rgba(13,10,15,0)');
+  hctx.fillStyle = gl; hctx.fillRect(0, HH * 0.5 - 260, 280, 570);
+  const gr = hctx.createRadialGradient(HW, HH * 0.5 + 35, 0, HW, HH * 0.5 + 35, 270); gr.addColorStop(0, 'rgba(13,10,15,.55)'); gr.addColorStop(1, 'rgba(13,10,15,0)');
+  hctx.fillStyle = gr; hctx.fillRect(HW - 280, HH * 0.5 - 260, 280, 570);
+  // velocidad y acelerador (izquierda)
+  const lx = 28, ly = HH * 0.5 - 40;
+  if (F.hover) { hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudText('H O V E R', lx, ly - 24, FD(16), C_GOLD); hctx.globalAlpha = 1; }
+  hudText('VELOCIDAD', lx, ly, FM(11), C_DIM);
+  hudText(String(Math.round(F.speed * 3.6)), lx, ly + 34, FM(34), C_BONE);
+  hudText('km/h', lx + 76, ly + 34, FM(12), C_DIM);
+  if (F.hover) {
+    // en hover W/S controlan la altura: barra centrada (derecha = sube, izquierda = baja)
+    hudText('ALTURA  W ▲  S ▼', lx, ly + 66, FM(11), C_DIM);
+    hctx.strokeStyle = C_DIM; hctx.lineWidth = 1; hctx.strokeRect(lx + 0.5, ly + 74.5, 120, 9);
+    const vv = clamp(F.hvy / HOVER_VSPEED, -1, 1);
+    hctx.fillStyle = vv >= 0 ? C_GOLD : C_BONE; hctx.fillRect(lx + 61 + (vv < 0 ? 58 * vv : 0), ly + 76, 58 * Math.abs(vv), 6);
+    hctx.fillStyle = C_DIM; hctx.fillRect(lx + 60, ly + 73, 1, 12);
+  } else {
+    hudText('ACELERADOR', lx, ly + 66, FM(11), C_DIM);
+    hctx.strokeStyle = C_DIM; hctx.lineWidth = 1; hctx.strokeRect(lx + 0.5, ly + 74.5, 120, 9);
+    hctx.fillStyle = F.throttle > 0.85 ? C_EMBER : C_BONE; hctx.fillRect(lx + 2, ly + 76, 117 * F.throttle, 6);
+  }
+  // boost (se gasta con Shift; 2 s tras soltarlo empieza a recargarse)
+  const bY = ly + 102, waiting = !F.boosting && F.boost < 1 && F.boostDelay > 0, refilling = !F.boosting && F.boost < 1 && F.boostDelay <= 0;
+  hudText('BOOST', lx, bY, FM(11), C_DIM);
+  hudText('SHIFT', lx + 121, bY, FM(10), 'rgba(241,230,211,.42)', 'right');
+  hctx.strokeStyle = F.boostExhausted ? C_DANGER : C_DIM; hctx.lineWidth = 1; hctx.strokeRect(lx + 0.5, bY + 8.5, 120, 9);
+  hctx.fillStyle = F.boostExhausted ? C_DANGER : F.boosting ? C_EMBER : waiting ? C_GOLD : C_BONE;
+  hctx.fillRect(lx + 2, bY + 10, 117 * F.boost, 6);
+  const bTxt = F.boostExhausted ? 'AGOTADO' : waiting ? 'RECARGA EN ' + F.boostDelay.toFixed(1) + ' s' : refilling ? 'RECARGANDO' : F.boosting ? 'ACTIVO' : '';
+  if (bTxt) hudText(bTxt, lx, bY + 32, FM(10), F.boostExhausted ? C_DANGER : C_DIM);
+  // altitud (derecha)
+  const rx = HW - 28, ry = HH * 0.5 - 40;
+  hudText('ALTITUD', rx, ry, FM(11), C_DIM, 'right');
+  hudText(String(Math.round(p.y - WL)), rx - 24, ry + 34, FM(34), C_BONE, 'right');
+  hudText('m', rx, ry + 34, FM(12), C_DIM, 'right');
+  hudText('SOBRE EL SUELO', rx, ry + 66, FM(11), C_DIM, 'right');
+  hudText(String(Math.max(0, Math.round(agl))) + ' m', rx, ry + 84, FM(18), agl < 60 ? C_DANGER : C_GOLD, 'right');
+  const vs = dragonVel.y;
+  hudText((vs >= 0 ? '▲ +' : '▼ ') + Math.round(vs) + ' m/s', rx, ry + 106, FM(13), C_DIM, 'right');
+  // vida (abajo, centro)
+  const bw = Math.min(260, HW - 40), bx = HW / 2 - bw / 2, by = HH - 34;
+  hudText('VIDA', bx, by - 7, FM(11), C_DIM);
+  hctx.strokeStyle = C_DIM; hctx.strokeRect(bx + 0.5, by + 0.5, bw, 9);
+  hctx.fillStyle = F.health > 35 ? '#e8d9b8' : C_DANGER; hctx.fillRect(bx + 2, by + 2, (bw - 3) * clamp(F.health / 100, 0, 1), 6);
+  // puntuación (arriba, derecha)
+  hudText('TORRES  ' + towerState.kills, HW - 28, 36, FM(15), C_BONE, 'right');
+  hudText('DRAGONES  ' + enemyState.kills, HW - 28, 58, FM(15), C_BONE, 'right');
+  hudText('PUNTOS  ' + towerState.score, HW - 28, 80, FM(15), C_GOLD, 'right');
+  hctx.shadowBlur = 0;
+}
+
+/* ---------- Mundo: actualizaciones por fotograma ---------- */
+const _cp = new THREE.Vector3();
+let islT = 0, towerT = 0, prevFlapSin = 0, lastBeep = 0, fpsEMA = 60;
+function updateWorld(dt) {
+  const p = dragon.position;
+  refreshTerrainSelection(p.x, p.y, p.z, false);
+  pumpTerrain(5);
+  towerT -= dt; if (towerT <= 0) { towerT = 0.5; updateTowerStreaming(p.x, p.z); }
+  islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
+  pumpIslands(3); updateWaterfalls(dt);
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt);
+  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
+  const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
+  const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: F.aimLocal, yawRate: F.rate.y, fire: F.fireFlash, third: F.third, hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY) });
+  if (camShake > 0.002) {
+    camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
+    camera.rotation.z = (Math.random() - 0.5) * camShake * 0.04;
+    camShake *= Math.exp(-dt * 4.5);
+  } else camera.rotation.z = 0;
+  const fov = lerp(76, 88, clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * 7 - F.hoverK * 2;
+  if (Math.abs(fov - camera.fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
+  const sc = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
+  fxAdd.mat.uniforms.uScale.value = sc; fxSmoke.mat.uniforms.uScale.value = sc;
+  skyMat.uniforms.uTime.value = gameTime; waterMat.uniforms.uTime.value = gameTime;
+  waterMesh.position.x = Math.round(p.x / 512) * 512; waterMesh.position.z = Math.round(p.z / 512) * 512;
+  // sonido y aviso de proyectiles
+  const s = Math.sin(dragonAnim.phase);
+  if (state === 'playing' && prevFlapSin > 0 && s <= 0) sfx.flap(dragonAnim.flap);
+  prevFlapSin = s;
+  sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK);
+  if (boltWarn > 0.02 && state === 'playing') {
+    warnEl.style.opacity = String(0.45 + 0.55 * Math.abs(Math.sin(gameTime * 9)));
+    if (gameTime - lastBeep > 0.55 - boltWarn * 0.35) { lastBeep = gameTime; sfx.beep(); }
+  } else warnEl.style.opacity = '0';
+  vigAlpha = Math.max(0, vigAlpha - dt * 1.5); vigEl.style.opacity = String(vigAlpha);
+}
+
+/* ---------- Bucle ---------- */
+let lastT = performance.now(), loadTotal = 1;
+const loadBar = document.getElementById('loadbar'), goBtn = document.getElementById('go');
+function frame(now) {
+  requestAnimationFrame(frame);
+  let dt = (now - lastT) / 1000; lastT = now;
+  if (!(dt > 0)) dt = 0.016; dt = Math.min(dt, 0.05);
+  fpsEMA += (1 / dt - fpsEMA) * 0.05;
+  if (state === 'loading') {
+    const left = pumpTerrain(24);
+    loadBar.style.width = (100 * (1 - left / loadTotal)).toFixed(0) + '%';
+    if (left === 0 && !hero.ready) goBtn.textContent = hero.error ? 'No se pudo cargar el dragón' : 'Despertando al dragón…';
+    if (left === 0 && hero.ready) {
+      state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Despegar';
+      updateTowerStreaming(dragon.position.x, dragon.position.z);
+      updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
+      for (let i = 0, s; i < 6 && (s = islandAt(dragon.position.x, dragon.position.y, dragon.position.z, 90)); i++) dragon.position.y = s.yMax + 130;
+    }
+  } else if (state === 'menu' || state === 'playing' || state === 'dead') {
+    gameTime += dt;
+    if (state === 'dead') { F.deadT += dt; if (F.deadT > 2.6) respawn(); }
+    else { updateAim(dt, state === 'menu'); updateFlight(dt, state === 'menu'); }
+    updateWorld(dt);
+  }
+  renderer.render(scene, camera);
+  drawHUD();
+}
+
+/* ---------- Arranque ---------- */
+function bestHeading() {
+  let best = 0, bestScore = -1;
+  for (let a = 0; a < 24; a++) {
+    const ang = a / 24 * Math.PI * 2, dx = Math.sin(ang), dz = -Math.cos(ang);
+    let sc = 0; for (const d of [1200, 2200, 3200]) sc += heightAt(dx * d, dz * d);
+    if (sc > bestScore) { bestScore = sc; best = ang; }
+  }
+  return best;
+}
+(function boot() {
+  const ang = bestHeading(), fx = Math.sin(ang), fz = -Math.cos(ang);
+  const g0 = Math.max(heightAt(0, 0), WL);
+  dragon.position.set(0, g0 + 260, 0);
+  _f.set(fx, 0, fz);
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
+  F.aimWorld.copy(_f);
+  refreshTerrainSelection(0, dragon.position.y, 0, true);
+  loadTotal = Math.max(1, terrainState.pending.length);
+  goBtn.addEventListener('click', startGame);
+  loadHero();
+  window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, setState(s) { state = s; }, get fps() { return fpsEMA; }, SEED, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands };
+  requestAnimationFrame(frame);
+})();
+</script>

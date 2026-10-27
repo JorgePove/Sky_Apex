@@ -1,0 +1,15 @@
+{
+  "name": "alas-de-brasa-herramientas",
+  "private": true,
+  "description": "Herramientas para preparar modelos 3D para Alas de Brasa (optimizar GLB para navegador).",
+  "type": "module",
+  "scripts": {
+    "optimizar": "node optimizar_modelo.mjs"
+  },
+  "dependencies": {
+    "jpeg-js": "0.4.4",
+    "meshoptimizer": "1.3.0",
+    "pngjs": "7.0.0",
+    "three": "0.169.0"
+  }
+}

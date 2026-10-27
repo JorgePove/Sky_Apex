@@ -1,0 +1,158 @@
+</style>
+
+<canvas id="gl" tabindex="0"></canvas>
+<canvas id="hud"></canvas>
+<div id="vig"></div>
+<div id="warn">PROYECTIL</div>
+<div id="toast"></div>
+<div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
+<div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
+
+<section class="overlay intro" id="menu">
+  <div id="introBlack"></div>
+  <canvas class="fx" id="fxBack" aria-hidden="true"></canvas>
+  <div class="title">
+    <div class="kicker reveal">Simulador de vuelo en primera persona</div>
+    <h1 class="logo-stage" aria-label="Sky Apex"><img id="logoSky" alt=""><img id="logoApex" alt=""></h1>
+    <p class="tag reveal">Domina el cielo a lomos de un dragón</p>
+    <nav class="menu-btns reveal" aria-label="Menú principal">
+      <button class="cta" id="go" disabled>Generando mundo…</button>
+      <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
+      <button class="mbtn" id="mFree" disabled>Combate libre</button>
+      <button class="mbtn" id="mTutorial">Tutorial</button>
+      <button class="mbtn" id="mControls">Controles</button>
+      <button class="mbtn" id="mOptions">Opciones</button>
+      <button class="mbtn" id="mQuit">Salir</button>
+    </nav>
+  </div>
+  <canvas class="fx" id="fxFront" aria-hidden="true"></canvas>
+  <button id="introTap">Pulsa cualquier tecla o haz clic</button>
+  <div class="menu-note reveal">Modelos: TyrantDragon y Drogon (pack «Drogon»), «Red Dragon» de GadgetHamster (CC-BY 4.0), STL «Syrax» (riggeado y animado en Blender) y caballero «Knighty». Prototipo de uso privado · teclado y ratón.</div>
+  <div class="mpanel" id="pControls" hidden role="dialog" aria-label="Controles">
+    <div class="kicker">Controles</div>
+    <dl class="keys">
+      <dt><kbd>Ratón</kbd></dt><dd>Dirección y puntería (el dragón gira hacia la mira)</dd>
+      <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Acelerar / frenar · en hover, subir / bajar</dd>
+      <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta y se recarga)</dd>
+      <dt><kbd>Espacio</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
+      <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
+      <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
+      <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un dragón fijado, la mira en el círculo rojo</dd>
+      <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
+      <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
+      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente dragón a la vista</dd>
+      <dt><kbd>F</kbd></dt><dd>Escudo: 5 s sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
+      <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
+      <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
+      <dt><kbd>M</kbd></dt><dd>Silenciar el sonido</dd>
+      <dt><kbd>Esc</kbd><kbd>P</kbd></dt><dd>Pausa</dd>
+      <dt><kbd>º</kbd></dt><dd>Modo diseño: coordenadas, altitud, rumbo y semilla del mundo · <kbd>Intro</kbd> marca un punto y lo copia</dd>
+    </dl>
+    <div class="kicker">Objetivo</div>
+    <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
+    <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
+    <button class="ghost" data-close>← Volver</button>
+  </div>
+  <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
+    <div class="kicker">Opciones</div>
+    <div class="opt"><label for="volMenu">Música del menú</label><input id="volMenu" type="range" min="0" max="100"><span class="vol-val" id="volMenuV"></span></div>
+    <div class="opt"><label for="volGame">Música de la partida</label><input id="volGame" type="range" min="0" max="100"><span class="vol-val" id="volGameV"></span></div>
+    <div class="opt"><label for="volSfx">Efectos de sonido</label><input id="volSfx" type="range" min="0" max="100"><span class="vol-val" id="volSfxV"></span></div>
+    <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
+    <button class="ghost" data-close>← Volver</button>
+  </div>
+  <div class="mpanel tut" id="pTutorial" hidden role="dialog" aria-label="Tutorial">
+    <header class="tut-head">
+      <div><div class="kicker">Tutorial</div><h2>Manual del jinete</h2></div>
+      <div class="tut-head-r">
+        <button class="tut-range" disabled title="Próximamente: aprender cada control jugando, paso a paso">Campo de pruebas · próximamente</button>
+        <button class="ghost" data-close>← Volver</button>
+      </div>
+    </header>
+    <div class="tut-body">
+      <nav class="tut-list" id="tutList" aria-label="Secciones del tutorial"></nav>
+      <div class="tut-side">
+        <div class="tut-video" id="tutVideoBox" title="Clic: pausar o seguir">
+          <video id="tutVideo" muted loop playsinline preload="auto" aria-label="Vídeo de la sección"></video>
+          <div class="tut-novideo" id="tutNoVideo" hidden></div>
+          <button class="tut-zoom" id="tutZoom" aria-label="Ampliar el vídeo" title="Ampliar el vídeo">
+            <svg class="out" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/></svg>
+            <svg class="in" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 2v4H2M14 6h-4V2M10 14v-4h4M2 10h4v4"/></svg>
+          </button>
+          <div class="tut-prog" aria-hidden="true"><i id="tutProg"></i></div>
+        </div>
+        <div class="tut-cap"><div class="kicker" id="tutCapCat"></div><h3 id="tutCapTitle"></h3><p id="tutCapSum"></p></div>
+      </div>
+    </div>
+    <div class="tut-foot">↑ ↓ cambiar de sección · clic en el vídeo para pausarlo · Esc para volver</div>
+  </div>
+</section>
+
+<section class="overlay" id="select" hidden>
+  <div class="sel-top">
+    <button class="ghost" id="back">← Menú</button>
+    <div class="sel-dragons" id="selDragons" role="group" aria-label="Dragón"><button data-id="tyrant">Alientormenta</button><button data-id="rojo" disabled>Abrasanubes</button><button data-id="drogon" disabled>Ventoscuro</button><button data-id="fulgor" disabled>Fulgor</button></div>
+    <div class="kicker">Elige tu dragón</div>
+    <h2 id="selName">Alientormenta</h2>
+    <p id="selDesc"></p>
+    <dl class="sel-stats" id="selStats"></dl>
+    <p class="sel-credit" id="selCredit" hidden></p>
+    <div class="anim-tag" id="animTag">Reposo</div>
+  </div>
+  <div class="sel-panel">
+    <div class="kicker">Personaliza</div>
+    <div class="picker">
+      <div class="picker-head"><span>Piel</span><i class="sw" id="skinSw"></i><button class="mini" id="skinReset">Original</button></div>
+      <canvas id="skinWheel" width="328" height="328" aria-label="Rueda de color de la piel"></canvas>
+      <input type="range" id="skinVal" min="12" max="100" value="80" aria-label="Brillo de la piel">
+    </div>
+    <div class="picker">
+      <div class="picker-head"><span>Aliento</span><i class="sw" id="fireSw"></i><button class="mini" id="fireReset">Brasa</button></div>
+      <canvas id="fireWheel" width="328" height="328" aria-label="Rueda de color del aliento"></canvas>
+      <input type="range" id="fireVal" min="35" max="100" value="100" aria-label="Brillo del aliento">
+      <button class="try" id="fireTry">Probar llamarada</button>
+    </div>
+  </div>
+  <div class="sel-bottom">
+    <div class="hint">Mantén pulsado el botón derecho y arrastra para girar la plataforma · rueda del ratón para acercar</div>
+    <button class="cta" id="start">Empezar partida</button>
+  </div>
+</section>
+
+<section class="overlay" id="victory" hidden>
+  <div class="panel vic">
+    <div class="kicker" id="vicKicker">Objetivo cumplido</div>
+    <h2 id="vicTitle">Victoria</h2>
+    <p class="lead" id="vicWhy" hidden></p>
+    <dl class="stats" id="vicStats"></dl>
+    <div class="vic-btns"><button class="cta" id="vicMenu">Menú principal</button><button class="mbtn" id="vicRestart">Reiniciar partida</button><button class="mbtn" id="vicQuit">Salir del juego</button></div>
+  </div>
+</section>
+<section class="overlay" id="worldgen" hidden>
+  <div class="panel wg"><div class="kicker" id="wgKicker"></div><h2 id="wgName"></h2><p class="lead" id="wgLead">Generando el mundo de la misión…</p>
+    <div class="load" aria-hidden="true"><i id="wgBar"></i></div><div class="wg-seed" id="wgSeed"></div></div>
+</section>
+<section class="overlay" id="bye" hidden>
+  <div class="panel"><h2>Gracias por jugar</h2><p class="lead">Ya puedes cerrar la pestaña.</p><button class="ghost" id="byeBack">← Volver al menú</button></div>
+</section>
+<section class="overlay" id="pause" hidden>
+  <div class="panel"><h2>Pausa</h2><div class="kicker">Haz clic para continuar</div>
+    <div class="p-btns"><button class="mbtn" id="pResume">Continuar</button><button class="mbtn" id="pRetry">Reintentar misión</button><button class="mbtn" id="pMenu">Menú principal</button></div></div>
+</section>
+<section class="overlay" id="dead" hidden>
+  <div class="panel"><h2>Has caído</h2><div class="kicker" id="deadwhy">Reapareciendo en las alturas…</div></div>
+</section>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<!-- Recursos en base64 (los rellena herramientas/incrustar_modelo.mjs; vacíos = se cargan los archivos sueltos de ../modelos e ../imagenes) -->
+<script id="modelo-glb" type="application/octet-stream"></script>
+<script id="brazos-glb" type="application/octet-stream"></script>
+<script id="caballero-glb" type="application/octet-stream"></script>
+<script id="rojo-glb" type="application/octet-stream"></script>
+<script id="drogon-glb" type="application/octet-stream"></script>
+<script id="fulgor-glb" type="application/octet-stream"></script>
+<script id="logo-sky-png" type="application/octet-stream"></script>
+<script id="logo-apex-png" type="application/octet-stream"></script>
+<script>

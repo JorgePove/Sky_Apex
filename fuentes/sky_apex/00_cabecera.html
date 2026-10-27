@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sky Apex</title>
+<!-- RAMA EXPERIMENTAL: TyrantDragon (modelo GLB riggeado con animaciones de vuelo); primera persona, C pasa a tercera.
+     Nombre provisional del juego: «Sky Apex». Intro con el logo (imagenes/logo_sky.png y logo_apex.png) y música del menú
+     (musica/musica_menu.* y musica/musica_game.* junto al HTML: cualquier formato que lea el navegador).
+     v15: la fuente se edita por módulos, en fuentes/sky_apex/ (NN_*.html, .css y .js, en ese orden). herramientas/construir.mjs los junta
+     en fuentes/sky_apex.src.html (generado, no editar: sirve para probar con el servidor local, porque carga ../modelos/*.glb e
+     ../imagenes/logo_*.png sueltos) y genera sky_apex.html, el archivo para jugar, con herramientas/incrustar_modelo.mjs, que mete dentro
+     los modelos y el logo (la música queda fuera, en la carpeta musica/: musica_menu y musica_game). Hasta la v4 se llamaba alas_de_brasa_tyrant.
+     Misiones: recetas de datos en 18_misiones_datos.js; el motor, en 19_misiones_motor.js.
+     El dragón sale de herramientas/preparar_fbx.mjs (FBX del pack «Drogon» → GLB). Licencia sin aclarar: uso solo en local.
+     Los brazos del jinete salen de herramientas/preparar_brazos.mjs (Knighty.fbx → GLB riggeado).
+     v12: Tutorial en el menú. Sus vídeos van fuera, en la carpeta tutorial/ junto al HTML (tutorial/<sección>.webm); se graban con el
+     propio juego: herramientas/grabar_tutorial.js + herramientas/servidor_tutorial.mjs (ver sus cabeceras). ?semilla=N fija el mundo. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Share+Tech+Mono&display=swap">
+<style>

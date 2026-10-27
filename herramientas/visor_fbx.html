@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor FBX</title>
+<!-- Visor de modelos FBX riggeados con el mismo Three.js r128 del juego.
+     ?fbx=ruta.fbx&tex=Material1:ruta.png,Material2:ruta.png&anims=a.fbx,b.fbx  (rutas relativas a esta carpeta)
+     En la consola: V.clips (lista), V.play(nombre, t), V.sheet([...]) para hojas de fotogramas. -->
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#b9a68f}#info{position:fixed;left:8px;top:6px;font:12px monospace;color:#111;background:rgba(255,255,255,.75);padding:4px 6px;white-space:pre;max-width:90%}</style>
+<div id="info">cargando…</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FBXLoader.js"></script>
+<script>
+const Q = new URLSearchParams(location.search), info = document.getElementById('info');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xb9a68f);
+const camera = new THREE.PerspectiveCamera(40, innerWidth / innerHeight, 1, 100000);
+scene.add(new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95));
+const sun = new THREE.DirectionalLight(0xffc48a, 1.9); sun.position.set(0.55, 0.6, 0.8).multiplyScalar(1000); scene.add(sun);
+const V = { ready: false, clips: [], t0: performance.now() };
+window.__v = V;
+const texMap = {};
+(Q.get('tex') || '').split(',').filter(Boolean).forEach(s => { const [m, p] = s.split(':'); texMap[m] = p; });
+const loader = new THREE.FBXLoader();
+const loadP = u => new Promise((res, rej) => loader.load(u, res, undefined, rej));
+loadP(Q.get('fbx')).then(async obj => {
+  V.loadMs = Math.round(performance.now() - V.t0);
+  scene.add(obj); V.root = obj;
+  const tl = new THREE.TextureLoader(), texCache = {};
+  let tris = 0, meshes = 0, bones = 0; V.materials = [];
+  obj.traverse(o => {
+    if (o.isBone) bones++;
+    if (o.isMesh) {
+      meshes++; o.frustumCulled = false;
+      const g = o.geometry; tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      mats.forEach(m => {
+        V.materials.push(m.name + (m.map ? ' (con mapa)' : ''));
+        if (texMap[m.name]) { const t = texCache[m.name] || (texCache[m.name] = tl.load(texMap[m.name])); m.map = t; m.color.set(0xffffff); m.needsUpdate = true; }
+      });
+    }
+  });
+  V.clips = obj.animations.slice();
+  // animaciones en archivos aparte (mismo esqueleto)
+  for (const u of (Q.get('anims') || '').split(',').filter(Boolean)) {
+    const a = await loadP(u); a.animations.forEach(c => { c.name = u.split('/').pop().replace(/\.fbx$/i, ''); V.clips.push(c); });
+  }
+  V.mixer = new THREE.AnimationMixer(obj);
+  V.stats = { meshes, tris: Math.round(tris), bones, clips: V.clips.length, loadMs: V.loadMs };
+  info.textContent = `${Q.get('fbx')}\n${meshes} malla(s) · ${Math.round(tris)} tris · ${bones} huesos · ${V.clips.length} animaciones · ${V.loadMs} ms`;
+  V.ready = true; frame('tq', 1.5);
+}).catch(e => { info.textContent = 'Error: ' + (e && e.message || e); console.error(e); });
+
+V.play = (name, t) => {
+  const clip = V.clips.find(c => c.name === name || c.name.endsWith(name)); if (!clip) return 'no existe ' + name;
+  V.mixer.stopAllAction(); const a = V.mixer.clipAction(clip); a.reset().play(); a.time = t || 0; V.mixer.update(0); V.root.updateMatrixWorld(true);
+  return clip.name + ' ' + clip.duration.toFixed(2) + ' s';
+};
+V.rest = () => { V.mixer.stopAllAction(); V.root.traverse(o => { if (o.isBone && o.userData.r) o.quaternion.copy(o.userData.r); }); };
+/* Encuadre con los huesos (pose actual). vista: lado | frente | espalda | tq | arriba | abajo */
+function frame(view, dist) {
+  const box = new THREE.Box3(); V.root.updateMatrixWorld(true);
+  V.root.traverse(o => { if (o.isBone) box.expandByPoint(o.getWorldPosition(new THREE.Vector3())); });
+  if (box.isEmpty()) box.setFromObject(V.root);
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()), R = dist * Math.max(s.x, s.y, s.z);
+  const dirs = { lado: [1, 0.12, 0], frente: [0, 0.1, 1], espalda: [0, 0.3, -1], tq: [0.7, 0.35, 0.9], arriba: [0.001, 1, 0.01], abajo: [0.001, -1, 0.01] };
+  camera.position.copy(c).addScaledVector(new THREE.Vector3(...(dirs[view] || dirs.tq)).normalize(), R);
+  camera.near = R / 200; camera.far = R * 50; camera.updateProjectionMatrix(); camera.lookAt(c);
+  V.box = { min: box.min.toArray().map(Math.round), max: box.max.toArray().map(Math.round), size: s.toArray().map(Math.round) };
+  return V.box;
+}
+V.frame = frame;
+/* Hoja de fotogramas: celdas { clip, t, vista, dist, nombre } */
+V.sheet = (cells, cols, W) => {
+  const cv = renderer.domElement, H = Math.round(W * cv.height / cv.width), rows = Math.ceil(cells.length / cols);
+  const sh = document.createElement('canvas'); sh.width = cols * W; sh.height = rows * H; const g = sh.getContext('2d');
+  cells.forEach((c, i) => {
+    if (c.clip) V.play(c.clip, c.t || 0);
+    if (c.fijo) camera.position.copy(c.fijo.p), camera.lookAt(c.fijo.l); else frame(c.vista || 'tq', c.dist || 1.4);
+    renderer.render(scene, camera);
+    g.drawImage(cv, (i % cols) * W, Math.floor(i / cols) * H, W, H);
+    g.fillStyle = '#111'; g.font = 'bold 13px monospace'; g.fillText(c.nombre || (c.clip + ' ' + (c.t || 0) + 's'), (i % cols) * W + 5, Math.floor(i / cols) * H + 15);
+  });
+  document.getElementById('sheet')?.remove();
+  const im = document.createElement('img'); im.id = 'sheet'; im.style.cssText = 'position:fixed;left:0;top:0;max-width:100%;max-height:100%;z-index:9;background:#b9a68f'; document.body.appendChild(im);
+  im.src = sh.toDataURL('image/jpeg', 0.88); return [sh.width, sh.height];
+};
+V.camera = camera; V.scene = scene; V.renderer = renderer;
+(function loop() { requestAnimationFrame(loop); renderer.render(scene, camera); })();
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+</script>

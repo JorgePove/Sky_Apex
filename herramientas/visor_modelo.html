@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de modelos</title>
+<!-- Visor para comparar modelos GLB (uno o dos lado a lado) con una luz parecida a la del juego.
+     Parámetros: ?a=ruta.glb&b=ruta.glb&vista=lado|frente|espalda|tq&dist=1.4&enc=lineal|srgb  (rutas relativas a esta carpeta) -->
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#b9a68f}#info{position:fixed;left:8px;top:6px;font:12px monospace;color:#111;background:rgba(255,255,255,.75);padding:4px 6px;white-space:pre}</style>
+<div id="info">cargando…</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+const Q = new URLSearchParams(location.search), info = document.getElementById('info');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(1); renderer.setSize(innerWidth, innerHeight);
+if (Q.get('enc') === 'srgb') renderer.outputEncoding = THREE.sRGBEncoding;
+document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xb9a68f);
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 1000);
+const SUN = new THREE.Vector3(0.55, 0.22, -0.8).normalize();
+scene.add(new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95));
+const sun = new THREE.DirectionalLight(0xffc48a, 1.9); sun.position.copy(SUN).multiplyScalar(10); scene.add(sun);
+const V = { models: [], ready: 0 };
+window.__v = V;
+const urls = [Q.get('a'), Q.get('b')].filter(Boolean);
+urls.forEach((u, k) => new THREE.GLTFLoader().load(u, g => {
+  const root = g.scene; root.position.x = (k - (urls.length - 1) / 2) * 1.6; scene.add(root);
+  let tris = 0;
+  root.traverse(o => {
+    if (!o.isMesh) return;
+    tris += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3;
+    o.frustumCulled = false;
+    if (Q.get('enc') !== 'srgb') for (const t of ['map', 'emissiveMap']) if (o.material[t]) o.material[t].encoding = THREE.LinearEncoding;
+  });
+  V.models[k] = { url: u, root, gltf: g, tris };
+  if (g.animations.length) {                     // animación incluida: se puede posar en un instante con V.setTime(k, t)
+    const mixer = new THREE.AnimationMixer(root), action = mixer.clipAction(g.animations[0]); action.play();
+    Object.assign(V.models[k], { mixer, action });
+  }
+  V.ready++;
+  if (V.ready === urls.length) { frame(Q.get('vista') || 'tq', +(Q.get('dist') || 1.4)); info.textContent = V.models.map(m => `${m.url}: ${Math.round(m.tris)} tris`).join('\n'); }
+}, undefined, e => { info.textContent = 'Error: ' + e.message; }));
+/* Encuadre con los huesos (pose actual) */
+function frame(view, dist) {
+  const box = new THREE.Box3();
+  for (const m of V.models) { m.root.updateMatrixWorld(true); m.root.traverse(o => { if (o.isBone) box.expandByPoint(o.getWorldPosition(new THREE.Vector3())); }); }
+  const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3()), R = dist * Math.max(s.x, s.y, s.z);
+  const dirs = { lado: [1, 0.12, 0], frente: [0, 0.1, 1], espalda: [0, 0.3, -1], tq: [0.7, 0.35, 0.9], arriba: [0, 1, 0.01] };
+  camera.position.copy(c).addScaledVector(new THREE.Vector3(...(dirs[view] || dirs.tq)).normalize(), R);
+  camera.near = R / 200; camera.far = R * 20; camera.updateProjectionMatrix();   // vale para modelos en metros o en centímetros
+  camera.lookAt(c);
+  V.box = { min: box.min.toArray(), max: box.max.toArray() };
+}
+V.frame = frame; V.camera = camera; V.scene = scene; V.renderer = renderer;
+V.setTime = (k, t) => { const m = V.models[k]; m.action.time = t; m.mixer.update(0); m.root.updateMatrixWorld(true); };
+/* Rotaciones locales de los huesos (por nombre) del modelo k: para copiar poses entre modelos con el mismo esqueleto */
+V.pose = k => { const out = {}; V.models[k].root.traverse(o => { if (o.isBone) out[o.name] = o.quaternion.toArray().map(x => +x.toFixed(4)); }); return out; };
+V.applyPose = (k, pose) => { V.models[k].root.traverse(o => { if (o.isBone && pose[o.name]) o.quaternion.fromArray(pose[o.name]); }); V.models[k].root.updateMatrixWorld(true); };
+(function loop() { requestAnimationFrame(loop); renderer.render(scene, camera); })();
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); });
+</script>

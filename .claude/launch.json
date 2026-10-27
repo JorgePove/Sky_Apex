@@ -1,0 +1,24 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "alas-de-brasa",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1"],
+      "port": 8765
+    },
+    {
+      "name": "sky-apex-2",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8767", "--bind", "127.0.0.1"],
+      "port": 8767,
+      "autoPort": false
+    },
+    {
+      "name": "grabador-tutorial",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["herramientas/servidor_tutorial.mjs"],
+      "port": 8766
+    }
+  ]
+}
