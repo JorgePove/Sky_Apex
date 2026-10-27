@@ -19,6 +19,7 @@
       <button class="cta" id="go" disabled>Generando mundo…</button>
       <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
       <button class="mbtn" id="mFree" disabled>Combate libre</button>
+      <button class="mbtn" id="mObj" disabled>Prueba de objetivos</button>
       <button class="mbtn" id="mTutorial">Tutorial</button>
       <button class="mbtn" id="mControls">Controles</button>
       <button class="mbtn" id="mOptions">Opciones</button>
@@ -27,7 +28,7 @@
   </div>
   <canvas class="fx" id="fxFront" aria-hidden="true"></canvas>
   <button id="introTap">Pulsa cualquier tecla o haz clic</button>
-  <div class="menu-note reveal">Modelos: TyrantDragon y Drogon (pack «Drogon»), «Red Dragon» de GadgetHamster (CC-BY 4.0), STL «Syrax» (riggeado y animado en Blender) y caballero «Knighty». Prototipo de uso privado · teclado y ratón.</div>
+  <div class="menu-note reveal">Modelos: pack «Drogon» (TyrantDragon, Drogon), STL «Syrax», «Knighty», «Red Dragon» de GadgetHamster y «Airship» de Shinsin (CC-BY 4.0) · proyecto personal · teclado y ratón</div>
   <div class="mpanel" id="pControls" hidden role="dialog" aria-label="Controles">
     <div class="kicker">Controles</div>
     <dl class="keys">
@@ -38,10 +39,10 @@
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
-      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un dragón fijado, la mira en el círculo rojo</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
-      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente dragón a la vista</dd>
+      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
       <dt><kbd>F</kbd></dt><dd>Escudo: 5 s sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
       <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
       <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
@@ -52,6 +53,7 @@
     <div class="kicker">Objetivo</div>
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
+    <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -153,6 +155,7 @@
 <script id="rojo-glb" type="application/octet-stream"></script>
 <script id="drogon-glb" type="application/octet-stream"></script>
 <script id="fulgor-glb" type="application/octet-stream"></script>
+<script id="dirigible-glb" type="application/octet-stream"></script>
 <script id="logo-sky-png" type="application/octet-stream"></script>
 <script id="logo-apex-png" type="application/octet-stream"></script>
 <script>

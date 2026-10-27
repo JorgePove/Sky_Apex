@@ -126,12 +126,12 @@ const TUTORIAL = [
       'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño (un dragón aguanta 20 impactos y una torre, 12), pero acierta fácil y desde lejos.',
       'Tienes 20 disparos, que ves en el panel de <b>ARMAS</b> (abajo a la derecha). Un segundo después de dejar de disparar empiezan a recargarse solos: las marcas se vuelven doradas.',
       'Si tienes un dragón fijado, apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo.'] },
-    { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué dragón seguir.', keys: [[['Clic central'], 'Fijar el siguiente dragón a la vista']], text: [
-      'El clic central (la rueda) fija el dragón enemigo más cercano que tengas en pantalla: lo rodea un recuadro dorado con su distancia. Cada clic pasa al siguiente; si no hay otro, lo suelta.',
-      'Con un dragón fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar.'] },
-    { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el dragón'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
-      'Fija un dragón (clic central) a menos de 3 km: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
-      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los 3 s sale una gran bola de fuego que persigue al dragón y le quita 70 de vida. Si la mira sale del círculo, la carga baja poco a poco.',
+    { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué blanco seguir.', keys: [[['Clic central'], 'Fijar el siguiente blanco a la vista']], text: [
+      'El clic central (la rueda) fija un blanco que tengas en pantalla: un dragón, una torre o un dirigible (estos dos, a menos de 6 km). Primero los que cuentan para la misión (<b>TGT</b>), del más cercano al más lejano; luego los demás. Lo rodea un recuadro dorado con su distancia. Cada clic pasa al siguiente; si no hay otro, lo suelta.',
+      'Con un blanco fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar.'] },
+    { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
+      'Fija un blanco (clic central) a menos de 3 km: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
+      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los 3 s sale una gran bola de fuego que persigue al blanco y le quita 70 de vida: derriba de un golpe una torre o un dirigible. Si la mira sale del círculo, la carga baja poco a poco.',
       'Empiezas con 5 bolas (las bolitas doradas del panel). No se recargan solas: cada torre destruida te da 2 más.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de 200 m que quema todo lo que toca (70 de daño por segundo). Es el arma más fuerte de cerca: ideal para torres y para dragones que tienes encima.',
@@ -166,15 +166,20 @@ const TUTORIAL = [
       'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('F') + ').'] },
     { id: 'torres', title: 'Torres antiaéreas', sum: '30 torres fijas que disparan ráfagas.', keys: [], text: [
       'Hay 30 torres repartidas alrededor del punto de partida; en cada partida, entre 10 y 15 de ellas están sobre islas flotantes. Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está en una isla).',
-      'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] }
+      'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] },
+    { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
+      'Grandes barcos voladores quietos en el aire, entre 500 y 1000 m sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
+      'A menos de 1 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
+      'Aguantan 50 de daño (una bola guiada los derriba de un golpe) y dan 200 puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
       '<b>Izquierda</b>: velocidad, acelerador y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo; arriba a la derecha, torres, dragones y puntos.',
-      '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde). Debajo, la distancia a la torre más cercana.',
+      '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde); los dirigibles, cápsulas huecas. Lo que no cuenta para la misión sale apagado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
       '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
     { id: 'objetivo', title: 'Objetivo de la partida', sum: '30 torres y 20 dragones.', keys: [], text: [
       'Para ganar, destruye las 30 torres y derriba los 20 dragones. Los contadores de arriba a la derecha llevan la cuenta, y el radar te guía hasta las torres que quedan.',
+      'Los blancos que cuentan para la misión llevan la marca <b>TGT</b> junto a su distancia. En otras misiones puede haber enemigos sin ella: también te atacan, pero no hace falta destruirlos para ganar. Los objetivos con un rombo (◇) son opcionales.',
       'Al conseguirlo verás la pantalla de <b>VICTORIA</b> con tus estadísticas (tiempo, puntos, precisión, daño recibido…). Desde ahí puedes volver al menú o empezar otra partida.'] }
   ] }
 ];

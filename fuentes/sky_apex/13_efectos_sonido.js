@@ -180,21 +180,24 @@ const fbLight = new THREE.PointLight(0xff8a3a, 0, 190, 2); scene.add(fbLight);
 const FIREBALL_SPEED = 340, FIREBALL_LIFE = 6;          // bolas enemigas (m/s, fijas en el mundo)
 const _white = new THREE.Color(1, 1, 1);
 /* kind: 'gun' = proyectil rápido del jugador, 'msl' = bola guiada del jugador (ver «Armas del jugador», sección 7);
-   enemigas: 'enemy' (bola normal) o 'emsl' (bola guiada enemiga, ver sección 6b). */
+   enemigas: 'enemy' (bola normal), 'emsl' (bola guiada enemiga, ver sección 6b), 'aa' (antiaéreo de las torres) o 'arc' (v21: proyectil
+   arcano de los dirigibles, morado, ver 6c). */
+const ARC_COLOR = [0.78, 0.42, 1];       // color de lo arcano: proyectiles de los dirigibles, sus chispas y su explosión
+const _arcC = new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]), _arcW = _arcC.clone().lerp(_white, 0.55);
 function spawnFireball(from, dir, enemy, vol, kind) {
-  kind = enemy ? (kind === 'emsl' || kind === 'aa' ? kind : 'enemy') : kind || 'gun';
-  const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', fast = gun || aa;
-  // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego
-  const map = enemy ? glowTex : glowTexW, col = enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = enemy ? _white : ATTACK;
-  const r0 = fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
+  kind = enemy ? (kind === 'emsl' || kind === 'aa' || kind === 'arc' ? kind : 'enemy') : kind || 'gun';
+  const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', arc = kind === 'arc', fast = gun || aa || arc;
+  // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego (las arcanas, moradas)
+  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : enemy ? _white : ATTACK;
+  const r0 = arc ? 3.4 : fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = arc ? 11 : fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   core.scale.setScalar(r0); core.renderOrder = 7; core.position.copy(from); scene.add(core);   // (ya en la boca en el fotograma en que nace)
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: colH, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
-  const speed = aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
-  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
+  const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
+  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
   fireballs.push(f);
-  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
+  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
 }
 /* Bola guiada enemiga: guiado imperfecto a propósito (persecución con poco adelanto y giro limitado). Si el jugador se le sale del cono de su
@@ -239,7 +242,7 @@ function updateFireballs(dt) {
   let near = null, nearD = 700;
   const shOn = shieldOn(); if (shOn) shieldCenter(_shC);
   for (let i = fireballs.length - 1; i >= 0; i--) {
-    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', fast = gun || aa;
+    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', fast = gun || aa || arc;
     if (msl) steerMissile(f, dt); else if (emsl) steerEnemyMissile(f, dt);
     const steps = fast ? 3 : 2, h = dt / steps;
     let hit = false, onTarget = false;
@@ -260,6 +263,7 @@ function updateFireballs(dt) {
           hit = true;
           if (emsl) { explode(f.pos.x, f.pos.y, f.pos.z, 0.9); hurtDragon(EMSL_DMG, 'Una bola guiada te derribó'); }
           else if (aa) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(AA_DMG, 'La artillería de una torre te derribó', true); }
+          else if (arc) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, 'Los cañones de un dirigible te derribaron', true); }
           else hurtDragon(ENEMY_DMG, 'Un dragón enemigo te derribó');
         } else if (emsl) for (const t of towers.values()) {
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
@@ -277,6 +281,11 @@ function updateFireballs(dt) {
           if (msl) explode(f.pos.x, f.pos.y, f.pos.z, 1.3);
           break;
         }
+        if (!hit) for (const a of airships) if (!a.dead && airshipSegDist2(a, _fo, f.pos) < (a.r + (msl ? 4 : 1)) ** 2) {   // v21: dirigibles
+          hit = onTarget = true; damageAirship(a, f.dmg, false, _sdc.clone());
+          if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
+          break;
+        }
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
     }
@@ -287,7 +296,7 @@ function updateFireballs(dt) {
     const dP = f.pos.distanceTo(dragon.position);
     if (!fast && dP < nearD) { nearD = dP; near = f; }
     if (emsl && !f.lost && state === 'playing' && dP < 3500) threat.incoming.push(f);
-    if (f.enemy && !aa && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos van demasiado rápido)
+    if (f.enemy && !aa && !arc && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos y los arcanos van demasiado rápido)
       _fs.subVectors(dragon.position, f.pos); const along = _fs.dot(f.vel) / f.speed;
       if (along > 0 && dP * dP - along * along < 3600) boltWarn = Math.max(boltWarn, 1 - dP / 700);
     }
@@ -484,6 +493,14 @@ const sfx = (() => {
     hoverOff() { this.noise(0.6, 'bandpass', 300, 1800, 0.4, 0.8); },
     empty() { this.tone('square', 220, 160, 0.16, 0.06); },
     shot(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(0.16, 'bandpass', 3200, 700, 0.26 * v, 0.9); this.tone('triangle', 420, 140, 0.1, 0.05 * v); },
+    /* v21: dirigibles: disparo arcano (zumbido que cae), carga de energía al morir y explosión de energía */
+    arcShot(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.tone('triangle', 980, 240, 0.16, 0.07 * v); this.noise(0.2, 'bandpass', 2600, 900, 0.14 * v, 2.2); },
+    energyCharge(v) { v = v == null ? 1 : v; this.tone('sine', 260, 2200, 0.45, 0.13 * v); this.noise(0.45, 'highpass', 3000, 9000, 0.2 * v, 1.2); },
+    energyBlast(v) {
+      v = v == null ? 1 : v;
+      this.noise(2.4, 'lowpass', 2400, 40, 1.0 * v, 0.6); this.tone('sine', 66, 18, 2, 0.9 * v); this.tone('sawtooth', 240, 30, 1, 0.22 * v);
+      this.noise(1.3, 'highpass', 6500, 1600, 0.4 * v, 0.8); this.tone('sine', 1400, 120, 0.9, 0.12 * v);
+    },
     launch(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(1.0, 'bandpass', 260, 1400, 0.6 * v, 0.8); this.tone('sawtooth', 90, 36, 0.8, 0.18 * v); },
     warnLock() { this.tone('square', 720, 720, 0.07, 0.05); setTimeout(() => this.tone('square', 960, 960, 0.07, 0.05), 90); },   // te están fijando
     warnMissile() { this.tone('square', 1320, 1320, 0.05, 0.07); },

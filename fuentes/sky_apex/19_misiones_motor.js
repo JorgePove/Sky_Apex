@@ -16,7 +16,7 @@ const RADIO_GAP = 0.45;                   // s entre dos mensajes de radio segui
 let missionId = 'libre';                  // la que empieza al pulsar «Empezar» en «Elige tu dragón» (la fijan los botones del menú)
 let mission = MISSIONS.libre;             // receta en juego
 const MS = {
-  t: 0, objs: [], fired: new Map(), ended: true, endAt: 0,
+  t: 0, objs: [], fired: new Map(), ended: true, endAt: 0, kills: {}, planned: {},       // v21: destruidos por tipo y etiqueta; cuántos hay por etiqueta
   out: false, outT: AREA_GRACE, tick: -1, edge: '',      // área: fuera, s que quedan, último segundo mostrado, distancia mostrada
   radio: [], radioT: 0, radioOn: false                     // cola de mensajes, tiempo del actual (o de la pausa entre dos), ¿se ve?
 };
@@ -28,17 +28,23 @@ function chooseMission(id) {
   document.getElementById('start').textContent = MISSIONS[missionId].free ? 'Empezar partida' : 'Empezar misión';
   enterSelect();
 }
+const tagList = t => t ? [].concat(t) : [];
 function missionSetup(id) {
   missionId = MISSIONS[id] ? id : 'libre'; mission = MISSIONS[missionId];
-  const T = mission.towers || {}, D = mission.dragons || {};
+  const T = mission.towers || {}, D = mission.dragons || {}, A = mission.airships || {};
   RUN.world = missionWorld(mission);                       // v19: semilla, bioma y punto de partida (M3)
+  const center = [RUN.world.start.x, RUN.world.start.z];
   RUN.towers = { total: T.total || 0, zone: (T.zone || TOWER_ZONE).slice(), islands: (T.islands || [0, 0]).slice(),
-    center: [RUN.world.start.x, RUN.world.start.z], random: !!T.random };
-  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0) };
+    center, random: !!T.random, sites: (T.sites || []).slice(), tags: tagList(T.tag) };
+  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag) };
+  RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
+    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag) };
 }
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
+  MS.kills = {}; MS.planned = {};
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
+  for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   toast(mission.free ? 'Objetivo: ' + goal : mission.name);
@@ -49,8 +55,31 @@ function missionHideHUD() {
   areaEl.classList.remove('on');
 }
 
-/* ---------- Cuentas ---------- */
-function killsOf(target) { return target === 'tower' ? towerState.kills : target === 'dragon' ? enemyState.kills : 0; }
+/* ---------- Cuentas ----------
+   v21: cada blanco destruido (torre, dragón, dirigible; ver 6d) suma en MS.kills por su tipo y por cada etiqueta, y en los objetivos
+   cuya selección cumple ({ target, tag }). plannedCount = cuántos hay en la misión con esa selección (torres y dirigibles colocados,
+   dragones del total y de los escuadrones de la receta, salgan o no). */
+function missionKill(t) {
+  if (MS.ended) return;
+  const K = MS.kills; K[t.kind] = (K[t.kind] || 0) + 1;
+  for (const tag of t.tags || []) K[tag] = (K[tag] || 0) + 1;
+  for (const o of MS.objs) if (matchSel(o, t)) o.n++;
+}
+const squadTags = (id, q) => [q.tag || id];
+function plannedCount(sel) {
+  let n = 0;
+  for (const s of TOWER_SITES) if (matchSel(sel, s)) n++;
+  for (const a of airships) if (matchSel(sel, a)) n++;
+  if (matchSel(sel, { kind: 'dragon', tags: RUN.dragons.tags })) n += RUN.dragons.total;
+  const Q = mission.squads || {};
+  for (const id in Q) if (matchSel(sel, { kind: 'dragon', tags: squadTags(id, Q[id]) })) n += Q[id].n || 1;
+  return n;
+}
+/* ¿Destruidos todos los de esa etiqueta? (si la misión no tiene ninguno, no) */
+function clearedTag(tag) {
+  if (MS.planned[tag] == null) MS.planned[tag] = plannedCount({ tag });
+  return MS.planned[tag] > 0 && (MS.kills[tag] || 0) >= MS.planned[tag];
+}
 function objById(id) { return MS.objs.find(o => o.id === id); }
 /* ¿(x, z) está dentro del área de la misión, con un margen hacia dentro? (sin área: siempre) */
 function inMissionArea(x, z, margin) {
@@ -71,8 +100,7 @@ function missionUpdate(dt) {
   MS.t += dt;
   updateRadio(dt);
   // objetivos
-  for (const o of MS.objs) {
-    o.n = killsOf(o.target);
+  for (const o of MS.objs) {                               // (o.n lo lleva missionKill)
     if (o.shown && !o.done && o.n >= o.count) { o.done = true; toast('Objetivo cumplido  ·  ' + o.text); sfx.locked(); }
   }
   // eventos
@@ -108,7 +136,8 @@ function missionUpdate(dt) {
 }
 function eventReady(w) {
   if (w.t != null && MS.t < w.t) return false;
-  if (w.kills) for (const k in w.kills) if (killsOf(k) < w.kills[k]) return false;
+  if (w.kills) for (const k in w.kills) if ((MS.kills[k] || 0) < w.kills[k]) return false;   // (v21: por tipo o por etiqueta)
+  if (w.cleared) for (const tag of [].concat(w.cleared)) if (!clearedTag(tag)) return false;
   if (w.done) for (const id of w.done) { const o = objById(id); if (!o || !o.done) return false; }
   if (w.pending) for (const id of w.pending) { const o = objById(id); if (o && o.done) return false; }
   if (w.hp != null && !(state === 'playing' && F.health < w.hp)) return false;
@@ -121,6 +150,7 @@ function runAction(a) {
   if (a.show) { const o = objById(a.show); if (o && !o.shown) { o.shown = true; toast('Nuevo objetivo  ·  ' + o.text); sfx.lock(); } }
   if (a.toast) toast(a.toast);
   if (a.dragons) RUN.dragons.total += a.dragons;           // refuerzos: van saliendo según caen los que hay en el aire
+  if (a.squad) for (const id of [].concat(a.squad)) spawnSquad(id);   // v21: escuadrón de la receta (squads), todos a la vez
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
 }

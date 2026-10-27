@@ -12,6 +12,7 @@ function frame(now) {
     if (left === 0 && !hero.ready) goBtn.textContent = hero.error ? 'No se pudo cargar el dragón' : 'Despertando al dragón…';
     if (left === 0 && hero.ready) {
       state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Misión de prueba'; document.getElementById('mFree').disabled = false;   // v15
+      document.getElementById('mObj').disabled = false;                                                                                   // v21
       updateTowerStreaming(dragon.position.x, dragon.position.z);
       updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
       for (let i = 0, s; i < 6 && (s = islandAt(dragon.position.x, dragon.position.y, dragon.position.z, 90)); i++) dragon.position.y = s.yMax + 130;
@@ -38,7 +39,9 @@ function frame(now) {
   planTowers();
   goBtn.addEventListener('click', () => chooseMission('prueba'));                                   // v15: menú → misión → «Elige tu dragón»
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
-  loadHero().then(loadDragons); loadRider(); loadKnight(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant
-  window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon };
+  document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
+  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
+  window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget };   // (v21)
   requestAnimationFrame(frame);
 })();

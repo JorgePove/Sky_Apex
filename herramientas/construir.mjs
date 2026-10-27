@@ -34,6 +34,7 @@ if (!soloFuente) {
   const args = ['incrustar_modelo.mjs', '--fuente', '../fuentes/sky_apex.src.html', '--modelo', '../modelos/tyrant_web.glb',
     '--extra', 'brazos-glb=../modelos/brazos_jinete.glb', '--extra', 'caballero-glb=../modelos/caballero.glb',
     '--extra', 'logo-sky-png=../imagenes/logo_sky.png', '--extra', 'logo-apex-png=../imagenes/logo_apex.png',
-    '--extra', 'rojo-glb=../modelos/dragon_rojo.glb', '--extra', 'drogon-glb=../modelos/drogon_web.glb', '--extra', 'fulgor-glb=../modelos/syrax_web.glb', '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor)
+    '--extra', 'rojo-glb=../modelos/dragon_rojo.glb', '--extra', 'drogon-glb=../modelos/drogon_web.glb', '--extra', 'fulgor-glb=../modelos/syrax_web.glb',
+    '--extra', 'dirigible-glb=../modelos/dirigible.glb', '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible)
   process.stdout.write(execFileSync(process.execPath, args, { cwd: HERR }));
 }

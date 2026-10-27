@@ -124,7 +124,9 @@ for (const [id, fn] of [['pResume', resumeGame], ['pRetry', restartGame], ['pMen
    partida en curso (los copia de la receta missionSetup; al arrancar, los valores por defecto). */
 const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };
 const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new THREE.Vector3() };   // punto de partida (lo fija el arranque)
-const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true }, dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT },
+const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
+  dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
+  airships: { total: 0, zone: AIRSHIP_ZONE.slice(), alt: AIRSHIP_ALT.slice(), center: [0, 0], random: true, sites: [], tags: [] },   // v21: dirigibles (6c)
   world: null };                                           // v19: semilla, bioma y punto de partida de la misión (missionSetup)
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
@@ -137,7 +139,8 @@ function showResult(win, why) {
   const rows = [
     ['Tiempo', fmtClock(stats.time)], ['Puntos', towerState.score],
     RUN.towers.total ? ['Torres destruidas', towerState.kills + ' / ' + RUN.towers.total] : null,
-    RUN.dragons.total ? ['Dragones derribados', enemyState.kills + ' / ' + RUN.dragons.total] : null,
+    dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
+    airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
     ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
@@ -158,6 +161,7 @@ function resetRun(pump) {
   towerState.destroyed.clear(); towerState.score = 0; towerState.kills = 0;
   for (const t of [...towers.values()]) dropTower(t);
   planTowers();                                            // v13: nuevo reparto de torres (entre 10 y 15 en islas)
+  planAirships();                                          // v21: y los dirigibles de la misión
   for (let i = fireballs.length - 1; i >= 0; i--) killFireball(i);
   boltsClear();
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
@@ -254,7 +258,8 @@ const _mouth = new THREE.Vector3(), _dir = new THREE.Vector3(), _org = new THREE
 function aimPointFrom(origin, dir) {
   // marcha a lo largo del rayo del marcador: terreno o torres; si no hay impacto, un punto lejano
   let t = 25, last = 0;
-  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tI = Math.min(tIsl, tEn), limit = Math.min(maxT, tI);   // la isla (o el dragón enemigo) más cercano en el rayo
+  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT);
+  const tI = Math.min(tIsl, tEn, tAir), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo o el dirigible (v21) más cercano en el rayo
   while (t < limit) {
     _hit.copy(origin).addScaledVector(dir, t);
     const gy = Math.max(heightAt(_hit.x, _hit.z), WL);
@@ -270,7 +275,7 @@ function aimPointFrom(origin, dir) {
     }
     last = t; t += Math.max(12, t * 0.05);
   }
-  if (tI < maxT) return tEn <= tIsl ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, tIsl);
+  if (tI < maxT) return tEn <= tIsl && tEn <= tAir ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, Math.min(tIsl, tAir));
   return _hit.copy(origin).addScaledVector(dir, 1400);
 }
 
@@ -348,7 +353,7 @@ function lockCircle(out) {
   if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';
   out.x = (_Wv.x * 0.5 + 0.5) * sw; out.y = (-_Wv.y * 0.5 + 0.5) * sh;
   const pxm = sh / (2 * e.pos.distanceTo(_Wc) * Math.tan(camera.fov * Math.PI / 360));
-  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(ENEMY_SCALE * 30 * pxm, 17, 96) + 14);   // (v10: la mitad que antes)
+  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(targetHalf(e) * pxm, 17, 96) + 14);   // (v10: la mitad que antes; v21: según el tamaño del blanco)
   _Wv.copy(_Wc).addScaledVector(F.aimWorld, 1000).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
   out.in = Math.hypot((_Wv.x * 0.5 + 0.5) * sw - out.x, (-_Wv.y * 0.5 + 0.5) * sh - out.y) < out.r;
   return '';
@@ -582,6 +587,7 @@ function flameFx(dt) {
   }
   _bF.copy(_bS).addScaledVector(_bD, FLAME_RANGE);
   for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) damageTower(t, amt, true, _sdc);   // _sdc: punto de la llamarada más cercano a la torre
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);       // v21: dirigibles
   fbLight.position.copy(_bS).addScaledVector(_bD, 40); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
 }
 /* Llamarada corta sin sonido ni temblor (impacto del rayo contra el terreno). */
@@ -626,6 +632,7 @@ function laserFx(dt) {
   const amt = LASER_DPS * dt;
   for (const e of enemies) if (!e.dead && segHitsSphere(_bS, _bE, e.pos, ENEMY_HIT_R + LASER_R)) damageEnemy(e, amt, _fc, true);   // _fc: punto del rayo más cercano
   for (const tw of towers.values()) if (!tw.dead && towerSegDist2(tw, _bS, _bE) < (TOWER_R + LASER_R) ** 2) damageTower(tw, amt, true, _sdc);
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bE) < (a.r + LASER_R) ** 2) damageAirship(a, amt, true, _sdc);
   // 5. impacto: llamaradas y humo donde choca
   if (blocked) { W.burstT = (W.burstT || 0) - dt; if (W.burstT <= 0) { W.burstT = 0.09; burstFx(_bE.x, _bE.y + 2, _bE.z, c); } }
   // 6. espiral de energía alrededor del primer tramo (dos hebras que giran) y destello en la boca
@@ -795,6 +802,9 @@ function updateFlight(dt, auto) {
     if (t.dead) continue;
     const dx = pos.x - t.x, dz = pos.z - t.z;
     if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crash('Te estrellaste contra una torre'); break; }
+  }
+  if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
+    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
   }
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {

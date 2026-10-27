@@ -72,7 +72,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #victory .vic h2{font-size:clamp(30px,4.2vw,50px);letter-spacing:.06em;white-space:nowrap}   /* «Misión cumplida» en una línea */
 .vic .lead{text-align:center;max-width:none}
 .mbtn:disabled{opacity:.45;cursor:progress}
-@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns{gap:7px}#menu .menu-btns .mbtn{padding:8px 0}#menu .menu-btns .cta{padding:13px 0}}   /* seis botones: que no pisen la nota del pie a 720 px */
+@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns{gap:5px}#menu .menu-btns .mbtn{padding:5px 0}#menu .menu-btns .cta{padding:11px 0}}   /* siete botones (v21): que no pisen la nota del pie a 720 px */
 @media (max-width:640px){.keys{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}.load i{transition:none}#radio{transition:none}}
 /* ---------- Pantalla de título ---------- */

@@ -158,12 +158,12 @@ function makeCrystal(x, y, z) {
   return g;
 }
 /* Crea (o recupera en ruinas) la torre de una celda o de una isla; dropTower la descarga. */
-function addTower(id, x, y, z, rotY) {
+function addTower(id, x, y, z, rotY, site) {
   const dead = towerState.destroyed.has(id);
   const mesh = new THREE.Mesh(dead ? ruinGeo : towerGeo, towerMat);
   mesh.position.set(x, y - 0.5, z); mesh.rotation.y = rotY;
   towerGroup.add(mesh);
-  towers.set(id, { id, x, y, z, hp: dead ? 0 : TOWER_HP, dead, mesh, crystal: dead ? null : makeCrystal(x, y, z), spin: rotY, cool: 1.5 + Math.random() * 2.5, smokeT: 0, mslCool: 6 + Math.random() * 24, mslLock: 0 });
+  towers.set(id, { id, x, y, z, hp: dead ? 0 : TOWER_HP, dead, mesh, crystal: dead ? null : makeCrystal(x, y, z), spin: rotY, cool: 1.5 + Math.random() * 2.5, smokeT: 0, mslCool: 6 + Math.random() * 24, mslLock: 0, site });
 }
 function dropTower(t) {
   towerGroup.remove(t.mesh); if (t.crystal) towerGroup.remove(t.crystal);
@@ -212,36 +212,44 @@ function groundSites(zone, cx, cz) {
   }
   groundSiteCache.set(key, out); return out;
 }
-const TOWER_SITES = [];                                     // las de esta partida: { id, x, y, z, rot, isl (la isla, si está en una) }
+/* Las de esta partida: { id, x, y, z, rot, isl (la isla, si está en una) } y, desde la v21, con la forma de los blancos (6d): kind, tags,
+   pos (a media altura: fijar y bola guiada), vel y dead (destruida). */
+const TOWER_SITES = [];
 const shuffled = (a, rand) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function towerSite(id, x, y, z, rot, isl, tags) {
+  return { id, x, y, z, rot, isl, kind: 'tower', tags: tags || [], pos: new THREE.Vector3(x, y + TOWER_TOP * 0.55, z), vel: ZERO, dead: false };
+}
+/* v21: primero las fijas de la receta (RUN.towers.sites: { x, z, tag }, en tierra), luego el resto al azar hasta total. */
 function planTowers() {
   for (const t of TOWER_SITES) if (t.isl) setIslandTower(t.isl, null);
   TOWER_SITES.length = 0;
-  const Z = RUN.towers.zone, ISL = RUN.towers.islands, total = RUN.towers.total, [cx, cz] = RUN.towers.center || [0, 0];
+  const Z = RUN.towers.zone, ISL = RUN.towers.islands, fixed = RUN.towers.sites || [], tags = RUN.towers.tags, [cx, cz] = RUN.towers.center || [0, 0];
+  const total = Math.max(RUN.towers.total, fixed.length);
   const rand = RUN.towers.random ? Math.random : seededRandom(SEED ^ 0x70e55);   // v19: misma semilla → mismas torres
   const dc = s => Math.hypot(s.x - cx, s.z - cz);
+  fixed.forEach((f, i) => TOWER_SITES.push(towerSite('F' + i, f.x, heightAt(f.x, f.z), f.z, f.rot != null ? f.rot : hash2(i, 9, 4141) * 6.28, null, f.tag ? [].concat(f.tag) : tags)));
   // islas: las de la zona con sitio para la torre, al azar y separadas entre sí
   const cand = shuffled(islandsInRange(cx, cz, Z[1]).filter(s => s.R >= TOWER_ISL_R && dc(s) > Z[0] && dc(s) < Z[1]), rand);
-  const n = Math.min(total, ISL[0] + Math.floor(rand() * (ISL[1] - ISL[0] + 1)));
+  const n = fixed.length + Math.min(total - fixed.length, ISL[0] + Math.floor(rand() * (ISL[1] - ISL[0] + 1)));
   for (const s of cand) {
     if (TOWER_SITES.length >= n) break;
     if (TOWER_SITES.some(t => Math.hypot(t.x - s.x, t.z - s.z) < TOWER_GAP)) continue;
-    const sp = islandTowerSpot(s), site = { id: 'I' + TOWER_SITES.length, x: sp.x, y: sp.y, z: sp.z, rot: rand() * 6.28, isl: s };
+    const sp = islandTowerSpot(s), site = towerSite('I' + TOWER_SITES.length, sp.x, sp.y, sp.z, rand() * 6.28, s, tags);
     TOWER_SITES.push(site); setIslandTower(s, site);
   }
   // tierra: el resto, al azar entre las candidatas (primero respetando las separaciones; si no llegan, sin ellas)
-  const gr = shuffled(groundSites(Z, cx, cz), rand), isl = TOWER_SITES.slice();
+  const gr = shuffled(groundSites(Z, cx, cz), rand), isl = TOWER_SITES.filter(t => t.isl);
   for (const relax of [false, true]) for (const g of gr) {
     if (TOWER_SITES.length >= total) break;
     if (TOWER_SITES.some(t => t.x === g.x && t.z === g.z)) continue;
     if (!relax && (TOWER_SITES.some(t => !t.isl && Math.hypot(t.x - g.x, t.z - g.z) < TOWER_GAP) || isl.some(t => Math.hypot(t.x - g.x, t.z - g.z) < TOWER_ISL_GAP))) continue;
-    TOWER_SITES.push({ id: 'T' + TOWER_SITES.length, x: g.x, y: g.y, z: g.z, rot: g.rot, isl: null });
+    TOWER_SITES.push(towerSite('T' + TOWER_SITES.length, g.x, g.y, g.z, g.rot, null, tags));
   }
 }
 function updateTowerStreaming(px, pz) {
   for (const s of TOWER_SITES) {
     if (towers.has(s.id) || Math.hypot(s.x - px, s.z - pz) > TOWER_LOAD) continue;
-    addTower(s.id, s.x, s.y, s.z, s.rot);
+    addTower(s.id, s.x, s.y, s.z, s.rot, s);
   }
   for (const t of [...towers.values()]) {
     if (Math.hypot(t.x - px, t.z - pz) > TOWER_UNLOAD) dropTower(t);
@@ -273,6 +281,7 @@ function damageTower(t, amount, soft, at, sure) {
   ultGain(ULT_PER_KILL * 0.5);
   t.dead = true; towerState.destroyed.add(t.id);
   towerState.score += 100; towerState.kills++;
+  if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)
   towerGroup.remove(t.mesh);
   t.mesh = new THREE.Mesh(ruinGeo, towerMat);
   t.mesh.position.set(t.x, t.y - 0.5, t.z); t.mesh.rotation.y = Math.random() * 6.28;

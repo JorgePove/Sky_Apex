@@ -32,8 +32,9 @@ const TRAIL_STEP = 14, TRAIL_MAXP = 96;
 const TRAIL_PX = 3.6;                 // grosor mínimo en pantalla (px), para verla a gran distancia
 
 const enemies = [];
-const enemyState = { kills: 0, spawned: 0 };
-const enemyLock = { e: null };          // dragón fijado con el clic central
+const enemyState = { kills: 0, spawned: 0, squadN: 0 };   // (v21: squadN = dragones de los escuadrones que han salido)
+const dragonsTotal = () => RUN.dragons.total + enemyState.squadN;
+const enemyLock = { e: null };          // blanco fijado con el clic central (v21: dragón, torre o dirigible; ver 6d)
 let enemyLastShot = -9;
 
 const _Etp = new THREE.Vector3(), _Etn = new THREE.Vector3(), _Eef = new THREE.Vector3(), _Ewant = new THREE.Vector3(), _Elead = new THREE.Vector3();
@@ -154,7 +155,8 @@ function makeEnemy() {
     speed: 64, rate: { p: 0, y: 0, r: 0 }, bank: 0, hp: ENEMY_HP, dead: true, respawnT: 0,
     mode: 'patrol', t: 0, alert: 0, far: 0, fireCool: 1.5, fireFlash: 0, hitFlash: 0, ramT: 0, avoidT: 0, animAcc: 0, frame: 0,
     wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
-    aimLocal: new THREE.Vector3(0, 0, -1)
+    aimLocal: new THREE.Vector3(0, 0, -1),
+    kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
 const _Eac = { x: 0, z: 0 };
@@ -176,6 +178,7 @@ function placeEnemy(e, rmin, rmax) {
 }
 function reviveEnemy(e) {
   enemyState.spawned++;
+  e.tags = RUN.dragons.tags; e.squad = null;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
   placeEnemy(e, 3500, 5500);
 }
@@ -185,13 +188,43 @@ function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.ad
 function spawnEnemies() {
   const n = Math.min(RUN.dragons.atOnce, RUN.dragons.total);
   while (enemies.length < n) enemies.push(makeEnemy());
-  enemyState.kills = 0; enemyState.spawned = n; enemyLastShot = -9; enemyLock.e = null;
+  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0;
+    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
   for (const t of towers.values()) { t.mslCool = rnd(6, EMSL_CD); t.mslLock = 0; }
+}
+/* v21: escuadrón de la receta (mission.squads[id]), desde un evento («squad»). Salen todos a la vez en cuña, en su punto (at: { x, z,
+   height | y }) o, sin él, a dist m (2500) del jugador por delante y dentro del área; miran hacia el jugador. attack: false = patrullan
+   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id). */
+const _Esq = new THREE.Vector3();
+function spawnSquad(id) {
+  const q = mission.squads && mission.squads[id];
+  if (!q) { console.warn('Escuadrón desconocido: ' + id); return; }
+  const P = dragon.position, n = q.n || 1, tags = [q.tag || id];
+  let cx, cy, cz;
+  if (q.at) { cx = q.at.x; cz = q.at.z; cy = q.at.y != null ? q.at.y : groundAt(cx, cz) + (q.at.height != null ? q.at.height : 400); }
+  else {
+    _Eef.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize(); rotY(_Eef, rnd(-0.6, 0.6));
+    clampToArea(P.x + _Eef.x * (q.dist || 2500), P.z + _Eef.z * (q.dist || 2500), 600, _Eac); cx = _Eac.x; cz = _Eac.z;
+    cy = Math.max(P.y, groundAt(cx, cz) + 300);
+  }
+  cy = safeY(cx, cy, cz); enemyState.squadN += n;
+  _Esq.set(P.x - cx, 0, P.z - cz); if (_Esq.lengthSq() < 1) _Esq.set(0, 0, -1); _Esq.normalize();   // rumbo: hacia el jugador
+  for (let i = 0; i < n; i++) {
+    let e = enemies.find(x => x.off);
+    if (!e) { e = makeEnemy(); enemies.push(e); }
+    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * 70, back = row * 60;   // cuña: el jefe delante, los demás a los lados y detrás
+    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0;
+    e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
+    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + rnd(-15, 15), cz + _Esq.x * lat - _Esq.z * back);
+    e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Esq, UP));
+    e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
+    if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
+    resetTrail(e);
+  }
 }
 /* El jugador reaparece: los enemigos pierden el rastro un momento. */
 function enemiesCalm() {
@@ -405,10 +438,10 @@ function killEnemy(e) {
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
-  if (enemyLock.e === e) enemyLock.e = null;
-  towerState.score += ENEMY_SCORE; enemyState.kills++;
+  releaseLock(e);
+  towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
   const sh = W.shield < SHIELD_MAX; if (sh) W.shield++;                  // derribar dragones recarga el escudo
-  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + RUN.dragons.total);
+  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -448,7 +481,7 @@ function updateEnemies(dt) {
   _Efr.setFromProjectionMatrix(_Epm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));   // cámara del último fotograma
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
-    if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
+    if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
     if (e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
@@ -490,22 +523,12 @@ function updateEnemies(dt) {
 }
 
 /* ---------- Fijado de objetivo (clic central) ----------
-   Cada clic pasa al siguiente dragón enemigo que esté dentro del campo de visión (de más cerca a más lejos).
-   Si el único candidato ya es el fijado, se libera. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
+   v21: el clic central fija cualquier blanco (torres, dragones, dirigibles): cycleTarget está en 6d (14c_blancos.js). enemyLock.e es
+   el blanco fijado, sea del tipo que sea. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
 const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
 function enemyNdc(e, out) {                               // coordenadas normalizadas de pantalla; false si está detrás de la cámara
   _Ev1.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
   if (_Ev1.z > -1) return false;
   const pm = camera.projectionMatrix.elements;
   out.x = _Ev1.x * pm[0] / -_Ev1.z; out.y = _Ev1.y * pm[5] / -_Ev1.z; return true;
-}
-function cycleTarget() {
-  if (state !== 'playing' || !enemies.length) return;
-  const cand = [];
-  for (const e of enemies) if (!e.dead && enemyNdc(e, _Evn) && Math.abs(_Evn.x) < 0.98 && Math.abs(_Evn.y) < 0.98) cand.push(e);
-  if (!cand.length) { sfx.empty(); toast('Ningún dragón a la vista'); return; }
-  const P = dragon.position; cand.sort((a, b) => a.pos.distanceToSquared(P) - b.pos.distanceToSquared(P));
-  const i = cand.indexOf(enemyLock.e), next = i < 0 ? cand[0] : cand[(i + 1) % cand.length];
-  if (next === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next; sfx.lock(); toast('Objetivo fijado  ·  ' + fmtDist(next.pos.distanceTo(P))); }
 }

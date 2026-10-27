@@ -20,21 +20,30 @@
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
      ellas sobre islas flotantes). El reparto sale siempre igual con la semilla del mundo; random: true = uno nuevo en cada partida.
+     v21: sites = torres fijas [{ x, z, tag }] (en tierra; cuentan dentro de total) y tag = etiqueta de las demás.
+   · airships (v21): dirigibles enemigos, quietos en el aire (ver 6c). total, zone (anillo, como las torres), alt ([mín, máx] m sobre el
+     suelo; por defecto 500-1000), sites = fijos [{ x, z, height, heading, tag }] (cuentan dentro de total), tag, random.
    · dragons: dragones enemigos. total (en toda la misión) y atOnce (a la vez en el aire: al caer uno sale otro hasta llegar al total).
+     v21: tag = su etiqueta.
+   · squads (v21): escuadrones de dragones que salen con un evento («squad»). { id: { n, at: { x, z, height } (sin at: a dist m del
+     jugador, por delante), dist, attack (false = patrullan hasta verte), tag (por defecto, el id) } }. No reaparecen.
    · objectives: lo que se muestra arriba a la derecha.
-       { id, text (frase para avisos y briefing), hud (etiqueta corta del HUD), target ('tower' | 'dragon'), count,
+       { id, text (frase para avisos y briefing), hud (etiqueta corta del HUD), target ('tower' | 'dragon' | 'airship'), tag (v21: solo
+         los que llevan esa etiqueta; con target y tag, las dos cosas), count (sin count: todos los de la misión que cumplen la selección),
          hidden (no se ve hasta que un evento lo muestra: «show»), optional (no hace falta para ganar) }
      La misión se cumple sola cuando están hechos todos los objetivos no opcionales (los ocultos también: antes hay que mostrarlos).
      Para decidir el final a mano: autoWin: false y un evento con «win».
+     v21: lo que cuenta para un objetivo visible, sin cumplir y no opcional lleva la marca TGT (HUD y radar); lo demás, no.
    · radio: quién habla. { id: { name, color, icon } } (icon: una letra; provisional hasta que haya retratos).
    · events: reglas «cuando → haz». Cada una salta una sola vez (con repeat: s, puede volver a saltar pasados esos segundos).
        when (se tienen que cumplir todas):
-         t: s de misión · kills: { tower: n, dragon: n } (al menos) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir]
-         · hp: vida por debajo de · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
+         t: s de misión · kills: { tower: n, dragon: n, airship: n, <etiqueta>: n } (al menos) · cleared: [etiquetas] (destruidos
+         todos los que la llevan) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir] · hp: vida por debajo de
+         · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
        do (en orden):
          say: [quién, texto, segundos (opcional: si no, según lo largo)] · show: id de un objetivo oculto · toast: texto
-         · dragons: n (refuerzos: n dragones más en el total) · win: segundos de espera · fail: motivo
-   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas dos son solo para probar el motor.
+         · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
+   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas tres son solo para probar el motor.
    ============================================================ */
 const MISSIONS = {
   /* La partida de la v14 como misión: mismas torres y dragones, pero con área delimitada, caer = fallar y algo de radio. */
@@ -64,6 +73,41 @@ const MISSIONS = {
       { when: { done: ['torres'], pending: ['dragones'] }, do: [{ say: ['mando', 'Todas las torres destruidas. Acaba con los dragones.'] }] },
       { when: { done: ['dragones'], pending: ['torres'] }, do: [{ say: ['mando', 'Cielo despejado. Remata las torres que quedan.'] }] },
       { when: { done: ['torres', 'dragones'] }, do: [{ say: ['mando', 'Objetivos cumplidos. Buen trabajo, jinete: vuelve a la base.'] }] },
+      { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
+    ]
+  },
+  /* v21: prueba técnica de los objetivos genéricos: dirigibles, torres fijas con etiqueta, blancos que no cuentan (sin TGT), un objetivo
+     oculto con un escuadrón que sale por evento y uno opcional. No es una misión de la campaña. */
+  objetivos: {
+    name: 'Prueba de objetivos', place: 'Valle de las Torres',
+    world: { seed: 777, biome: 'valle' },                  // el mismo valle que la misión de prueba (no hay que regenerar)
+    start: { x: 0, z: 0, heading: null, height: 300 },
+    area: { x: 0, z: 0, r: 8000 },
+    death: 'fail',
+    timeLimit: null,
+    towers: { total: 12, zone: [2000, 7000], islands: [3, 5], sites: [   // tres baterías juntas, por delante a la izquierda del inicio (rumbo 75°)
+      { x: 1988, z: -2027, tag: 'baterias' }, { x: 1532, z: -1005, tag: 'baterias' }, { x: 845, z: -1803, tag: 'baterias' }] },
+    airships: { total: 6, zone: [2000, 6500], alt: [500, 1000], sites: [   // uno 2,6 km por delante, de costado (los otros cinco, al azar)
+      { x: 2511, z: -673, height: 600, heading: 165 }] },
+    dragons: { total: 4, atOnce: 2, tag: 'escolta' },
+    squads: { alfa: { n: 4, dist: 2500, attack: true } },
+    objectives: [
+      { id: 'dirigibles', text: 'Destruye los dirigibles', hud: 'DIRIGIBLES', target: 'airship' },
+      { id: 'baterias', text: 'Destruye las tres baterías marcadas', hud: 'BATERÍAS', tag: 'baterias' },
+      { id: 'alfa', text: 'Derriba al escuadrón Alfa', hud: 'ESCUADRÓN ALFA', tag: 'alfa', hidden: true },
+      { id: 'escolta', text: 'Derriba a los dragones de escolta', hud: 'ESCOLTA', tag: 'escolta', optional: true }
+    ],
+    radio: {
+      mando: { name: 'Mando', color: '#f2b84b', icon: 'M' }
+    },
+    events: [
+      { id: 'inicio', when: { t: 2 }, do: [{ say: ['mando', 'Prueba de objetivos. Solo cuentan los blancos marcados TGT: seis dirigibles y tres baterías.'] }] },
+      { when: { after: { event: 'inicio', t: 9 } }, do: [{ say: ['mando', 'Los dirigibles solo disparan por los costados. Atácalos de frente o por detrás.'] }] },
+      { when: { kills: { airship: 1 } }, do: [{ say: ['mando', 'Dirigible abajo. Quedan cinco.'] }] },
+      { when: { kills: { airship: 3 } }, do: [{ say: ['mando', '¡Escuadrón Alfa entrando en la zona! Cuatro dragones a por ti.'] }, { squad: 'alfa' }, { show: 'alfa' }] },
+      { when: { cleared: ['baterias'] }, do: [{ say: ['mando', 'Las tres baterías, destruidas.'] }] },
+      { when: { cleared: ['alfa'] }, do: [{ say: ['mando', 'Escuadrón Alfa eliminado.'] }] },
+      { when: { done: ['dirigibles', 'baterias', 'alfa'] }, do: [{ say: ['mando', 'Objetivos cumplidos. Buen trabajo, jinete.'] }] },
       { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
     ]
   },

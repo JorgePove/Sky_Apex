@@ -93,7 +93,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #victory .vic h2{font-size:clamp(30px,4.2vw,50px);letter-spacing:.06em;white-space:nowrap}   /* «Misión cumplida» en una línea */
 .vic .lead{text-align:center;max-width:none}
 .mbtn:disabled{opacity:.45;cursor:progress}
-@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns{gap:7px}#menu .menu-btns .mbtn{padding:8px 0}#menu .menu-btns .cta{padding:13px 0}}   /* seis botones: que no pisen la nota del pie a 720 px */
+@media (max-height:800px){#menu .title{gap:7px}#menu .menu-note{bottom:5px}#menu .menu-btns{gap:5px}#menu .menu-btns .mbtn{padding:5px 0}#menu .menu-btns .cta{padding:11px 0}}   /* siete botones (v21): que no pisen la nota del pie a 720 px */
 @media (max-width:640px){.keys{grid-template-columns:1fr}}
 @media (prefers-reduced-motion:reduce){#toast{transition:none}.load i{transition:none}#radio{transition:none}}
 /* ---------- Pantalla de título ---------- */
@@ -292,6 +292,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <button class="cta" id="go" disabled>Generando mundo…</button>
       <div class="load" aria-hidden="true"><i id="loadbar"></i></div>
       <button class="mbtn" id="mFree" disabled>Combate libre</button>
+      <button class="mbtn" id="mObj" disabled>Prueba de objetivos</button>
       <button class="mbtn" id="mTutorial">Tutorial</button>
       <button class="mbtn" id="mControls">Controles</button>
       <button class="mbtn" id="mOptions">Opciones</button>
@@ -300,7 +301,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
   </div>
   <canvas class="fx" id="fxFront" aria-hidden="true"></canvas>
   <button id="introTap">Pulsa cualquier tecla o haz clic</button>
-  <div class="menu-note reveal">Modelos: TyrantDragon y Drogon (pack «Drogon»), «Red Dragon» de GadgetHamster (CC-BY 4.0), STL «Syrax» (riggeado y animado en Blender) y caballero «Knighty». Prototipo de uso privado · teclado y ratón.</div>
+  <div class="menu-note reveal">Modelos: pack «Drogon» (TyrantDragon, Drogon), STL «Syrax», «Knighty», «Red Dragon» de GadgetHamster y «Airship» de Shinsin (CC-BY 4.0) · proyecto personal · teclado y ratón</div>
   <div class="mpanel" id="pControls" hidden role="dialog" aria-label="Controles">
     <div class="kicker">Controles</div>
     <dl class="keys">
@@ -311,10 +312,10 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
-      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un dragón fijado, la mira en el círculo rojo</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
-      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente dragón a la vista</dd>
+      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
       <dt><kbd>F</kbd></dt><dd>Escudo: 5 s sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
       <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
       <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
@@ -325,6 +326,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <div class="kicker">Objetivo</div>
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
+    <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -426,6 +428,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <script id="rojo-glb" type="application/octet-stream"></script>
 <script id="drogon-glb" type="application/octet-stream"></script>
 <script id="fulgor-glb" type="application/octet-stream"></script>
+<script id="dirigible-glb" type="application/octet-stream"></script>
 <script id="logo-sky-png" type="application/octet-stream"></script>
 <script id="logo-apex-png" type="application/octet-stream"></script>
 <script>
@@ -1029,12 +1032,12 @@ function makeCrystal(x, y, z) {
   return g;
 }
 /* Crea (o recupera en ruinas) la torre de una celda o de una isla; dropTower la descarga. */
-function addTower(id, x, y, z, rotY) {
+function addTower(id, x, y, z, rotY, site) {
   const dead = towerState.destroyed.has(id);
   const mesh = new THREE.Mesh(dead ? ruinGeo : towerGeo, towerMat);
   mesh.position.set(x, y - 0.5, z); mesh.rotation.y = rotY;
   towerGroup.add(mesh);
-  towers.set(id, { id, x, y, z, hp: dead ? 0 : TOWER_HP, dead, mesh, crystal: dead ? null : makeCrystal(x, y, z), spin: rotY, cool: 1.5 + Math.random() * 2.5, smokeT: 0, mslCool: 6 + Math.random() * 24, mslLock: 0 });
+  towers.set(id, { id, x, y, z, hp: dead ? 0 : TOWER_HP, dead, mesh, crystal: dead ? null : makeCrystal(x, y, z), spin: rotY, cool: 1.5 + Math.random() * 2.5, smokeT: 0, mslCool: 6 + Math.random() * 24, mslLock: 0, site });
 }
 function dropTower(t) {
   towerGroup.remove(t.mesh); if (t.crystal) towerGroup.remove(t.crystal);
@@ -1083,36 +1086,44 @@ function groundSites(zone, cx, cz) {
   }
   groundSiteCache.set(key, out); return out;
 }
-const TOWER_SITES = [];                                     // las de esta partida: { id, x, y, z, rot, isl (la isla, si está en una) }
+/* Las de esta partida: { id, x, y, z, rot, isl (la isla, si está en una) } y, desde la v21, con la forma de los blancos (6d): kind, tags,
+   pos (a media altura: fijar y bola guiada), vel y dead (destruida). */
+const TOWER_SITES = [];
 const shuffled = (a, rand) => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+function towerSite(id, x, y, z, rot, isl, tags) {
+  return { id, x, y, z, rot, isl, kind: 'tower', tags: tags || [], pos: new THREE.Vector3(x, y + TOWER_TOP * 0.55, z), vel: ZERO, dead: false };
+}
+/* v21: primero las fijas de la receta (RUN.towers.sites: { x, z, tag }, en tierra), luego el resto al azar hasta total. */
 function planTowers() {
   for (const t of TOWER_SITES) if (t.isl) setIslandTower(t.isl, null);
   TOWER_SITES.length = 0;
-  const Z = RUN.towers.zone, ISL = RUN.towers.islands, total = RUN.towers.total, [cx, cz] = RUN.towers.center || [0, 0];
+  const Z = RUN.towers.zone, ISL = RUN.towers.islands, fixed = RUN.towers.sites || [], tags = RUN.towers.tags, [cx, cz] = RUN.towers.center || [0, 0];
+  const total = Math.max(RUN.towers.total, fixed.length);
   const rand = RUN.towers.random ? Math.random : seededRandom(SEED ^ 0x70e55);   // v19: misma semilla → mismas torres
   const dc = s => Math.hypot(s.x - cx, s.z - cz);
+  fixed.forEach((f, i) => TOWER_SITES.push(towerSite('F' + i, f.x, heightAt(f.x, f.z), f.z, f.rot != null ? f.rot : hash2(i, 9, 4141) * 6.28, null, f.tag ? [].concat(f.tag) : tags)));
   // islas: las de la zona con sitio para la torre, al azar y separadas entre sí
   const cand = shuffled(islandsInRange(cx, cz, Z[1]).filter(s => s.R >= TOWER_ISL_R && dc(s) > Z[0] && dc(s) < Z[1]), rand);
-  const n = Math.min(total, ISL[0] + Math.floor(rand() * (ISL[1] - ISL[0] + 1)));
+  const n = fixed.length + Math.min(total - fixed.length, ISL[0] + Math.floor(rand() * (ISL[1] - ISL[0] + 1)));
   for (const s of cand) {
     if (TOWER_SITES.length >= n) break;
     if (TOWER_SITES.some(t => Math.hypot(t.x - s.x, t.z - s.z) < TOWER_GAP)) continue;
-    const sp = islandTowerSpot(s), site = { id: 'I' + TOWER_SITES.length, x: sp.x, y: sp.y, z: sp.z, rot: rand() * 6.28, isl: s };
+    const sp = islandTowerSpot(s), site = towerSite('I' + TOWER_SITES.length, sp.x, sp.y, sp.z, rand() * 6.28, s, tags);
     TOWER_SITES.push(site); setIslandTower(s, site);
   }
   // tierra: el resto, al azar entre las candidatas (primero respetando las separaciones; si no llegan, sin ellas)
-  const gr = shuffled(groundSites(Z, cx, cz), rand), isl = TOWER_SITES.slice();
+  const gr = shuffled(groundSites(Z, cx, cz), rand), isl = TOWER_SITES.filter(t => t.isl);
   for (const relax of [false, true]) for (const g of gr) {
     if (TOWER_SITES.length >= total) break;
     if (TOWER_SITES.some(t => t.x === g.x && t.z === g.z)) continue;
     if (!relax && (TOWER_SITES.some(t => !t.isl && Math.hypot(t.x - g.x, t.z - g.z) < TOWER_GAP) || isl.some(t => Math.hypot(t.x - g.x, t.z - g.z) < TOWER_ISL_GAP))) continue;
-    TOWER_SITES.push({ id: 'T' + TOWER_SITES.length, x: g.x, y: g.y, z: g.z, rot: g.rot, isl: null });
+    TOWER_SITES.push(towerSite('T' + TOWER_SITES.length, g.x, g.y, g.z, g.rot, null, tags));
   }
 }
 function updateTowerStreaming(px, pz) {
   for (const s of TOWER_SITES) {
     if (towers.has(s.id) || Math.hypot(s.x - px, s.z - pz) > TOWER_LOAD) continue;
-    addTower(s.id, s.x, s.y, s.z, s.rot);
+    addTower(s.id, s.x, s.y, s.z, s.rot, s);
   }
   for (const t of [...towers.values()]) {
     if (Math.hypot(t.x - px, t.z - pz) > TOWER_UNLOAD) dropTower(t);
@@ -1144,6 +1155,7 @@ function damageTower(t, amount, soft, at, sure) {
   ultGain(ULT_PER_KILL * 0.5);
   t.dead = true; towerState.destroyed.add(t.id);
   towerState.score += 100; towerState.kills++;
+  if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)
   towerGroup.remove(t.mesh);
   t.mesh = new THREE.Mesh(ruinGeo, towerMat);
   t.mesh.position.set(t.x, t.y - 0.5, t.z); t.mesh.rotation.y = Math.random() * 6.28;
@@ -3079,21 +3091,24 @@ const fbLight = new THREE.PointLight(0xff8a3a, 0, 190, 2); scene.add(fbLight);
 const FIREBALL_SPEED = 340, FIREBALL_LIFE = 6;          // bolas enemigas (m/s, fijas en el mundo)
 const _white = new THREE.Color(1, 1, 1);
 /* kind: 'gun' = proyectil rápido del jugador, 'msl' = bola guiada del jugador (ver «Armas del jugador», sección 7);
-   enemigas: 'enemy' (bola normal) o 'emsl' (bola guiada enemiga, ver sección 6b). */
+   enemigas: 'enemy' (bola normal), 'emsl' (bola guiada enemiga, ver sección 6b), 'aa' (antiaéreo de las torres) o 'arc' (v21: proyectil
+   arcano de los dirigibles, morado, ver 6c). */
+const ARC_COLOR = [0.78, 0.42, 1];       // color de lo arcano: proyectiles de los dirigibles, sus chispas y su explosión
+const _arcC = new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]), _arcW = _arcC.clone().lerp(_white, 0.55);
 function spawnFireball(from, dir, enemy, vol, kind) {
-  kind = enemy ? (kind === 'emsl' || kind === 'aa' ? kind : 'enemy') : kind || 'gun';
-  const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', fast = gun || aa;
-  // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego
-  const map = enemy ? glowTex : glowTexW, col = enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = enemy ? _white : ATTACK;
-  const r0 = fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
+  kind = enemy ? (kind === 'emsl' || kind === 'aa' || kind === 'arc' ? kind : 'enemy') : kind || 'gun';
+  const gun = kind === 'gun', msl = kind === 'msl', emsl = kind === 'emsl', aa = kind === 'aa', arc = kind === 'arc', fast = gun || aa || arc;
+  // las del jugador toman el color del aliento elegido en «Elige tu dragón»; las enemigas siguen siendo de fuego (las arcanas, moradas)
+  const map = enemy && !arc ? glowTex : glowTexW, col = arc ? _arcW : enemy ? _white : ATTACK.clone().lerp(_white, gun ? 0.6 : 0.45), colH = arc ? _arcC : enemy ? _white : ATTACK;
+  const r0 = arc ? 3.4 : fast ? 2.6 : msl ? 15 : emsl ? 12 : 7, r1 = arc ? 11 : fast ? 8 : msl ? 44 : emsl ? 36 : 22;   // núcleo y halo (m)
   const core = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: col, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
   core.scale.setScalar(r0); core.renderOrder = 7; core.position.copy(from); scene.add(core);   // (ya en la boca en el fotograma en que nace)
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: colH, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
-  const speed = aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
-  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
+  const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
+  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false, c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : [ATTACK.r, ATTACK.g, ATTACK.b] };
   fireballs.push(f);
-  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
+  if (gun) sfx.shot(); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
 }
 /* Bola guiada enemiga: guiado imperfecto a propósito (persecución con poco adelanto y giro limitado). Si el jugador se le sale del cono de su
@@ -3138,7 +3153,7 @@ function updateFireballs(dt) {
   let near = null, nearD = 700;
   const shOn = shieldOn(); if (shOn) shieldCenter(_shC);
   for (let i = fireballs.length - 1; i >= 0; i--) {
-    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', fast = gun || aa;
+    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', fast = gun || aa || arc;
     if (msl) steerMissile(f, dt); else if (emsl) steerEnemyMissile(f, dt);
     const steps = fast ? 3 : 2, h = dt / steps;
     let hit = false, onTarget = false;
@@ -3159,6 +3174,7 @@ function updateFireballs(dt) {
           hit = true;
           if (emsl) { explode(f.pos.x, f.pos.y, f.pos.z, 0.9); hurtDragon(EMSL_DMG, 'Una bola guiada te derribó'); }
           else if (aa) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(AA_DMG, 'La artillería de una torre te derribó', true); }
+          else if (arc) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, 'Los cañones de un dirigible te derribaron', true); }
           else hurtDragon(ENEMY_DMG, 'Un dragón enemigo te derribó');
         } else if (emsl) for (const t of towers.values()) {
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
@@ -3176,6 +3192,11 @@ function updateFireballs(dt) {
           if (msl) explode(f.pos.x, f.pos.y, f.pos.z, 1.3);
           break;
         }
+        if (!hit) for (const a of airships) if (!a.dead && airshipSegDist2(a, _fo, f.pos) < (a.r + (msl ? 4 : 1)) ** 2) {   // v21: dirigibles
+          hit = onTarget = true; damageAirship(a, f.dmg, false, _sdc.clone());
+          if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
+          break;
+        }
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
     }
@@ -3186,7 +3207,7 @@ function updateFireballs(dt) {
     const dP = f.pos.distanceTo(dragon.position);
     if (!fast && dP < nearD) { nearD = dP; near = f; }
     if (emsl && !f.lost && state === 'playing' && dP < 3500) threat.incoming.push(f);
-    if (f.enemy && !aa && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos van demasiado rápido)
+    if (f.enemy && !aa && !arc && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos y los arcanos van demasiado rápido)
       _fs.subVectors(dragon.position, f.pos); const along = _fs.dot(f.vel) / f.speed;
       if (along > 0 && dP * dP - along * along < 3600) boltWarn = Math.max(boltWarn, 1 - dP / 700);
     }
@@ -3383,6 +3404,14 @@ const sfx = (() => {
     hoverOff() { this.noise(0.6, 'bandpass', 300, 1800, 0.4, 0.8); },
     empty() { this.tone('square', 220, 160, 0.16, 0.06); },
     shot(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(0.16, 'bandpass', 3200, 700, 0.26 * v, 0.9); this.tone('triangle', 420, 140, 0.1, 0.05 * v); },
+    /* v21: dirigibles: disparo arcano (zumbido que cae), carga de energía al morir y explosión de energía */
+    arcShot(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.tone('triangle', 980, 240, 0.16, 0.07 * v); this.noise(0.2, 'bandpass', 2600, 900, 0.14 * v, 2.2); },
+    energyCharge(v) { v = v == null ? 1 : v; this.tone('sine', 260, 2200, 0.45, 0.13 * v); this.noise(0.45, 'highpass', 3000, 9000, 0.2 * v, 1.2); },
+    energyBlast(v) {
+      v = v == null ? 1 : v;
+      this.noise(2.4, 'lowpass', 2400, 40, 1.0 * v, 0.6); this.tone('sine', 66, 18, 2, 0.9 * v); this.tone('sawtooth', 240, 30, 1, 0.22 * v);
+      this.noise(1.3, 'highpass', 6500, 1600, 0.4 * v, 0.8); this.tone('sine', 1400, 120, 0.9, 0.12 * v);
+    },
     launch(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(1.0, 'bandpass', 260, 1400, 0.6 * v, 0.8); this.tone('sawtooth', 90, 36, 0.8, 0.18 * v); },
     warnLock() { this.tone('square', 720, 720, 0.07, 0.05); setTimeout(() => this.tone('square', 960, 960, 0.07, 0.05), 90); },   // te están fijando
     warnMissile() { this.tone('square', 1320, 1320, 0.05, 0.07); },
@@ -3445,8 +3474,9 @@ const TRAIL_STEP = 14, TRAIL_MAXP = 96;
 const TRAIL_PX = 3.6;                 // grosor mínimo en pantalla (px), para verla a gran distancia
 
 const enemies = [];
-const enemyState = { kills: 0, spawned: 0 };
-const enemyLock = { e: null };          // dragón fijado con el clic central
+const enemyState = { kills: 0, spawned: 0, squadN: 0 };   // (v21: squadN = dragones de los escuadrones que han salido)
+const dragonsTotal = () => RUN.dragons.total + enemyState.squadN;
+const enemyLock = { e: null };          // blanco fijado con el clic central (v21: dragón, torre o dirigible; ver 6d)
 let enemyLastShot = -9;
 
 const _Etp = new THREE.Vector3(), _Etn = new THREE.Vector3(), _Eef = new THREE.Vector3(), _Ewant = new THREE.Vector3(), _Elead = new THREE.Vector3();
@@ -3567,7 +3597,8 @@ function makeEnemy() {
     speed: 64, rate: { p: 0, y: 0, r: 0 }, bank: 0, hp: ENEMY_HP, dead: true, respawnT: 0,
     mode: 'patrol', t: 0, alert: 0, far: 0, fireCool: 1.5, fireFlash: 0, hitFlash: 0, ramT: 0, avoidT: 0, animAcc: 0, frame: 0,
     wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
-    aimLocal: new THREE.Vector3(0, 0, -1)
+    aimLocal: new THREE.Vector3(0, 0, -1),
+    kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
 const _Eac = { x: 0, z: 0 };
@@ -3589,6 +3620,7 @@ function placeEnemy(e, rmin, rmax) {
 }
 function reviveEnemy(e) {
   enemyState.spawned++;
+  e.tags = RUN.dragons.tags; e.squad = null;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
   placeEnemy(e, 3500, 5500);
 }
@@ -3598,13 +3630,43 @@ function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.ad
 function spawnEnemies() {
   const n = Math.min(RUN.dragons.atOnce, RUN.dragons.total);
   while (enemies.length < n) enemies.push(makeEnemy());
-  enemyState.kills = 0; enemyState.spawned = n; enemyLastShot = -9; enemyLock.e = null;
+  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0;
+    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
   for (const t of towers.values()) { t.mslCool = rnd(6, EMSL_CD); t.mslLock = 0; }
+}
+/* v21: escuadrón de la receta (mission.squads[id]), desde un evento («squad»). Salen todos a la vez en cuña, en su punto (at: { x, z,
+   height | y }) o, sin él, a dist m (2500) del jugador por delante y dentro del área; miran hacia el jugador. attack: false = patrullan
+   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id). */
+const _Esq = new THREE.Vector3();
+function spawnSquad(id) {
+  const q = mission.squads && mission.squads[id];
+  if (!q) { console.warn('Escuadrón desconocido: ' + id); return; }
+  const P = dragon.position, n = q.n || 1, tags = [q.tag || id];
+  let cx, cy, cz;
+  if (q.at) { cx = q.at.x; cz = q.at.z; cy = q.at.y != null ? q.at.y : groundAt(cx, cz) + (q.at.height != null ? q.at.height : 400); }
+  else {
+    _Eef.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize(); rotY(_Eef, rnd(-0.6, 0.6));
+    clampToArea(P.x + _Eef.x * (q.dist || 2500), P.z + _Eef.z * (q.dist || 2500), 600, _Eac); cx = _Eac.x; cz = _Eac.z;
+    cy = Math.max(P.y, groundAt(cx, cz) + 300);
+  }
+  cy = safeY(cx, cy, cz); enemyState.squadN += n;
+  _Esq.set(P.x - cx, 0, P.z - cz); if (_Esq.lengthSq() < 1) _Esq.set(0, 0, -1); _Esq.normalize();   // rumbo: hacia el jugador
+  for (let i = 0; i < n; i++) {
+    let e = enemies.find(x => x.off);
+    if (!e) { e = makeEnemy(); enemies.push(e); }
+    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * 70, back = row * 60;   // cuña: el jefe delante, los demás a los lados y detrás
+    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0;
+    e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
+    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + rnd(-15, 15), cz + _Esq.x * lat - _Esq.z * back);
+    e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Esq, UP));
+    e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
+    if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
+    resetTrail(e);
+  }
 }
 /* El jugador reaparece: los enemigos pierden el rastro un momento. */
 function enemiesCalm() {
@@ -3818,10 +3880,10 @@ function killEnemy(e) {
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
-  if (enemyLock.e === e) enemyLock.e = null;
-  towerState.score += ENEMY_SCORE; enemyState.kills++;
+  releaseLock(e);
+  towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
   const sh = W.shield < SHIELD_MAX; if (sh) W.shield++;                  // derribar dragones recarga el escudo
-  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + RUN.dragons.total);
+  toast('Dragón derribado  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -3861,7 +3923,7 @@ function updateEnemies(dt) {
   _Efr.setFromProjectionMatrix(_Epm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));   // cámara del último fotograma
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
-    if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
+    if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
     if (e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
@@ -3903,8 +3965,8 @@ function updateEnemies(dt) {
 }
 
 /* ---------- Fijado de objetivo (clic central) ----------
-   Cada clic pasa al siguiente dragón enemigo que esté dentro del campo de visión (de más cerca a más lejos).
-   Si el único candidato ya es el fijado, se libera. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
+   v21: el clic central fija cualquier blanco (torres, dragones, dirigibles): cycleTarget está en 6d (14c_blancos.js). enemyLock.e es
+   el blanco fijado, sea del tipo que sea. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
 const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
 function enemyNdc(e, out) {                               // coordenadas normalizadas de pantalla; false si está detrás de la cámara
   _Ev1.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
@@ -3912,15 +3974,336 @@ function enemyNdc(e, out) {                               // coordenadas normali
   const pm = camera.projectionMatrix.elements;
   out.x = _Ev1.x * pm[0] / -_Ev1.z; out.y = _Ev1.y * pm[5] / -_Ev1.z; return true;
 }
+
+/* ============================================================
+   6c. DIRIGIBLES ENEMIGOS (v21)
+   Barcos voladores quietos en el aire (con un leve vaivén), repartidos por la misión entre AIRSHIP_ALT m sobre el suelo (receta:
+   airships; los coloca planAirships en cada partida, como planTowers las torres). Modelo: modelos/dirigible.glb, «Airship» de Shinsin
+   (Sketchfab, CC-BY 4.0), preparado en Blender con herramientas/blender/dirigible/02_preparar.py (una malla con color por vértice, proa
+   hacia -Z, 20,6 m de eslora que el juego escala a AIRSHIP_LEN).
+   · Armas: a menos de AIRSHIP_RANGE disparan ráfagas continuas de proyectiles arcanos (sin pausa, más lentas que las de las torres y
+     con poco daño), pero solo por los costados: con el jugador a proa o a popa (a menos de AIRSHIP_ARC del eje) o casi en su vertical
+     (más de AIRSHIP_ELEV) no pueden apuntarle. Por eso conviene atacarlos de frente o por detrás.
+   · Vida: AIRSHIP_HP. Al llegar a 0, AIRSHIP_DIE s de agonía (destellos y chispas de energía por el casco) y una explosión de energía
+     (airshipBlast: destello, esfera de choque, onda, relámpagos y esquirlas) en la que desaparecen.
+   · Impactos: el casco es una cápsula (AIRSHIP_HULL) a lo largo del eje; airshipSegDist2 sirve para proyectiles, llamarada y rayo.
+   ============================================================ */
+const AIRSHIP_LEN = 95;                  // eslora en el juego (m)
+const AIRSHIP_MODEL_LEN = 20.57;         // eslora del modelo (m): la escala es AIRSHIP_LEN / AIRSHIP_MODEL_LEN
+const AIRSHIP_HP = 50;                   // vida (un proyectil rápido quita 5; una bola guiada, 70)
+const AIRSHIP_SCORE = 200;               // puntos (una torre da 100 y un dragón 300)
+const AIRSHIP_ALT = [500, 1000];         // altura sobre el suelo (m) por defecto
+const AIRSHIP_ZONE = [1500, 7000];       // anillo alrededor del punto de partida donde se reparten (m) por defecto
+const AIRSHIP_GAP = 900;                 // separación mínima entre dos (m)
+const AIRSHIP_RANGE = 1000;              // alcance de los cañones (m)
+const AIRSHIP_ARC = 35 * Math.PI / 180;  // ángulo muerto a proa y a popa, desde el eje: ahí no pueden disparar
+const AIRSHIP_ELEV = 70 * Math.PI / 180; // por encima (o por debajo) de esta elevación tampoco: los cañones van en los costados
+const AIRSHIP_RATE = 0.3;                // s entre disparos, sin pausas (las torres: ráfagas de 5 cada 0,12 s y 2-3,6 s de pausa)
+const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 1.6, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s) y dispersión (rad) de cada proyectil
+const AIRSHIP_DRAW = 8500;               // más lejos no se dibujan (la niebla ya los oculta)
+const AIRSHIP_DIE = 0.45;                // s de agonía antes de la explosión
+const AIRSHIP_HULL = { y: 0.6, z0: 7.5, z1: -5.5, r: 5.2 };                 // cápsula del casco en unidades del modelo (popa +z, proa -z)
+const AIRSHIP_PORTS = { x: 4.6, y: -1.0, z: [-3.5, -1.5, 0.5, 2.5, 4.5] };   // troneras de cada costado (unidades del modelo)
+const AIRSHIP_K = AIRSHIP_LEN / AIRSHIP_MODEL_LEN;
+
+const airships = [];                     // los de la partida (vivos, en agonía o ya desaparecidos)
+const airshipState = { kills: 0 };
+let airshipRes = null;                   // { geo, mat } cuando ha cargado el modelo
+const _Aq = new THREE.Quaternion(), _Az = new THREE.Vector3(0, 0, 1), _Ad = new THREE.Vector3(), _Af = new THREE.Vector3(), _As = new THREE.Vector3();
+const _Ap = new THREE.Vector3(), _Ai = new THREE.Vector3(), _Ah = new THREE.Vector3();
+
+/* Modelo: el color por vértice del glTF es lineal (Blender lo guarda en enteros de 16 bits normalizados) y el juego pinta sin corrección
+   de gamma (como las torres): se pasa a sRGB, en coma flotante, al cargar. */
+function loadAirships() {
+  return loadGLB('dirigible-glb', '../modelos/dirigible.glb').then(g => {
+    let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
+    const geo = src.geometry, col = geo.attributes.color;
+    if (col) {
+      const max = !col.normalized ? 1 : col.array instanceof Uint8Array ? 255 : 65535, out = new Float32Array(col.count * 3);
+      for (let i = 0; i < col.count; i++) { out[i * 3] = Math.pow(col.getX(i) / max, 1 / 2.2); out[i * 3 + 1] = Math.pow(col.getY(i) / max, 1 / 2.2); out[i * 3 + 2] = Math.pow(col.getZ(i) / max, 1 / 2.2); }
+      geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
+    }
+    airshipRes = { geo, mat: new THREE.MeshLambertMaterial({ vertexColors: !!col, side: THREE.DoubleSide, emissive: 0x000000 }) };
+    for (const a of airships) if (!a.gone && !a.mesh) airshipMesh(a);
+  }).catch(err => console.error('No se pudo cargar el dirigible:', err));
+}
+function airshipMesh(a) {
+  a.mat = airshipRes.mat.clone();
+  a.mesh = new THREE.Mesh(airshipRes.geo, a.mat); a.mesh.scale.setScalar(AIRSHIP_K);
+  a.mesh.position.copy(a.pos); a.mesh.quaternion.copy(a.q);
+  scene.add(a.mesh);
+}
+function removeAirshipMesh(a) {
+  if (a.mesh) { scene.remove(a.mesh); a.mat.dispose(); a.mesh = a.mat = null; }
+}
+
+/* ---------- Colocación (en cada partida, desde resetRun) ----------
+   RUN.airships (de la receta): primero los fijos (sites: { x, z, height, heading, tag }), luego los que falten hasta total, al azar en
+   el anillo zone alrededor del punto de partida, dentro del área de la misión y separados AIRSHIP_GAP. Mismo reparto con la misma
+   semilla del mundo, salvo random: true. Si el casco cae dentro de una isla flotante, se sube por encima. */
+function planAirships() {
+  for (const a of airships) removeAirshipMesh(a);
+  airships.length = 0; airshipState.kills = 0;
+  const R = RUN.airships; if (!R) return;
+  const rand = R.random ? Math.random : seededRandom(SEED ^ 0xa1e5), [cx, cz] = R.center || [0, 0];
+  const alt = () => lerp(R.alt[0], R.alt[1], rand());
+  R.sites.forEach((s, i) => addAirship('F' + i, s.x, s.z, s.height != null ? s.height : alt(), s.heading != null ? s.heading : rand() * 360, s.tag ? [].concat(s.tag) : R.tags));
+  for (let k = 0; airships.length < R.total && k < 600; k++) {
+    const ang = rand() * Math.PI * 2, r = Math.sqrt(lerp(R.zone[0] ** 2, R.zone[1] ** 2, rand())), h = alt(), hd = rand() * 360;
+    const x = cx + Math.cos(ang) * r, z = cz + Math.sin(ang) * r;
+    if (!inMissionArea(x, z, 700) || airships.some(a => Math.hypot(a.pos.x - x, a.pos.z - z) < AIRSHIP_GAP)) continue;
+    addAirship('A' + airships.length, x, z, h, hd, R.tags);
+  }
+}
+function addAirship(id, x, z, height, heading, tags) {
+  let y = Math.max(heightAt(x, z), WL) + height;
+  const ang = heading * Math.PI / 180, fx = Math.sin(ang), fz = -Math.cos(ang), half = AIRSHIP_LEN * 0.5;
+  for (let i = 0; i < 6; i++) {                             // dentro de una isla (proa, centro o popa): por encima de ella
+    const isl = islandsInRange(x, z, half + 400).find(s => [-1, 0, 1].some(u => insideIsland(s, x + fx * half * u, y, z + fz * half * u, AIRSHIP_HULL.r * AIRSHIP_K + 30)));
+    if (!isl) break; y = isl.yMax + AIRSHIP_HULL.r * AIRSHIP_K + 60;
+  }
+  const a = {
+    kind: 'airship', id, tags: tags || [], pos: new THREE.Vector3(x, y, z), vel: ZERO, base: y, heading: ang,
+    q: new THREE.Quaternion().setFromAxisAngle(UP, -ang), hp: AIRSHIP_HP, dead: false, dying: 0, gone: false,
+    cool: rnd(0.4, 1.2), port: 0, hitFlash: 0, smokeT: 0, sndT: -9, ph: Math.random() * 6.283,
+    r: AIRSHIP_HULL.r * AIRSHIP_K, ca: new THREE.Vector3(), cb: new THREE.Vector3(), mesh: null, mat: null
+  };
+  airshipAxis(a);
+  if (airshipRes) airshipMesh(a);
+  airships.push(a);
+  return a;
+}
+/* Extremos de la cápsula del casco en el mundo (se mueven con el vaivén). */
+function airshipAxis(a) {
+  a.ca.set(0, AIRSHIP_HULL.y, AIRSHIP_HULL.z0).multiplyScalar(AIRSHIP_K).applyQuaternion(a.q).add(a.pos);
+  a.cb.set(0, AIRSHIP_HULL.y, AIRSHIP_HULL.z1).multiplyScalar(AIRSHIP_K).applyQuaternion(a.q).add(a.pos);
+}
+/* Distancia² del segmento p→q al eje del casco (deja en _sdc el punto de p→q más cercano: el del impacto). */
+function airshipSegDist2(a, p, q) { return segSegDist2(p, q, a.ca, a.cb); }
+function airshipPointDist2(a, p) {
+  _Ah.subVectors(a.cb, a.ca); const t = clamp(_Ai.subVectors(p, a.ca).dot(_Ah) / _Ah.lengthSq(), 0, 1);
+  return _Ah.multiplyScalar(t).add(a.ca).distanceToSquared(p);
+}
+/* Rayo o→d: distancia hasta el dirigible más cercano que cruza (asistencia de puntería), o Infinity. */
+function airshipRayHit(o, d, maxT) {
+  let best = Infinity;
+  for (const a of airships) {
+    if (a.dead) continue;
+    _Ap.copy(o).addScaledVector(d, maxT);
+    if (airshipSegDist2(a, o, _Ap) < (a.r + 3) ** 2) { const t = _sdc.distanceTo(o); if (t > 25 && t < best) best = t; }
+  }
+  return best;
+}
+
+/* ---------- Daño y destrucción ---------- */
+/* n = puntos de daño (se multiplican por el daño del dragón elegido). soft = continuo (llamarada, rayo). at = punto del impacto. */
+function damageAirship(a, n, soft, at) {
+  if (a.dead) return;
+  n *= heroStats().dmg;
+  a.hp -= n; a.hitFlash = Math.max(a.hitFlash, soft ? 0.55 : 1);
+  ultGain(n * ULT_PER_DMG);
+  const c = ARC_COLOR;
+  if (soft) sparks(at.x, at.y, at.z, 2, 0, 0, 0);
+  else {
+    const k = clamp(n / 25, 0.3, 2);
+    emit(fxAdd, at.x, at.y, at.z, 0, 0, 0, 0.2, 9 * k, 24 * k, 1, 0.85, 1, 1, 0, 0);
+    for (let i = 0; i < Math.round(22 * k); i++) {
+      const u = Math.random() * 6.283, v = rnd(-1, 1), s = Math.sqrt(1 - v * v), sp = rnd(14, 50);
+      emit(fxAdd, at.x, at.y, at.z, Math.cos(u) * s * sp, v * sp, Math.sin(u) * s * sp, rnd(0.3, 0.7), rnd(2, 3.4), 0.4, c[0], c[1] * rnd(0.8, 1.2), c[2], 1, 0.8, -4);
+    }
+  }
+  if (!(gameTime - a.sndT < (soft ? 0.22 : 0.07))) { a.sndT = gameTime; sfx.hit(); }
+  if (a.hp <= 0) killAirship(a);
+}
+function killAirship(a) {
+  a.hp = 0; a.dead = true; a.dying = AIRSHIP_DIE;
+  ultGain(ULT_PER_KILL * 0.75);
+  towerState.score += AIRSHIP_SCORE; airshipState.kills++;
+  releaseLock(a); missionKill(a);
+  toast('Dirigible destruido  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  sfx.energyCharge(airshipVol(a));
+}
+const airshipVol = a => clamp(1.25 - a.pos.distanceTo(dragon.position) / 2200, 0.15, 1);
+/* Agonía: el casco se carga de energía (parpadeo morado cada vez más fuerte) y le recorren chispas. */
+function airshipAgony(a, dt) {
+  const u = 1 - a.dying / AIRSHIP_DIE, c = ARC_COLOR;
+  if (a.mat) a.mat.emissive.setRGB(c[0], c[1], c[2]).multiplyScalar((0.35 + 1.4 * u) * (0.65 + 0.35 * Math.sin(gameTime * 70)));
+  for (let i = 0; i < 8; i++) {
+    _Ap.lerpVectors(a.ca, a.cb, Math.random());
+    _Ad.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize().multiplyScalar(a.r * rnd(0.6, 1.05)); _Ap.add(_Ad);
+    emit(fxAdd, _Ap.x, _Ap.y, _Ap.z, _Ad.x * 0.6, _Ad.y * 0.6, _Ad.z * 0.6, rnd(0.15, 0.35), rnd(3, 6), 0.5, lerp(c[0], 1, 0.5), lerp(c[1], 1, 0.5), 1, 1, 1, 0);
+  }
+}
+
+/* ---------- Explosión de energía ----------
+   Destello blanco-violeta, esfera de choque (borde brillante) y onda plana que se abren, relámpagos que salen del centro durante
+   medio segundo, esquirlas arcanas, chispas que caen, brasas que flotan y humo; luz, temblor de cámara y estruendo. */
+const blasts = [];
+let blastRes = null;
+function blastResources() {
+  if (blastRes) return blastRes;
+  const sphereMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { uC: { value: new THREE.Color(0.8, 0.5, 1) }, uA: { value: 1 } },
+    vertexShader: `varying vec3 vN; varying vec3 vV;
+      void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform vec3 uC; uniform float uA; varying vec3 vN; varying vec3 vV;
+      void main(){ float f = 1.0 - abs(dot(normalize(vN), normalize(vV))); gl_FragColor = vec4(uC * (0.07 + 2.0 * pow(f, 2.6)), uA); }`
+  });
+  blastRes = { sphere: new THREE.IcosahedronGeometry(1, 3), ring: new THREE.RingGeometry(0.82, 1, 72), sphereMat };
+  return blastRes;
+}
+function airshipBlast(a) {
+  const R = blastResources(), p = a.pos.clone(), c = ARC_COLOR;
+  const sph = new THREE.Mesh(R.sphere, R.sphereMat.clone()); sph.position.copy(p); sph.renderOrder = 7; scene.add(sph);
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0xd6b0ff, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const ring = new THREE.Mesh(R.ring, ringMat); ring.position.copy(p); ring.rotation.x = -Math.PI / 2; ring.renderOrder = 7; scene.add(ring);
+  const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: 0xeed8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  flash.position.copy(p); flash.renderOrder = 8; scene.add(flash);
+  blasts.push({ t: 0, p, sph, ring, flash, boltT: 0 });
+  // núcleo que sigue ardiendo cuando se apaga el destello; esquirlas de energía (rápidas, con freno), chispas que caen, brasas que flotan y humo
+  for (let i = 0; i < 7; i++) emit(fxAdd, p.x + rnd(-10, 10), p.y + rnd(-8, 8), p.z + rnd(-10, 10), 0, 0, 0, rnd(0.55, 0.95), rnd(45, 60), rnd(110, 150), 0.85, 0.62, 1, 0.85, 0, 0);
+  for (let i = 0; i < 220; i++) {
+    const u = Math.random() * 6.283, v = rnd(-1, 1), s = Math.sqrt(1 - v * v), sp = rnd(40, 280), w = Math.random();
+    emit(fxAdd, p.x, p.y, p.z, Math.cos(u) * s * sp, v * sp, Math.sin(u) * s * sp, rnd(0.6, 1.5), rnd(10, 18), rnd(2, 4),
+      w < 0.3 ? 0.75 : c[0], w < 0.3 ? 0.9 : c[1] * rnd(0.8, 1.3), 1, 1, 2.4, 0);
+  }
+  for (let i = 0; i < 90; i++) {
+    const u = Math.random() * 6.283, v = rnd(-0.3, 1), s = Math.sqrt(1 - v * v), sp = rnd(30, 120);
+    emit(fxAdd, p.x, p.y, p.z, Math.cos(u) * s * sp, v * sp, Math.sin(u) * s * sp, rnd(1, 2.2), 1.2, 0.3, 1, rnd(0.7, 0.95), 1, 1, 0.5, 30);
+  }
+  for (let i = 0; i < 60; i++) {
+    _Ad.set(rnd(-1, 1), rnd(-0.6, 0.6), rnd(-1, 1)).normalize().multiplyScalar(rnd(10, 90));
+    emit(fxAdd, p.x + _Ad.x, p.y + _Ad.y, p.z + _Ad.z, _Ad.x * 0.15, rnd(2, 8), _Ad.z * 0.15, rnd(2, 3.6), rnd(2.5, 4), 0.6, c[0], c[1], c[2], 0.9, 0.4, -1);
+  }
+  for (let i = 0; i < 34; i++) {
+    const u = Math.random() * 6.283, sp = rnd(8, 30);
+    emit(fxSmoke, p.x + rnd(-20, 20), p.y + rnd(-12, 12), p.z + rnd(-20, 20), Math.cos(u) * sp, rnd(2, 12), Math.sin(u) * sp, rnd(3, 5.5), rnd(20, 32), rnd(60, 95), 0.2, 0.15, 0.24, 0.55, 0.5, -1);
+  }
+  debris(p.x, p.y, p.z); debris(p.x + rnd(-20, 20), p.y, p.z + rnd(-20, 20));
+  const d = p.distanceTo(dragon.position);
+  camShake = Math.max(camShake, 1.5 * clamp(1 - d / 1600, 0, 1));
+  sfx.energyBlast(airshipVol(a));
+}
+/* Relámpago: camino quebrado desde el centro hacia fuera, dibujado con partículas muy breves. */
+function blastBolt(p, len, k) {
+  _Ad.set(rnd(-1, 1), rnd(-0.7, 0.7), rnd(-1, 1)).normalize();
+  _Ap.copy(p); const step = len / 12;
+  for (let i = 0; i < 12; i++) {
+    _Ai.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).multiplyScalar(0.55); _Ad.add(_Ai).normalize();
+    _Ap.addScaledVector(_Ad, step);
+    emit(fxAdd, _Ap.x, _Ap.y, _Ap.z, 0, 0, 0, 0.09, 9 * k + 3, 5 * k + 2, 0.9, 0.8, 1, 1, 0, 0);
+  }
+}
+function updateBlasts(dt) {
+  for (let i = blasts.length - 1; i >= 0; i--) {
+    const b = blasts[i]; b.t += dt; const t = b.t;
+    const u1 = clamp(t / 0.7, 0, 1), u2 = clamp(t / 1.05, 0, 1), u3 = clamp(t / 0.45, 0, 1);
+    b.sph.scale.setScalar(lerp(14, 200, 1 - (1 - u1) ** 3)); b.sph.material.uniforms.uA.value = (1 - u1) ** 1.6;
+    b.ring.scale.setScalar(lerp(25, 360, 1 - (1 - u2) ** 2.5)); b.ring.material.opacity = 0.9 * (1 - u2) ** 2;
+    b.flash.scale.setScalar(lerp(150, 330, u3)); b.flash.material.opacity = (1 - u3) ** 2;
+    while (t < 0.6 && b.boltT <= t) { b.boltT += 0.05; for (let k = 0; k < 4; k++) blastBolt(b.p, rnd(90, 200), 1 - t / 0.6); }
+    if (t < 0.9) { fbLight.position.copy(b.p); fbLight.distance = 1100; fbLight.color.setRGB(0.8, 0.55, 1); fbLight.intensity = 9 * (1 - t / 0.9); }
+    else if (fbLight.distance !== 190) fbLight.distance = 190;
+    if (t > 1.1) {
+      scene.remove(b.sph); scene.remove(b.ring); scene.remove(b.flash);
+      b.sph.material.dispose(); b.ring.material.dispose(); b.flash.material.dispose();
+      blasts.splice(i, 1);
+    }
+  }
+}
+
+/* ---------- Cada fotograma ---------- */
+function updateAirships(dt) {
+  const P = dragon.position, playing = state === 'playing', cosArc = Math.cos(AIRSHIP_ARC), sinEl = Math.sin(AIRSHIP_ELEV);
+  for (const a of airships) {
+    if (a.gone) continue;
+    const t = gameTime * 0.35 + a.ph;                         // vaivén: sube y baja unos metros y se mece un poco
+    a.pos.y = a.base + Math.sin(t) * 3;
+    airshipAxis(a);
+    const d = a.pos.distanceTo(P);
+    if (a.mesh) {
+      a.mesh.position.copy(a.pos); a.mesh.quaternion.copy(a.q).multiply(_Aq.setFromAxisAngle(_Az, Math.sin(t * 0.8) * 0.02));
+      a.mesh.visible = d < AIRSHIP_DRAW;
+    }
+    if (a.dead) {
+      a.dying -= dt; airshipAgony(a, dt);
+      if (a.dying <= 0) { airshipBlast(a); removeAirshipMesh(a); a.gone = true; }
+      continue;
+    }
+    a.hitFlash = Math.max(0, a.hitFlash - dt * 3.5);
+    if (a.mat) a.mat.emissive.setRGB(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]).multiplyScalar(a.hitFlash * 0.55);
+    if (a.hp < AIRSHIP_HP && d < 3000) {                     // tocado: humo (más cuanto menos vida le queda)
+      a.smokeT -= dt * (1.5 - a.hp / AIRSHIP_HP);
+      if (a.smokeT <= 0) {
+        a.smokeT = 0.12; _Ap.lerpVectors(a.ca, a.cb, Math.random());
+        emit(fxSmoke, _Ap.x + rnd(-8, 8), _Ap.y + rnd(-4, 6), _Ap.z + rnd(-8, 8), rnd(-2, 2), rnd(3, 7), rnd(-2, 2), rnd(2.5, 4), 8, 26, 0.16, 0.14, 0.15, 0.5, 0.4, -1);
+      }
+    }
+    // cañones: solo por el costado que mira al jugador, y nunca a proa, a popa ni en la vertical
+    if (!playing || d > AIRSHIP_RANGE) continue;
+    a.cool -= dt; if (a.cool > 0) continue;
+    _Ad.subVectors(P, a.pos).divideScalar(d || 1);
+    _Af.set(0, 0, -1).applyQuaternion(a.q); _As.set(1, 0, 0).applyQuaternion(a.q);
+    if (Math.abs(_Ad.dot(_Af)) > cosArc || Math.abs(_Ad.y) > sinEl) { a.cool = 0.15; continue; }
+    const side = _Ad.dot(_As) >= 0 ? 1 : -1, pz = AIRSHIP_PORTS.z[a.port++ % AIRSHIP_PORTS.z.length];
+    _Ap.set(side * AIRSHIP_PORTS.x, AIRSHIP_PORTS.y, pz).multiplyScalar(AIRSHIP_K).applyQuaternion(a.q).add(a.pos);
+    if (!losClear(_Ap.x, _Ap.y, _Ap.z, P.x, P.y, P.z)) { a.cool = 0.6; continue; }
+    _Ai.copy(P).addScaledVector(dragonVel, _Ap.distanceTo(P) / AIRSHIP_SHOT_SPEED).sub(_Ap).normalize();   // punto de interceptación
+    _Ai.x += rnd(-1, 1) * AIRSHIP_SPREAD; _Ai.y += rnd(-1, 1) * AIRSHIP_SPREAD; _Ai.z += rnd(-1, 1) * AIRSHIP_SPREAD; _Ai.normalize();
+    spawnFireball(_Ap, _Ai, true, clamp(1.1 - d / AIRSHIP_RANGE, 0.15, 0.6), 'arc');
+    for (let i = 0; i < 6; i++) emit(fxAdd, _Ap.x, _Ap.y, _Ap.z, _As.x * side * rnd(10, 30) + rnd(-6, 6), rnd(-6, 6), _As.z * side * rnd(10, 30) + rnd(-6, 6), rnd(0.15, 0.3), rnd(4, 7), 1, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 1, 2, 0);
+    a.cool = AIRSHIP_RATE * rnd(0.85, 1.15);
+  }
+  updateBlasts(dt);
+}
+
+/* ============================================================
+   6d. BLANCOS: TODO LO DESTRUIBLE CON LA MISMA FORMA (v21)
+   Torres (cada sitio de TOWER_SITES), dragones enemigos y dirigibles comparten { kind ('tower' | 'dragon' | 'airship'), pos, vel, dead,
+   tags }, así que las misiones los cuentan por tipo o por etiqueta (missionKill, M2), se fijan igual y la bola guiada persigue a cualquiera.
+   · Los tipos nuevos (estructuras, soldados, jefes) solo tienen que tener esa forma, una entrada en BLANCO y aparecer en eachTarget.
+   · TGT: lo es todo lo que cuenta para un objetivo de la misión visible, sin cumplir y no opcional (isTgt). Se marca «TGT» en el HUD y
+     destaca en el radar; lo demás se ve, pero no cuenta para ganar.
+   · Fijar (clic central, cycleTarget): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE); primero los TGT,
+     de más cerca a más lejos. Cada clic pasa al siguiente; si el único es el fijado, se libera.
+   ============================================================ */
+const BLANCO = {                          // nombre (avisos) y medio tamaño (m): recuadro del fijado y círculo de la bola guiada
+  tower: { name: 'Torre', half: TOWER_TOP * 0.5 },
+  dragon: { name: 'Dragón', half: ENEMY_SCALE * 30 },
+  airship: { name: 'Dirigible', half: AIRSHIP_LEN * 0.5 }
+};
+const LOCK_STATIC_RANGE = 6000;           // torres y dirigibles se fijan hasta esta distancia (los dragones, a cualquiera, como antes)
+const targetHalf = t => (BLANCO[t.kind] || BLANCO.dragon).half;
+/* Recorre los blancos en pie. */
+function eachTarget(fn) {
+  for (const s of TOWER_SITES) if (!s.dead) fn(s);
+  for (const e of enemies) if (!e.dead && !e.off) fn(e);
+  for (const a of airships) if (!a.dead) fn(a);
+}
+/* ¿El blanco t cumple la selección de un objetivo o condición? { target: tipo, tag: etiqueta } (las dos, si están). */
+function matchSel(sel, t) { return (!sel.target || sel.target === t.kind) && (!sel.tag || (!!t.tags && t.tags.includes(sel.tag))); }
+function isTgt(t) {
+  if (MS.ended) return false;
+  for (const o of MS.objs) if (o.shown && !o.done && !o.optional && matchSel(o, t)) return true;
+  return false;
+}
+function releaseLock(t) { if (enemyLock.e === t) enemyLock.e = null; }
+const _Ln = { x: 0, y: 0 };
 function cycleTarget() {
-  if (state !== 'playing' || !enemies.length) return;
-  const cand = [];
-  for (const e of enemies) if (!e.dead && enemyNdc(e, _Evn) && Math.abs(_Evn.x) < 0.98 && Math.abs(_Evn.y) < 0.98) cand.push(e);
-  if (!cand.length) { sfx.empty(); toast('Ningún dragón a la vista'); return; }
-  const P = dragon.position; cand.sort((a, b) => a.pos.distanceToSquared(P) - b.pos.distanceToSquared(P));
-  const i = cand.indexOf(enemyLock.e), next = i < 0 ? cand[0] : cand[(i + 1) % cand.length];
-  if (next === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next; sfx.lock(); toast('Objetivo fijado  ·  ' + fmtDist(next.pos.distanceTo(P))); }
+  if (state !== 'playing') return;
+  const P = dragon.position, cand = [];
+  eachTarget(t => {
+    const d = t.pos.distanceTo(P);
+    if (t.kind !== 'dragon' && d > LOCK_STATIC_RANGE) return;
+    if (!enemyNdc(t, _Ln) || Math.abs(_Ln.x) >= 0.98 || Math.abs(_Ln.y) >= 0.98) return;
+    cand.push({ t, d, tgt: isTgt(t) });
+  });
+  if (!cand.length) { sfx.empty(); toast('Ningún blanco a la vista'); return; }
+  cand.sort((a, b) => (b.tgt - a.tgt) || (a.d - b.d));
+  const i = cand.findIndex(c => c.t === enemyLock.e), next = cand[i < 0 ? 0 : (i + 1) % cand.length];
+  if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
+  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + BLANCO[next.t.kind].name + '  ·  ' + fmtDist(next.d)); }
 }
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
@@ -4048,7 +4431,9 @@ for (const [id, fn] of [['pResume', resumeGame], ['pRetry', restartGame], ['pMen
    partida en curso (los copia de la receta missionSetup; al arrancar, los valores por defecto). */
 const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };
 const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new THREE.Vector3() };   // punto de partida (lo fija el arranque)
-const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true }, dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT },
+const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
+  dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
+  airships: { total: 0, zone: AIRSHIP_ZONE.slice(), alt: AIRSHIP_ALT.slice(), center: [0, 0], random: true, sites: [], tags: [] },   // v21: dirigibles (6c)
   world: null };                                           // v19: semilla, bioma y punto de partida de la misión (missionSetup)
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
@@ -4061,7 +4446,8 @@ function showResult(win, why) {
   const rows = [
     ['Tiempo', fmtClock(stats.time)], ['Puntos', towerState.score],
     RUN.towers.total ? ['Torres destruidas', towerState.kills + ' / ' + RUN.towers.total] : null,
-    RUN.dragons.total ? ['Dragones derribados', enemyState.kills + ' / ' + RUN.dragons.total] : null,
+    dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
+    airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
     ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
@@ -4082,6 +4468,7 @@ function resetRun(pump) {
   towerState.destroyed.clear(); towerState.score = 0; towerState.kills = 0;
   for (const t of [...towers.values()]) dropTower(t);
   planTowers();                                            // v13: nuevo reparto de torres (entre 10 y 15 en islas)
+  planAirships();                                          // v21: y los dirigibles de la misión
   for (let i = fireballs.length - 1; i >= 0; i--) killFireball(i);
   boltsClear();
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
@@ -4178,7 +4565,8 @@ const _mouth = new THREE.Vector3(), _dir = new THREE.Vector3(), _org = new THREE
 function aimPointFrom(origin, dir) {
   // marcha a lo largo del rayo del marcador: terreno o torres; si no hay impacto, un punto lejano
   let t = 25, last = 0;
-  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tI = Math.min(tIsl, tEn), limit = Math.min(maxT, tI);   // la isla (o el dragón enemigo) más cercano en el rayo
+  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT);
+  const tI = Math.min(tIsl, tEn, tAir), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo o el dirigible (v21) más cercano en el rayo
   while (t < limit) {
     _hit.copy(origin).addScaledVector(dir, t);
     const gy = Math.max(heightAt(_hit.x, _hit.z), WL);
@@ -4194,7 +4582,7 @@ function aimPointFrom(origin, dir) {
     }
     last = t; t += Math.max(12, t * 0.05);
   }
-  if (tI < maxT) return tEn <= tIsl ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, tIsl);
+  if (tI < maxT) return tEn <= tIsl && tEn <= tAir ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, Math.min(tIsl, tAir));
   return _hit.copy(origin).addScaledVector(dir, 1400);
 }
 
@@ -4272,7 +4660,7 @@ function lockCircle(out) {
   if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';
   out.x = (_Wv.x * 0.5 + 0.5) * sw; out.y = (-_Wv.y * 0.5 + 0.5) * sh;
   const pxm = sh / (2 * e.pos.distanceTo(_Wc) * Math.tan(camera.fov * Math.PI / 360));
-  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(ENEMY_SCALE * 30 * pxm, 17, 96) + 14);   // (v10: la mitad que antes)
+  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(targetHalf(e) * pxm, 17, 96) + 14);   // (v10: la mitad que antes; v21: según el tamaño del blanco)
   _Wv.copy(_Wc).addScaledVector(F.aimWorld, 1000).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
   out.in = Math.hypot((_Wv.x * 0.5 + 0.5) * sw - out.x, (-_Wv.y * 0.5 + 0.5) * sh - out.y) < out.r;
   return '';
@@ -4506,6 +4894,7 @@ function flameFx(dt) {
   }
   _bF.copy(_bS).addScaledVector(_bD, FLAME_RANGE);
   for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) damageTower(t, amt, true, _sdc);   // _sdc: punto de la llamarada más cercano a la torre
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);       // v21: dirigibles
   fbLight.position.copy(_bS).addScaledVector(_bD, 40); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
 }
 /* Llamarada corta sin sonido ni temblor (impacto del rayo contra el terreno). */
@@ -4550,6 +4939,7 @@ function laserFx(dt) {
   const amt = LASER_DPS * dt;
   for (const e of enemies) if (!e.dead && segHitsSphere(_bS, _bE, e.pos, ENEMY_HIT_R + LASER_R)) damageEnemy(e, amt, _fc, true);   // _fc: punto del rayo más cercano
   for (const tw of towers.values()) if (!tw.dead && towerSegDist2(tw, _bS, _bE) < (TOWER_R + LASER_R) ** 2) damageTower(tw, amt, true, _sdc);
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bE) < (a.r + LASER_R) ** 2) damageAirship(a, amt, true, _sdc);
   // 5. impacto: llamaradas y humo donde choca
   if (blocked) { W.burstT = (W.burstT || 0) - dt; if (W.burstT <= 0) { W.burstT = 0.09; burstFx(_bE.x, _bE.y + 2, _bE.z, c); } }
   // 6. espiral de energía alrededor del primer tramo (dos hebras que giran) y destello en la boca
@@ -4720,6 +5110,9 @@ function updateFlight(dt, auto) {
     const dx = pos.x - t.x, dz = pos.z - t.z;
     if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crash('Te estrellaste contra una torre'); break; }
   }
+  if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
+    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
+  }
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
     for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);
@@ -4842,41 +5235,70 @@ function drawMarkers(fwd) {
   hctx.globalAlpha = 1;
 }
 /* Marcador de triángulo rojo sobre cada dragón enemigo (visible a cualquier distancia) con distancia y vida restante.
-   El dragón fijado (clic derecho) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está. */
+   El blanco fijado (clic central) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está.
+   v21: «TGT» delante de la distancia en los que cuentan para la misión (los demás, más apagados); rombo rojo sobre cada dirigible (hasta
+   AIRSHIP_DRAW) y, sobre las torres TGT a menos de LOCK_STATIC_RANGE, una marca con «TGT» (las demás solo tienen su cristal). */
+const C_TGT = '#ff6a4a';
+function drawLockBox(t, a, d) {                            // recuadro dorado del blanco fijado; devuelve su medio lado (px)
+  const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360)), half = clamp(targetHalf(t) * pxm, 17, 96);
+  hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
+  hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
+  hctx.lineWidth = 3.5; hctx.beginPath();                                         // esquinas reforzadas
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
+    hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
+  }
+  hctx.stroke();
+  return half;
+}
+function hpBar(x, y, f) {
+  hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, y, 30, 4);
+  hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, y, 30 * clamp(f, 0, 1), 4);
+}
+const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20, nearScreen = a => a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30;
 function drawEnemyMarkers() {
   const a = {}, lock = enemyLock.e;
   let lockShown = false;
   for (const e of enemies) {
-    if (e.dead) continue;
-    const d = e.pos.distanceTo(_camP), locked = e === lock;
+    if (e.dead || e.off) continue;
+    const d = e.pos.distanceTo(_camP), locked = e === lock, tgt = isTgt(e);
     if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;
-    const onScreen = a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20;
-    if (!onScreen && !(a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
     let top = 14, half = 0;
-    if (locked && onScreen) {
-      lockShown = true;
-      const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360));
-      half = clamp(ENEMY_SCALE * 30 * pxm, 17, 96);
-      hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
-      hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
-      hctx.lineWidth = 3.5; hctx.beginPath();                                       // esquinas reforzadas
-      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-        const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
-        hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
-      }
-      hctx.stroke();
-      top = half + 6;
-    }
+    if (locked && onScreen) { lockShown = true; half = drawLockBox(e, a, d); top = half + 6; }
     const s = 6 + 5 * (1 - smooth(250, 3000, d)), x = a.x, ay = a.y - top, by = ay - s * 1.7;
-    hctx.globalAlpha = e.mode === 'patrol' && !locked ? 0.82 : 1;
+    hctx.globalAlpha = locked ? 1 : !tgt ? 0.6 : e.mode === 'patrol' ? 0.82 : 1;
     hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
     hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hudText(fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : C_BONE, 'center');
-    if (e.hp < ENEMY_HP) {                                   // barra de vida cuando está dañado
-      const py = locked && onScreen ? a.y + half + 6 : ay + 5;
-      hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, py, 30, 4);
-      hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, py, 30 * clamp(e.hp / ENEMY_HP, 0, 1), 4);
-    }
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
+  }
+  for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
+    if (s.dead) continue;
+    const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
+    if (d > AIRSHIP_DRAW || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
+    let half = 0;
+    if (locked && onScreen) { lockShown = true; half = drawLockBox(s, a, d); }
+    const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
+    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
+  }
+  for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
+    if (t.dead) continue;
+    const locked = t === lock, tgt = isTgt(t);
+    if (!tgt && !locked) continue;
+    const d = t.pos.distanceTo(_camP);
+    if (d > LOCK_STATIC_RANGE) continue;
+    if (locked && proj(t.pos.x, t.pos.y, t.pos.z, a) && onScreenAt(a)) { lockShown = true; drawLockBox(t, a, d); }
+    if (!proj(t.x, t.y + TOWER_TOP + 12, t.z, a) || !onScreenAt(a)) continue;
+    hctx.globalAlpha = 1; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(a.x - 6, a.y - 10); hctx.lineTo(a.x, a.y - 3); hctx.lineTo(a.x + 6, a.y - 10); hctx.stroke();
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, a.y - 15, FM(locked ? 13 : 11), locked ? C_GOLD : C_TGT, 'center');
   }
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
@@ -4948,27 +5370,39 @@ function drawRadar(heading, fwd) {
     hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke();
     hctx.restore();
   }
+  // v21: los TGT, en rojo vivo; lo que no cuenta para la misión, apagado. El blanco fijado, con un círculo dorado.
   let nearest = 1e9;
+  const at = (x, z) => { const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range; _rp.x = cx + (dx * rx + dz * rz) * k; _rp.y = cy - (dx * fx + dz * fz) * k; _rp.d = d; return _rp; };
+  const col = (tgt, far, fill) => tgt ? (far ? (fill ? 'rgba(255,74,58,.45)' : 'rgba(255,74,58,.55)') : C_DANGER) : 'rgba(241,180,170,.35)';
   for (const t of TOWER_SITES) {                           // todas las torres que quedan; las de fuera del alcance, en el borde (para encontrarlas)
-    if (towerState.destroyed.has(t.id)) continue;
-    const dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz); nearest = Math.min(nearest, d);
-    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz;
-    const k = Math.min(1, range / Math.max(d, 1)) * R / range;
-    const sx = cx + right * k, sy = cy - ahead * k;
-    if (t.isl) { hctx.strokeStyle = d > range ? 'rgba(255,74,58,.55)' : C_DANGER; hctx.lineWidth = 1.6; hctx.strokeRect(sx - 3.5, sy - 3.5, 7, 7); }   // v13: en una isla, cuadrado hueco
-    else { hctx.fillStyle = d > range ? 'rgba(255,74,58,.45)' : C_DANGER; hctx.fillRect(sx - 3, sy - 3, 6, 6); }
+    if (t.dead) continue;
+    const tgt = isTgt(t), q = at(t.x, t.z), far = q.d > range;
+    if (tgt) nearest = Math.min(nearest, q.d);
+    if (t.isl) { hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 1.6; hctx.strokeRect(q.x - 3.5, q.y - 3.5, 7, 7); }   // v13: en una isla, cuadrado hueco
+    else { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
+  }
+  for (const s of airships) {                              // v21: dirigibles: cápsula hueca a lo largo de su eslora
+    if (s.dead) continue;
+    const tgt = isTgt(s), q = at(s.pos.x, s.pos.z);
+    if (tgt) nearest = Math.min(nearest, q.d);
+    _Eef.set(0, 0, -1).applyQuaternion(s.q);
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.strokeStyle = col(tgt, q.d > range, false); hctx.lineWidth = 1.8;
+    hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
+    hctx.restore();
   }
   for (const e of enemies) {                               // dragones enemigos: triángulos rojos orientados según su rumbo
-    if (e.dead) continue;
-    const dx = e.pos.x - p.x, dz = e.pos.z - p.z, d = Math.hypot(dx, dz);
-    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz, k = Math.min(1, range / Math.max(d, 1)) * R / range;
+    if (e.dead || e.off) continue;
+    const tgt = isTgt(e), q = at(e.pos.x, e.pos.z);
+    if (tgt) nearest = Math.min(nearest, q.d);
     _Eef.set(0, 0, -1).applyQuaternion(e.q);
-    hctx.save(); hctx.translate(cx + right * k, cy - ahead * k); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
-    hctx.fillStyle = d > range ? 'rgba(255,74,58,.55)' : C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.8)'; hctx.lineWidth = 1;
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.fillStyle = col(tgt, q.d > range, true); hctx.strokeStyle = 'rgba(25,6,6,.8)'; hctx.lineWidth = 1;
     hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.fill(); hctx.stroke();
     hctx.restore();
-    if (e === enemyLock.e) { hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(cx + right * k, cy - ahead * k, 8.5, 0, 6.283); hctx.stroke(); }
   }
+  const L = enemyLock.e;
+  if (L && !L.dead) { const q = at(L.pos.x, L.pos.z); hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(q.x, q.y, 8.5, 0, 6.283); hctx.stroke(); }
   for (const f of fireballs) {                             // bolas guiadas enemigas: puntos rojos que parpadean
     if (f.kind !== 'emsl' || f.lost) continue;
     const dx = f.pos.x - p.x, dz = f.pos.z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range;
@@ -4979,8 +5413,9 @@ function drawRadar(heading, fwd) {
   hctx.fillStyle = C_GOLD; hctx.beginPath(); hctx.moveTo(cx, cy - 6); hctx.lineTo(cx - 4, cy + 4); hctx.lineTo(cx + 4, cy + 4); hctx.closePath(); hctx.fill();
   hctx.restore();
   hudText('RADAR 2,4 km', cx, cy - R - 7, FM(11), C_DIM, 'center');
-  if (nearest < 1e8) hudText('Torre más cercana ' + (nearest >= 1000 ? (nearest / 1000).toFixed(1) + ' km' : Math.round(nearest) + ' m'), cx, cy + R + 16, FM(11), C_DIM, 'center');
+  if (nearest < 1e8) hudText('TGT más cercano ' + fmtDist(nearest), cx, cy + R + 16, FM(11), C_DIM, 'center');   // (v21: antes, la torre más cercana)
 }
+const _rp = { x: 0, y: 0, d: 0 };
 /* Bolas guiadas enemigas en camino: rombo rojo sobre cada una si está en pantalla; si no, flecha roja en un anillo alrededor del centro,
    con la distancia (como el aviso de misil de Ace Combat). */
 function drawMissileWarn() {
@@ -5186,7 +5621,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt);
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
@@ -5364,12 +5799,12 @@ const TUTORIAL = [
       'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño (un dragón aguanta 20 impactos y una torre, 12), pero acierta fácil y desde lejos.',
       'Tienes 20 disparos, que ves en el panel de <b>ARMAS</b> (abajo a la derecha). Un segundo después de dejar de disparar empiezan a recargarse solos: las marcas se vuelven doradas.',
       'Si tienes un dragón fijado, apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo.'] },
-    { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué dragón seguir.', keys: [[['Clic central'], 'Fijar el siguiente dragón a la vista']], text: [
-      'El clic central (la rueda) fija el dragón enemigo más cercano que tengas en pantalla: lo rodea un recuadro dorado con su distancia. Cada clic pasa al siguiente; si no hay otro, lo suelta.',
-      'Con un dragón fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar.'] },
-    { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el dragón'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
-      'Fija un dragón (clic central) a menos de 3 km: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
-      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los 3 s sale una gran bola de fuego que persigue al dragón y le quita 70 de vida. Si la mira sale del círculo, la carga baja poco a poco.',
+    { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué blanco seguir.', keys: [[['Clic central'], 'Fijar el siguiente blanco a la vista']], text: [
+      'El clic central (la rueda) fija un blanco que tengas en pantalla: un dragón, una torre o un dirigible (estos dos, a menos de 6 km). Primero los que cuentan para la misión (<b>TGT</b>), del más cercano al más lejano; luego los demás. Lo rodea un recuadro dorado con su distancia. Cada clic pasa al siguiente; si no hay otro, lo suelta.',
+      'Con un blanco fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar.'] },
+    { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
+      'Fija un blanco (clic central) a menos de 3 km: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
+      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los 3 s sale una gran bola de fuego que persigue al blanco y le quita 70 de vida: derriba de un golpe una torre o un dirigible. Si la mira sale del círculo, la carga baja poco a poco.',
       'Empiezas con 5 bolas (las bolitas doradas del panel). No se recargan solas: cada torre destruida te da 2 más.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de 200 m que quema todo lo que toca (70 de daño por segundo). Es el arma más fuerte de cerca: ideal para torres y para dragones que tienes encima.',
@@ -5404,15 +5839,20 @@ const TUTORIAL = [
       'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('F') + ').'] },
     { id: 'torres', title: 'Torres antiaéreas', sum: '30 torres fijas que disparan ráfagas.', keys: [], text: [
       'Hay 30 torres repartidas alrededor del punto de partida; en cada partida, entre 10 y 15 de ellas están sobre islas flotantes. Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está en una isla).',
-      'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] }
+      'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] },
+    { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
+      'Grandes barcos voladores quietos en el aire, entre 500 y 1000 m sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
+      'A menos de 1 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
+      'Aguantan 50 de daño (una bola guiada los derriba de un golpe) y dan 200 puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
       '<b>Izquierda</b>: velocidad, acelerador y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo; arriba a la derecha, torres, dragones y puntos.',
-      '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde). Debajo, la distancia a la torre más cercana.',
+      '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde); los dirigibles, cápsulas huecas. Lo que no cuenta para la misión sale apagado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
       '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
     { id: 'objetivo', title: 'Objetivo de la partida', sum: '30 torres y 20 dragones.', keys: [], text: [
       'Para ganar, destruye las 30 torres y derriba los 20 dragones. Los contadores de arriba a la derecha llevan la cuenta, y el radar te guía hasta las torres que quedan.',
+      'Los blancos que cuentan para la misión llevan la marca <b>TGT</b> junto a su distancia. En otras misiones puede haber enemigos sin ella: también te atacan, pero no hace falta destruirlos para ganar. Los objetivos con un rombo (◇) son opcionales.',
       'Al conseguirlo verás la pantalla de <b>VICTORIA</b> con tus estadísticas (tiempo, puntos, precisión, daño recibido…). Desde ahí puedes volver al menú o empezar otra partida.'] }
   ] }
 ];
@@ -5688,21 +6128,30 @@ function updateIntro(now) {
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
      ellas sobre islas flotantes). El reparto sale siempre igual con la semilla del mundo; random: true = uno nuevo en cada partida.
+     v21: sites = torres fijas [{ x, z, tag }] (en tierra; cuentan dentro de total) y tag = etiqueta de las demás.
+   · airships (v21): dirigibles enemigos, quietos en el aire (ver 6c). total, zone (anillo, como las torres), alt ([mín, máx] m sobre el
+     suelo; por defecto 500-1000), sites = fijos [{ x, z, height, heading, tag }] (cuentan dentro de total), tag, random.
    · dragons: dragones enemigos. total (en toda la misión) y atOnce (a la vez en el aire: al caer uno sale otro hasta llegar al total).
+     v21: tag = su etiqueta.
+   · squads (v21): escuadrones de dragones que salen con un evento («squad»). { id: { n, at: { x, z, height } (sin at: a dist m del
+     jugador, por delante), dist, attack (false = patrullan hasta verte), tag (por defecto, el id) } }. No reaparecen.
    · objectives: lo que se muestra arriba a la derecha.
-       { id, text (frase para avisos y briefing), hud (etiqueta corta del HUD), target ('tower' | 'dragon'), count,
+       { id, text (frase para avisos y briefing), hud (etiqueta corta del HUD), target ('tower' | 'dragon' | 'airship'), tag (v21: solo
+         los que llevan esa etiqueta; con target y tag, las dos cosas), count (sin count: todos los de la misión que cumplen la selección),
          hidden (no se ve hasta que un evento lo muestra: «show»), optional (no hace falta para ganar) }
      La misión se cumple sola cuando están hechos todos los objetivos no opcionales (los ocultos también: antes hay que mostrarlos).
      Para decidir el final a mano: autoWin: false y un evento con «win».
+     v21: lo que cuenta para un objetivo visible, sin cumplir y no opcional lleva la marca TGT (HUD y radar); lo demás, no.
    · radio: quién habla. { id: { name, color, icon } } (icon: una letra; provisional hasta que haya retratos).
    · events: reglas «cuando → haz». Cada una salta una sola vez (con repeat: s, puede volver a saltar pasados esos segundos).
        when (se tienen que cumplir todas):
-         t: s de misión · kills: { tower: n, dragon: n } (al menos) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir]
-         · hp: vida por debajo de · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
+         t: s de misión · kills: { tower: n, dragon: n, airship: n, <etiqueta>: n } (al menos) · cleared: [etiquetas] (destruidos
+         todos los que la llevan) · done: [objetivos cumplidos] · pending: [objetivos sin cumplir] · hp: vida por debajo de
+         · inside: { x, z, r } (el jugador dentro) · after: { event: id, t: s } (s después de otro evento)
        do (en orden):
          say: [quién, texto, segundos (opcional: si no, según lo largo)] · show: id de un objetivo oculto · toast: texto
-         · dragons: n (refuerzos: n dragones más en el total) · win: segundos de espera · fail: motivo
-   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas dos son solo para probar el motor.
+         · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
+   Las misiones de la campaña las define Jorge (premisa, escenario, encuentros): estas tres son solo para probar el motor.
    ============================================================ */
 const MISSIONS = {
   /* La partida de la v14 como misión: mismas torres y dragones, pero con área delimitada, caer = fallar y algo de radio. */
@@ -5732,6 +6181,41 @@ const MISSIONS = {
       { when: { done: ['torres'], pending: ['dragones'] }, do: [{ say: ['mando', 'Todas las torres destruidas. Acaba con los dragones.'] }] },
       { when: { done: ['dragones'], pending: ['torres'] }, do: [{ say: ['mando', 'Cielo despejado. Remata las torres que quedan.'] }] },
       { when: { done: ['torres', 'dragones'] }, do: [{ say: ['mando', 'Objetivos cumplidos. Buen trabajo, jinete: vuelve a la base.'] }] },
+      { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
+    ]
+  },
+  /* v21: prueba técnica de los objetivos genéricos: dirigibles, torres fijas con etiqueta, blancos que no cuentan (sin TGT), un objetivo
+     oculto con un escuadrón que sale por evento y uno opcional. No es una misión de la campaña. */
+  objetivos: {
+    name: 'Prueba de objetivos', place: 'Valle de las Torres',
+    world: { seed: 777, biome: 'valle' },                  // el mismo valle que la misión de prueba (no hay que regenerar)
+    start: { x: 0, z: 0, heading: null, height: 300 },
+    area: { x: 0, z: 0, r: 8000 },
+    death: 'fail',
+    timeLimit: null,
+    towers: { total: 12, zone: [2000, 7000], islands: [3, 5], sites: [   // tres baterías juntas, por delante a la izquierda del inicio (rumbo 75°)
+      { x: 1988, z: -2027, tag: 'baterias' }, { x: 1532, z: -1005, tag: 'baterias' }, { x: 845, z: -1803, tag: 'baterias' }] },
+    airships: { total: 6, zone: [2000, 6500], alt: [500, 1000], sites: [   // uno 2,6 km por delante, de costado (los otros cinco, al azar)
+      { x: 2511, z: -673, height: 600, heading: 165 }] },
+    dragons: { total: 4, atOnce: 2, tag: 'escolta' },
+    squads: { alfa: { n: 4, dist: 2500, attack: true } },
+    objectives: [
+      { id: 'dirigibles', text: 'Destruye los dirigibles', hud: 'DIRIGIBLES', target: 'airship' },
+      { id: 'baterias', text: 'Destruye las tres baterías marcadas', hud: 'BATERÍAS', tag: 'baterias' },
+      { id: 'alfa', text: 'Derriba al escuadrón Alfa', hud: 'ESCUADRÓN ALFA', tag: 'alfa', hidden: true },
+      { id: 'escolta', text: 'Derriba a los dragones de escolta', hud: 'ESCOLTA', tag: 'escolta', optional: true }
+    ],
+    radio: {
+      mando: { name: 'Mando', color: '#f2b84b', icon: 'M' }
+    },
+    events: [
+      { id: 'inicio', when: { t: 2 }, do: [{ say: ['mando', 'Prueba de objetivos. Solo cuentan los blancos marcados TGT: seis dirigibles y tres baterías.'] }] },
+      { when: { after: { event: 'inicio', t: 9 } }, do: [{ say: ['mando', 'Los dirigibles solo disparan por los costados. Atácalos de frente o por detrás.'] }] },
+      { when: { kills: { airship: 1 } }, do: [{ say: ['mando', 'Dirigible abajo. Quedan cinco.'] }] },
+      { when: { kills: { airship: 3 } }, do: [{ say: ['mando', '¡Escuadrón Alfa entrando en la zona! Cuatro dragones a por ti.'] }, { squad: 'alfa' }, { show: 'alfa' }] },
+      { when: { cleared: ['baterias'] }, do: [{ say: ['mando', 'Las tres baterías, destruidas.'] }] },
+      { when: { cleared: ['alfa'] }, do: [{ say: ['mando', 'Escuadrón Alfa eliminado.'] }] },
+      { when: { done: ['dirigibles', 'baterias', 'alfa'] }, do: [{ say: ['mando', 'Objetivos cumplidos. Buen trabajo, jinete.'] }] },
       { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
     ]
   },
@@ -5772,7 +6256,7 @@ const RADIO_GAP = 0.45;                   // s entre dos mensajes de radio segui
 let missionId = 'libre';                  // la que empieza al pulsar «Empezar» en «Elige tu dragón» (la fijan los botones del menú)
 let mission = MISSIONS.libre;             // receta en juego
 const MS = {
-  t: 0, objs: [], fired: new Map(), ended: true, endAt: 0,
+  t: 0, objs: [], fired: new Map(), ended: true, endAt: 0, kills: {}, planned: {},       // v21: destruidos por tipo y etiqueta; cuántos hay por etiqueta
   out: false, outT: AREA_GRACE, tick: -1, edge: '',      // área: fuera, s que quedan, último segundo mostrado, distancia mostrada
   radio: [], radioT: 0, radioOn: false                     // cola de mensajes, tiempo del actual (o de la pausa entre dos), ¿se ve?
 };
@@ -5784,17 +6268,23 @@ function chooseMission(id) {
   document.getElementById('start').textContent = MISSIONS[missionId].free ? 'Empezar partida' : 'Empezar misión';
   enterSelect();
 }
+const tagList = t => t ? [].concat(t) : [];
 function missionSetup(id) {
   missionId = MISSIONS[id] ? id : 'libre'; mission = MISSIONS[missionId];
-  const T = mission.towers || {}, D = mission.dragons || {};
+  const T = mission.towers || {}, D = mission.dragons || {}, A = mission.airships || {};
   RUN.world = missionWorld(mission);                       // v19: semilla, bioma y punto de partida (M3)
+  const center = [RUN.world.start.x, RUN.world.start.z];
   RUN.towers = { total: T.total || 0, zone: (T.zone || TOWER_ZONE).slice(), islands: (T.islands || [0, 0]).slice(),
-    center: [RUN.world.start.x, RUN.world.start.z], random: !!T.random };
-  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0) };
+    center, random: !!T.random, sites: (T.sites || []).slice(), tags: tagList(T.tag) };
+  RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag) };
+  RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
+    center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag) };
 }
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
+  MS.kills = {}; MS.planned = {};
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
+  for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   toast(mission.free ? 'Objetivo: ' + goal : mission.name);
@@ -5805,8 +6295,31 @@ function missionHideHUD() {
   areaEl.classList.remove('on');
 }
 
-/* ---------- Cuentas ---------- */
-function killsOf(target) { return target === 'tower' ? towerState.kills : target === 'dragon' ? enemyState.kills : 0; }
+/* ---------- Cuentas ----------
+   v21: cada blanco destruido (torre, dragón, dirigible; ver 6d) suma en MS.kills por su tipo y por cada etiqueta, y en los objetivos
+   cuya selección cumple ({ target, tag }). plannedCount = cuántos hay en la misión con esa selección (torres y dirigibles colocados,
+   dragones del total y de los escuadrones de la receta, salgan o no). */
+function missionKill(t) {
+  if (MS.ended) return;
+  const K = MS.kills; K[t.kind] = (K[t.kind] || 0) + 1;
+  for (const tag of t.tags || []) K[tag] = (K[tag] || 0) + 1;
+  for (const o of MS.objs) if (matchSel(o, t)) o.n++;
+}
+const squadTags = (id, q) => [q.tag || id];
+function plannedCount(sel) {
+  let n = 0;
+  for (const s of TOWER_SITES) if (matchSel(sel, s)) n++;
+  for (const a of airships) if (matchSel(sel, a)) n++;
+  if (matchSel(sel, { kind: 'dragon', tags: RUN.dragons.tags })) n += RUN.dragons.total;
+  const Q = mission.squads || {};
+  for (const id in Q) if (matchSel(sel, { kind: 'dragon', tags: squadTags(id, Q[id]) })) n += Q[id].n || 1;
+  return n;
+}
+/* ¿Destruidos todos los de esa etiqueta? (si la misión no tiene ninguno, no) */
+function clearedTag(tag) {
+  if (MS.planned[tag] == null) MS.planned[tag] = plannedCount({ tag });
+  return MS.planned[tag] > 0 && (MS.kills[tag] || 0) >= MS.planned[tag];
+}
 function objById(id) { return MS.objs.find(o => o.id === id); }
 /* ¿(x, z) está dentro del área de la misión, con un margen hacia dentro? (sin área: siempre) */
 function inMissionArea(x, z, margin) {
@@ -5827,8 +6340,7 @@ function missionUpdate(dt) {
   MS.t += dt;
   updateRadio(dt);
   // objetivos
-  for (const o of MS.objs) {
-    o.n = killsOf(o.target);
+  for (const o of MS.objs) {                               // (o.n lo lleva missionKill)
     if (o.shown && !o.done && o.n >= o.count) { o.done = true; toast('Objetivo cumplido  ·  ' + o.text); sfx.locked(); }
   }
   // eventos
@@ -5864,7 +6376,8 @@ function missionUpdate(dt) {
 }
 function eventReady(w) {
   if (w.t != null && MS.t < w.t) return false;
-  if (w.kills) for (const k in w.kills) if (killsOf(k) < w.kills[k]) return false;
+  if (w.kills) for (const k in w.kills) if ((MS.kills[k] || 0) < w.kills[k]) return false;   // (v21: por tipo o por etiqueta)
+  if (w.cleared) for (const tag of [].concat(w.cleared)) if (!clearedTag(tag)) return false;
   if (w.done) for (const id of w.done) { const o = objById(id); if (!o || !o.done) return false; }
   if (w.pending) for (const id of w.pending) { const o = objById(id); if (o && o.done) return false; }
   if (w.hp != null && !(state === 'playing' && F.health < w.hp)) return false;
@@ -5877,6 +6390,7 @@ function runAction(a) {
   if (a.show) { const o = objById(a.show); if (o && !o.shown) { o.shown = true; toast('Nuevo objetivo  ·  ' + o.text); sfx.lock(); } }
   if (a.toast) toast(a.toast);
   if (a.dragons) RUN.dragons.total += a.dragons;           // refuerzos: van saliendo según caen los que hay en el aire
+  if (a.squad) for (const id of [].concat(a.squad)) spawnSquad(id);   // v21: escuadrón de la receta (squads), todos a la vez
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
 }
@@ -6078,6 +6592,7 @@ function frame(now) {
     if (left === 0 && !hero.ready) goBtn.textContent = hero.error ? 'No se pudo cargar el dragón' : 'Despertando al dragón…';
     if (left === 0 && hero.ready) {
       state = 'menu'; goBtn.disabled = false; goBtn.textContent = 'Misión de prueba'; document.getElementById('mFree').disabled = false;   // v15
+      document.getElementById('mObj').disabled = false;                                                                                   // v21
       updateTowerStreaming(dragon.position.x, dragon.position.z);
       updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
       for (let i = 0, s; i < 6 && (s = islandAt(dragon.position.x, dragon.position.y, dragon.position.z, 90)); i++) dragon.position.y = s.yMax + 130;
@@ -6104,8 +6619,10 @@ function frame(now) {
   planTowers();
   goBtn.addEventListener('click', () => chooseMission('prueba'));                                   // v15: menú → misión → «Elige tu dragón»
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
-  loadHero().then(loadDragons); loadRider(); loadKnight(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant
-  window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon };
+  document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
+  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
+  window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget };   // (v21)
   requestAnimationFrame(frame);
 })();
 </script>

@@ -100,41 +100,70 @@ function drawMarkers(fwd) {
   hctx.globalAlpha = 1;
 }
 /* Marcador de triángulo rojo sobre cada dragón enemigo (visible a cualquier distancia) con distancia y vida restante.
-   El dragón fijado (clic derecho) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está. */
+   El blanco fijado (clic central) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está.
+   v21: «TGT» delante de la distancia en los que cuentan para la misión (los demás, más apagados); rombo rojo sobre cada dirigible (hasta
+   AIRSHIP_DRAW) y, sobre las torres TGT a menos de LOCK_STATIC_RANGE, una marca con «TGT» (las demás solo tienen su cristal). */
+const C_TGT = '#ff6a4a';
+function drawLockBox(t, a, d) {                            // recuadro dorado del blanco fijado; devuelve su medio lado (px)
+  const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360)), half = clamp(targetHalf(t) * pxm, 17, 96);
+  hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
+  hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
+  hctx.lineWidth = 3.5; hctx.beginPath();                                         // esquinas reforzadas
+  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
+    hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
+  }
+  hctx.stroke();
+  return half;
+}
+function hpBar(x, y, f) {
+  hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, y, 30, 4);
+  hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, y, 30 * clamp(f, 0, 1), 4);
+}
+const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20, nearScreen = a => a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30;
 function drawEnemyMarkers() {
   const a = {}, lock = enemyLock.e;
   let lockShown = false;
   for (const e of enemies) {
-    if (e.dead) continue;
-    const d = e.pos.distanceTo(_camP), locked = e === lock;
+    if (e.dead || e.off) continue;
+    const d = e.pos.distanceTo(_camP), locked = e === lock, tgt = isTgt(e);
     if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;
-    const onScreen = a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20;
-    if (!onScreen && !(a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
     let top = 14, half = 0;
-    if (locked && onScreen) {
-      lockShown = true;
-      const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360));
-      half = clamp(ENEMY_SCALE * 30 * pxm, 17, 96);
-      hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
-      hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
-      hctx.lineWidth = 3.5; hctx.beginPath();                                       // esquinas reforzadas
-      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-        const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
-        hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
-      }
-      hctx.stroke();
-      top = half + 6;
-    }
+    if (locked && onScreen) { lockShown = true; half = drawLockBox(e, a, d); top = half + 6; }
     const s = 6 + 5 * (1 - smooth(250, 3000, d)), x = a.x, ay = a.y - top, by = ay - s * 1.7;
-    hctx.globalAlpha = e.mode === 'patrol' && !locked ? 0.82 : 1;
+    hctx.globalAlpha = locked ? 1 : !tgt ? 0.6 : e.mode === 'patrol' ? 0.82 : 1;
     hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
     hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hudText(fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : C_BONE, 'center');
-    if (e.hp < ENEMY_HP) {                                   // barra de vida cuando está dañado
-      const py = locked && onScreen ? a.y + half + 6 : ay + 5;
-      hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, py, 30, 4);
-      hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, py, 30 * clamp(e.hp / ENEMY_HP, 0, 1), 4);
-    }
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
+  }
+  for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
+    if (s.dead) continue;
+    const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
+    if (d > AIRSHIP_DRAW || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
+    let half = 0;
+    if (locked && onScreen) { lockShown = true; half = drawLockBox(s, a, d); }
+    const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
+    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
+  }
+  for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
+    if (t.dead) continue;
+    const locked = t === lock, tgt = isTgt(t);
+    if (!tgt && !locked) continue;
+    const d = t.pos.distanceTo(_camP);
+    if (d > LOCK_STATIC_RANGE) continue;
+    if (locked && proj(t.pos.x, t.pos.y, t.pos.z, a) && onScreenAt(a)) { lockShown = true; drawLockBox(t, a, d); }
+    if (!proj(t.x, t.y + TOWER_TOP + 12, t.z, a) || !onScreenAt(a)) continue;
+    hctx.globalAlpha = 1; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(a.x - 6, a.y - 10); hctx.lineTo(a.x, a.y - 3); hctx.lineTo(a.x + 6, a.y - 10); hctx.stroke();
+    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, a.y - 15, FM(locked ? 13 : 11), locked ? C_GOLD : C_TGT, 'center');
   }
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
@@ -206,27 +235,39 @@ function drawRadar(heading, fwd) {
     hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke();
     hctx.restore();
   }
+  // v21: los TGT, en rojo vivo; lo que no cuenta para la misión, apagado. El blanco fijado, con un círculo dorado.
   let nearest = 1e9;
+  const at = (x, z) => { const dx = x - p.x, dz = z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range; _rp.x = cx + (dx * rx + dz * rz) * k; _rp.y = cy - (dx * fx + dz * fz) * k; _rp.d = d; return _rp; };
+  const col = (tgt, far, fill) => tgt ? (far ? (fill ? 'rgba(255,74,58,.45)' : 'rgba(255,74,58,.55)') : C_DANGER) : 'rgba(241,180,170,.35)';
   for (const t of TOWER_SITES) {                           // todas las torres que quedan; las de fuera del alcance, en el borde (para encontrarlas)
-    if (towerState.destroyed.has(t.id)) continue;
-    const dx = t.x - p.x, dz = t.z - p.z, d = Math.hypot(dx, dz); nearest = Math.min(nearest, d);
-    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz;
-    const k = Math.min(1, range / Math.max(d, 1)) * R / range;
-    const sx = cx + right * k, sy = cy - ahead * k;
-    if (t.isl) { hctx.strokeStyle = d > range ? 'rgba(255,74,58,.55)' : C_DANGER; hctx.lineWidth = 1.6; hctx.strokeRect(sx - 3.5, sy - 3.5, 7, 7); }   // v13: en una isla, cuadrado hueco
-    else { hctx.fillStyle = d > range ? 'rgba(255,74,58,.45)' : C_DANGER; hctx.fillRect(sx - 3, sy - 3, 6, 6); }
+    if (t.dead) continue;
+    const tgt = isTgt(t), q = at(t.x, t.z), far = q.d > range;
+    if (tgt) nearest = Math.min(nearest, q.d);
+    if (t.isl) { hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 1.6; hctx.strokeRect(q.x - 3.5, q.y - 3.5, 7, 7); }   // v13: en una isla, cuadrado hueco
+    else { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 3, q.y - 3, 6, 6); }
+  }
+  for (const s of airships) {                              // v21: dirigibles: cápsula hueca a lo largo de su eslora
+    if (s.dead) continue;
+    const tgt = isTgt(s), q = at(s.pos.x, s.pos.z);
+    if (tgt) nearest = Math.min(nearest, q.d);
+    _Eef.set(0, 0, -1).applyQuaternion(s.q);
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.strokeStyle = col(tgt, q.d > range, false); hctx.lineWidth = 1.8;
+    hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
+    hctx.restore();
   }
   for (const e of enemies) {                               // dragones enemigos: triángulos rojos orientados según su rumbo
-    if (e.dead) continue;
-    const dx = e.pos.x - p.x, dz = e.pos.z - p.z, d = Math.hypot(dx, dz);
-    const right = dx * rx + dz * rz, ahead = dx * fx + dz * fz, k = Math.min(1, range / Math.max(d, 1)) * R / range;
+    if (e.dead || e.off) continue;
+    const tgt = isTgt(e), q = at(e.pos.x, e.pos.z);
+    if (tgt) nearest = Math.min(nearest, q.d);
     _Eef.set(0, 0, -1).applyQuaternion(e.q);
-    hctx.save(); hctx.translate(cx + right * k, cy - ahead * k); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
-    hctx.fillStyle = d > range ? 'rgba(255,74,58,.55)' : C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.8)'; hctx.lineWidth = 1;
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
+    hctx.fillStyle = col(tgt, q.d > range, true); hctx.strokeStyle = 'rgba(25,6,6,.8)'; hctx.lineWidth = 1;
     hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.fill(); hctx.stroke();
     hctx.restore();
-    if (e === enemyLock.e) { hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(cx + right * k, cy - ahead * k, 8.5, 0, 6.283); hctx.stroke(); }
   }
+  const L = enemyLock.e;
+  if (L && !L.dead) { const q = at(L.pos.x, L.pos.z); hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(q.x, q.y, 8.5, 0, 6.283); hctx.stroke(); }
   for (const f of fireballs) {                             // bolas guiadas enemigas: puntos rojos que parpadean
     if (f.kind !== 'emsl' || f.lost) continue;
     const dx = f.pos.x - p.x, dz = f.pos.z - p.z, d = Math.hypot(dx, dz), k = Math.min(1, range / Math.max(d, 1)) * R / range;
@@ -237,8 +278,9 @@ function drawRadar(heading, fwd) {
   hctx.fillStyle = C_GOLD; hctx.beginPath(); hctx.moveTo(cx, cy - 6); hctx.lineTo(cx - 4, cy + 4); hctx.lineTo(cx + 4, cy + 4); hctx.closePath(); hctx.fill();
   hctx.restore();
   hudText('RADAR 2,4 km', cx, cy - R - 7, FM(11), C_DIM, 'center');
-  if (nearest < 1e8) hudText('Torre más cercana ' + (nearest >= 1000 ? (nearest / 1000).toFixed(1) + ' km' : Math.round(nearest) + ' m'), cx, cy + R + 16, FM(11), C_DIM, 'center');
+  if (nearest < 1e8) hudText('TGT más cercano ' + fmtDist(nearest), cx, cy + R + 16, FM(11), C_DIM, 'center');   // (v21: antes, la torre más cercana)
 }
+const _rp = { x: 0, y: 0, d: 0 };
 /* Bolas guiadas enemigas en camino: rombo rojo sobre cada una si está en pantalla; si no, flecha roja en un anillo alrededor del centro,
    con la distancia (como el aviso de misil de Ace Combat). */
 function drawMissileWarn() {
@@ -444,7 +486,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt);
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
