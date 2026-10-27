@@ -640,7 +640,7 @@ Jorge jugó la v21: «Todo parece funcionar correctamente». Pidió dos mejoras:
 - Partidas simuladas de 30 s: sin errores.
 
 ### Pendiente
-- **v22 entregada** (27-oct, sin jugar aún): menú con «Jugar» y los modos de juego detrás; dirigibles con 2 km de alcance. Etiqueta `v22`.
+- **v22 aprobada** («Está todo perfecto, la misión tiene éxito», 27-oct): menú con «Jugar» y los modos de juego detrás; dirigibles con 2 km de alcance (la dispersión se queda como está). Etiqueta `v22`.
 - **v21 jugada** («Todo parece funcionar correctamente», 27-oct): objetivos genéricos (TGT, etiquetas, sitios fijos, escuadrones por eventos, fijar cualquier blanco) y dirigibles, con la «Prueba de objetivos». Etiqueta `v21` en git. Para ajustar al jugarla: tamaño (`AIRSHIP_LEN`), cadencia, daño y ángulos muertos de los dirigibles. Con ella acaba la Fase 0 de la campaña (sección 7d); lo siguiente lo decide Jorge.
 - **v20**: Fulgor, cuarto dragón. Jorge dio por cerrados los dragones de momento (27-oct). Pendiente para más adelante: la descripción definitiva y las stats propias de Fulgor (ahora las de Ventoscuro).
 - **v19 entregada** (26-oct, sin jugar aún), copiada en `versiones/sky_apex_v19.*`.
