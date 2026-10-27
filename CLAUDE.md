@@ -12,7 +12,7 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 - Misiones de la campaña: antes de crear cada una, preguntarle la base, la premisa y el escenario. Claude solo propone.
 - Probar en el navegador integrado antes de entregar y avisar de que esas pruebas no juzgan el control ni la sensación de vuelo: eso lo juzga Jorge jugando.
 - No tocar `alas_de_brasa.html` (v6 estable) salvo que Jorge lo pida.
-- Licencias: el Tyrant y Drogon salen de un pack de origen dudoso y el Syrax es un personaje de HBO. El juego es solo local / portfolio: no publicarlo salvo que Jorge lo decida.
+- Publicación: Jorge decidió (27-oct-2026) hacer público el repositorio y la web. Es un proyecto personal sin ánimo de lucro.
 
 ## Flujo del juego (línea activa, rama Tyrant)
 - Editar solo los módulos de `fuentes/sky_apex/` (`NN_*.html|css|js`, en ese orden; misiones en `18_misiones_datos.js` y `19_misiones_motor.js`).
@@ -23,7 +23,8 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 - Blender: `node herramientas/blender/lanzar.mjs script.py`. Los `.blend` de trabajo van fuera del repo (`D:\Herramientas\Blender\Proyectos`); los GLB finales, a `modelos/`.
 
 ## Git y GitHub (sincronización automática, pedida por Jorge el 27-oct-2026)
-- Repositorio privado `https://github.com/JorgePove/Sky_Apex`, rama `main`. Trabajar directamente en esta carpeta, no en worktrees.
+- Repositorio público `https://github.com/JorgePove/Sky_Apex`, rama `main`. Trabajar directamente en esta carpeta, no en worktrees.
+- Web: GitHub Pages desde `main` (raíz), en `https://jorgepove.github.io/Sky_Apex/`. `index.html` lleva a `sky_apex.html` y `.nojekyll` evita que GitHub procese los archivos. Cada push a `main` la actualiza en un par de minutos, así que en `main` solo va lo que funciona.
 - Al terminar cada entrega (cada versión o corrección que Jorge va a probar): commit con un mensaje claro en español y `git push`, sin pedir permiso cada vez.
 - Cada versión nueva lleva su etiqueta (`git tag v21`, `git push --tags`). Las etiquetas sustituyen a las copias de `versiones/`.
 - Nunca subir trabajo a medias ni algo que no construye. Revisar `git status` antes del commit: ningún archivo de más de 100 MB (límite de GitHub) ni nada de la lista de abajo.

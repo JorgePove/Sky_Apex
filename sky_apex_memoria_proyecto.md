@@ -825,3 +825,10 @@ Plan propuesto (confirmarlo con Jorge antes de ejecutarlo):
    - `npm install` en `herramientas/`;
    - crear su `herramientas/blender/ruta_local.txt`.
 8. **Archivos que se sincronizan aparte:** los `.blend` de trabajo (`D:\Herramientas\Blender\Proyectos\`) y los originales pesados, si hacen falta en casa, con OneDrive o un disco externo.
+
+**Hecho (27-oct-2026, chat nuevo):**
+- Repositorio `https://github.com/JorgePove/Sky_Apex`, rama `main`, etiqueta `v20`. Primer commit: 111 archivos, ~95 MB comprimidos. `sky_apex.html` entra en el repo (decisión de Jorge).
+- Cambios sobre el plan: **push automático** al terminar cada entrega (Jorge lo pidió) y **repositorio público** con la web en GitHub Pages desde `main` (raíz): `https://jorgepove.github.io/Sky_Apex/`. Jorge decidió que las licencias no son un problema: los modelos son comprados o de webs legítimas y el proyecto no tiene ánimo de lucro.
+- `index.html` (lleva a `sky_apex.html` con los parámetros) y `.nojekyll`. Reglas de trabajo y de git en `CLAUDE.md`.
+- Credenciales: Git for Windows con el Git Credential Manager. Había una credencial vieja de SourceTree (con contraseña) que GitHub rechazaba; se arregló con `git credential-manager github login` (inicio de sesión en el navegador).
+- Fuera del repo, además de lo previsto: `herramientas/salida/`, los vídeos, mp3 y PDF de la raíz y `.claude/worktrees/`.
