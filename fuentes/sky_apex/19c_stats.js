@@ -33,8 +33,7 @@ const STATS_SCHEMA = {
     ['basico_recarga', 'Recarga de munición', 'disparos/s', 8, 'Disparos que vuelven cada segundo.', 1],
     { sec: 'Disparo guiado (clic izquierdo mantenido)' },
     ['guiado_dano', 'Daño disparo guiado', 'puntos', 60, 'Daño del impacto.'],
-    ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan.'],
-    ['guiado_coste_vida', 'Vida máxima por guiado sin munición', 'puntos', 15, 'Con la munición a 0 puedes seguir lanzando, pero cada uno te quita esta vida máxima hasta el final de la misión (no deja lanzar el que te la quitaría toda).'],
+    ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan. A 0, no hay más.'],
     ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco para cargar el guiado.', 1],
     ['guiado_fijado', 'Tiempo de fijado', 's', 3, 'Segundos con la mira en el círculo rojo hasta que sale.', 1],
     { sec: 'Lanzallamas (clic derecho)' },
@@ -231,7 +230,7 @@ function statsResolve(vals) {
 const STATS_EMBED = /*STATS_EMBED*/null/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
-let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1, MSL_HP_COST = 15;   // (v24) jugador: armadura, escudo y guiadas sin munición
+let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
 let BOOST_ACCEL = 37;                                      // m/s² de más con boost (de la velocidad máxima a la de boost en boost_aceleracion s)
 const TURN_RATE = [1.75, 0.95];                            // giro máximo (rad/s) despacio y a la velocidad máxima: sale de giro_radio
 const TURN_K = 1.45;                                       // el alabeo y el cabeceo ayudan a girar: el rumbo cambia ~1,45 veces más deprisa que la guiñada
@@ -240,8 +239,8 @@ let ENEMY_RAM_DMG = 25, ENEMY_RAM_TAKEN = 50, TOWER_SCORE = 100, TOWER_MSL_SURE 
 let ALLY_GUN_DMG = 5, ALLY_FLAME_DPS = 70, ALLY_FLAME_RANGE = 200, ALLY_VMAX = 1100 / 3.6;
 const deg = d => d * Math.PI / 180;
 
-/* Vida máxima del jugador ahora: la de su dragón menos la que le han costado las guiadas sin munición (F.hpLost). */
-function heroHpMax() { return Math.max(1, heroStats().vida - (F.hpLost || 0)); }
+/* Vida máxima del jugador: la de su dragón. */
+function heroHpMax() { return Math.max(1, heroStats().vida); }
 /* El dragón elegido (o el Excel) cambia: sus stats pasan a las variables de vuelo y armas. En partida, si un máximo sube, lo actual sube
    lo mismo (cambiar el Excel en pleno vuelo se nota al momento); si baja, lo actual baja al nuevo máximo. */
 let heroPools = null;                                      // máximos de la última vez (vida, armadura, munición, guiadas, escudos)
@@ -255,7 +254,7 @@ function applyHeroStats() {
   ARMOR_MAX = S.armadura; ARMOR_WAIT = S.armadura_espera; ARMOR_REGEN = S.armadura_regen;
   SHIELD_MAX = Math.max(0, Math.round(S.escudos)); SHIELD_T = S.escudo_duracion; SHIELD_PER_KILL = Math.round(S.escudo_por_derribo);
   GUN_DMG = S.basico_dano; GUN_AMMO = Math.max(1, Math.round(S.basico_municion)); GUN_COOL = S.basico_pausa; GUN_REFILL_DELAY = S.basico_recarga_espera; GUN_REFILL_RATE = S.basico_recarga;
-  MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_HP_COST = S.guiado_coste_vida; MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
+  MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;

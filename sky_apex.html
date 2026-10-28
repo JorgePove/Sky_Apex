@@ -325,7 +325,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
-      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición por misión; sin ella, cuesta vida máxima)</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición fija por misión)</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
       <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
@@ -4896,7 +4896,7 @@ let gameTime = 0;
 const keys = {};
 const dragonVel = new THREE.Vector3();
 const F = {
-  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, armor: 50, hpLost: 0, lastHit: -99, fireFlash: 0,   // (v24: armadura y vida máxima perdida con guiadas sin munición)
+  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, armor: 50, lastHit: -99, fireFlash: 0,   // (v24: armadura)
   aimWorld: new THREE.Vector3(0, 0, -1), aimLocal: new THREE.Vector3(0, 0, -1),
   flapTarget: 0.6, third: false, sens: 1, locked: false, lockRequested: false, ndcX: 0, ndcY: 0, pdx: 0, pdy: 0,
   sink: 0, deadT: 0, lookYaw: 0, lookPit: 0, lookHeld: false,   // mirar alrededor con la Z (rad)
@@ -5012,7 +5012,7 @@ for (const [id, fn] of [['pResume', resumeGame], ['pRetry', restartGame], ['pMen
    v15: el objetivo y el final los lleva el motor de misiones (módulos M1 y M2): showResult muestra MISIÓN CUMPLIDA (o VICTORIA, en el
    combate libre) o MISIÓN FALLIDA, con las estadísticas y la opción de volver al menú, reintentar o salir. RUN = torres y dragones de la
    partida en curso (los copia de la receta missionSetup; al arrancar, los valores por defecto). */
-const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, mslHp: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };   // (v24: mslHp = vida máxima gastada en guiadas)
+const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };
 const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new THREE.Vector3() };   // punto de partida (lo fija el arranque)
 const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
   dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
@@ -5032,7 +5032,7 @@ function showResult(win, why) {
     dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
     airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
-    ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl + (stats.mslHp ? ' · ' + fmtStat(stats.mslHp) + ' de vida máxima' : '')], ['Rayos de fuego', stats.lasers],
+    ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
     ['Distancia recorrida', (stats.dist / 1000).toFixed(1).replace('.', ',') + ' km'], ['Velocidad máxima', Math.round(stats.vmax * 3.6) + ' km/h']
   ].filter(Boolean);
@@ -5087,7 +5087,7 @@ function startGame() {
   resetRun(true);
   sfx.init(); menuEl.hidden = true; state = 'playing';
   music.menu.stop(1.6); music.game.play(2.5);              // la música del menú se funde y entra la de la partida
-  F.hpLost = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
+  F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   resetWeapons(true);
@@ -5177,7 +5177,7 @@ function aimPointFrom(origin, dir) {
    · Bola guiada (clic izquierdo mantenido más de MSL_HOLD s): con un dragón fijado (clic central) a menos de MSL_RANGE, aparece un círculo rojo a su
      alrededor. Pasado MSL_HOLD, cada segundo con la mira dentro del círculo carga el bloqueo; a los MSL_LOCK s sale una gran bola de fuego que lo persigue
      hasta impactar. Los clics cortos son siempre fuego rápido. Fuera del círculo la carga se pierde poco a poco; al soltar, entera.
-     Munición: MSL_AMMO por misión (v24: ya no se recargan; sin munición, cada una cuesta MSL_HP_COST de vida máxima).
+     Munición: MSL_AMMO por misión (v24: ya no se recargan).
    · Llamarada (clic derecho mantenido): chorro de FLAME_RANGE m que daña todo lo que toca. Calienta; al llegar al 100 %, sobrecalentamiento:
      todas las armas inutilizadas OVERHEAT_T s. Al soltar antes, el calor baja solo.
    · Rayo de fuego, la ultimate (izquierdo + derecho con menos de COMBO_WIN s entre uno y otro): la barra se carga con el tiempo (ULT_TIME s) y con
@@ -5186,8 +5186,8 @@ function aimPointFrom(origin, dir) {
    Todo sale del socket de la boca (hero.mouth, entre los labios y colgado del morro). Los disparos se lanzan después de animar al dragón en cada
    fotograma (updateAttacks), así que salen de la boca tal y como se ve en pantalla, aunque la cabeza gire.
    v24: los valores de balance (daño, munición, alcances, tiempos) son stats del dragón elegido, del Excel (7c: applyHeroStats); los de
-   aquí (con let) son los de la Base. Las guiadas ya no se recargan: MSL_AMMO por misión y, sin munición, cada una cuesta MSL_HP_COST de
-   vida máxima. El rayo se carga solo con el tiempo y con los derribos (ya no con el daño hecho). */
+   aquí (con let) son los de la Base. Las guiadas ya no se recargan: MSL_AMMO por misión. El rayo se carga solo con el tiempo y con los
+   derribos (ya no con el daño hecho). */
 let GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;     // munición, pausa mínima entre clics (s), espera antes de recargar (s), proyectiles recargados por segundo
 const GUN_SPEED = 1100, GUN_LIFE = 2.8;                                           // m/s (fija en el mundo) y vida (s)
 let GUN_DMG = 5;                                                                  // daño por impacto
@@ -5209,8 +5209,6 @@ const W = {
   ult: 0, ultFull: false, laser: 0, snd: false,                                   // rayo: carga 0-1, segundos de rayo que quedan
   shield: 2, shieldT: 0, shieldFade: 0, shieldHit: 0                              // escudo: cargas, segundos que le quedan, desvanecido final y destello de impacto
 };
-/* v24: ¿se puede cargar una guiada? Con munición, sí; sin ella, mientras no cueste toda la vida máxima. */
-function mslCanFire() { return W.msl > 0 || heroHpMax() - MSL_HP_COST >= 1; }
 function ultGain(x) { if (W.laser <= 0) W.ult = Math.min(1, W.ult + x); }
 function weaponsReady() { return W.overheat <= 0 && W.laser <= 0; }
 function resetWeapons(full) {
@@ -5261,12 +5259,7 @@ function launchMissile(e) {
   heroMouth(_mouth);
   const f = spawnFireball(_mouth, F.aimWorld, false, 1.2, 'msl');
   f.target = e; f.speed = Math.max(MSL_SPEED[0], F.speed + 40); f.vel.copy(F.aimWorld).multiplyScalar(f.speed);   // sale hacia la mira y gira hacia su blanco
-  stats.msl++;
-  if (W.msl > 0) W.msl--;
-  else {                                                   // v24: sin munición, cuesta vida máxima hasta el final de la misión
-    F.hpLost += MSL_HP_COST; F.health = Math.min(F.health, heroHpMax()); stats.mslHp += MSL_HP_COST;
-    toast('Sin munición guiada  ·  −' + fmtStat(MSL_HP_COST) + ' de vida máxima');
-  }
+  W.msl = Math.max(0, W.msl - 1); stats.msl++;
   F.fireFlash = 1; camShake = Math.max(camShake, 0.35); W.mslFlash = 1.5;
   sfx.locked(); sfx.launch();
   const d = F.aimWorld;
@@ -5370,7 +5363,7 @@ function updateWeapons(dt) {
   // bola guiada: con el clic mantenido más de MSL_HOLD s y la mira dentro del círculo, carga; pitidos cada vez más rápidos
   W.lockWhy = lockCircle(_Wl); W.lockIn = W.lockWhy === '' && _Wl.in;
   if (W.lmb) W.holdT += dt;
-  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && mslCanFire() && weaponsReady() && W.lockWhy === '') {
+  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && W.msl > 0 && weaponsReady() && W.lockWhy === '') {
     if (W.lockIn) {
       W.lock += dt / MSL_LOCK;
       W.beepT -= dt; if (W.beepT <= 0) { W.beepT = lerp(0.3, 0.07, W.lock); sfx.lockTick(W.lock); }
@@ -5919,7 +5912,7 @@ function drawAllyMarker(a) {
 /* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
 const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
 function drawLockCircle() {
-  if (!mslCanFire() || lockCircle(_Wh) !== '' || !weaponsReady()) return;
+  if (W.msl <= 0 || lockCircle(_Wh) !== '' || !weaponsReady()) return;
   const { x, y, r } = _Wh, p = W.lock;
   hctx.globalAlpha = _Wh.in ? 1 : 0.7;
   hctx.lineWidth = 4.5; hctx.strokeStyle = 'rgba(25,6,6,.55)'; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
@@ -6107,15 +6100,15 @@ function drawWeapons() {
   hudText(String(W.ammo), x1, by - 6, FM(20), W.ammo === 0 ? C_DANGER : refilling ? C_GOLD : C_BONE, 'right');
   const tw = (w - (GUN_AMMO - 1) * 2) / GUN_AMMO;
   for (let i = 0; i < GUN_AMMO; i++) { hctx.fillStyle = i < W.ammo ? (refilling ? C_GOLD : C_BONE) : faint; hctx.fillRect(x0 + i * (tw + 2), by, tw, 7); }
-  // bola guiada: munición (v24: «X/20» tras el nombre), estado del círculo y carga del bloqueo. Sin munición, cada una cuesta vida máxima
-  const why = W.lockWhy, noMsl = W.msl <= 0, can = mslCanFire();
-  const [mv, mc] = W.mslFlash > 0 ? ['LANZADA', C_GOLD] : !can ? ['SIN MUNICIÓN', C_DANGER] : W.lock > 0 ? ['FIJANDO  ' + Math.round(W.lock * 100) + ' %', noMsl ? C_DANGER : C_GOLD]
-    : why === 'sin' ? [noMsl ? '−' + fmtStat(MSL_HP_COST) + ' VIDA MÁX.' : 'SIN BLANCO', noMsl ? C_DANGER : C_DIM] : why === 'rango' ? ['FUERA DE RANGO', C_DIM] : why === 'fuera' ? ['FUERA DE VISTA', C_DIM]
+  // bola guiada: munición (v24: «X/20» tras el nombre; no se recargan), estado del círculo y carga del bloqueo
+  const why = W.lockWhy, noMsl = W.msl <= 0;
+  const [mv, mc] = W.mslFlash > 0 ? ['LANZADA', C_GOLD] : noMsl ? ['SIN MUNICIÓN', C_DANGER] : W.lock > 0 ? ['FIJANDO  ' + Math.round(W.lock * 100) + ' %', C_GOLD]
+    : why === 'sin' ? ['SIN BLANCO', C_DIM] : why === 'rango' ? ['FUERA DE RANGO', C_DIM] : why === 'fuera' ? ['FUERA DE VISTA', C_DIM]
     : [W.lockIn ? 'MANTÉN EL CLIC' : 'EN RANGO', C_DANGER];
   by = row(1, 'MANTENER CLIC', 'BOLA GUIADA', mv, mc, oh || las);
   hctx.font = FM(13); const mx = x0 + hctx.measureText('BOLA GUIADA').width + 11;
   hudText(W.msl + '/' + MSL_AMMO, mx, by - 7, FM(13), noMsl ? C_DANGER : C_GOLD);
-  bar(by, W.mslFlash > 0 ? 1 : W.lock, noMsl ? C_DANGER : C_GOLD);
+  bar(by, W.mslFlash > 0 ? 1 : W.lock, C_GOLD);
   // llamarada: calor (y la cuenta atrás del sobrecalentamiento)
   const hc = oh || W.heat > 0.85 ? C_DANGER : W.heat > 0.6 ? C_EMBER : C_BONE;
   by = row(2, 'CLIC DCHO.', 'LLAMARADA', oh ? 'SOBRECALENTADO  ' + W.overheat.toFixed(1) + ' s' : (W.flame ? 'ACTIVA  ' : 'CALOR  ') + Math.round(W.heat * 100) + ' %', oh ? C_DANGER : W.flame ? C_EMBER : C_DIM, las);
@@ -6128,6 +6121,41 @@ function drawWeapons() {
   bar(by, W.ult, full || las ? C_GOLD : 'rgba(242,184,75,.7)');
   if (full && !oh) { hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1; hctx.strokeRect(x0 - 2.5, by - 2.5, w + 5, 12); }
   hctx.shadowColor = 'rgba(0,0,0,.65)'; hctx.shadowBlur = 5; hctx.globalAlpha = 1;
+}
+/* Vida y armadura (abajo, en el centro; v25, según el boceto de Jorge): la barra de vida con «vida/máxima» dentro y, alrededor, el marco
+   amarillo de la armadura (relleno claro y borde a trazos) con «armadura/máxima» encima. El daño gasta primero la armadura: el marco se
+   vacía de derecha a izquierda (lo gastado queda como un trazo tenue) y late mientras se regenera. La vida no se regenera. */
+function drawHealth() {
+  const bw = Math.min(300, HW - 80), hh = 18, pad = 7, bx = Math.round(HW / 2 - bw / 2), by = Math.round(HH - 36);
+  const fx = bx - pad, fy = by - pad, fw = bw + 2 * pad, fh = hh + 2 * pad, hpMax = heroHpMax(), hpf = clamp(F.health / hpMax, 0, 1);
+  hctx.save(); hctx.shadowBlur = 0;
+  if (ARMOR_MAX > 0) {
+    const af = clamp(F.armor / ARMOR_MAX, 0, 1), regen = F.armor < ARMOR_MAX && gameTime - F.lastHit > ARMOR_WAIT;
+    hctx.lineWidth = 4; hctx.setLineDash([5, 4]);
+    hctx.strokeStyle = 'rgba(245,209,66,.22)'; hctx.strokeRect(fx, fy, fw, fh);                    // el marco entero, tenue (lo gastado)
+    if (af > 0) {
+      hctx.save(); hctx.beginPath(); hctx.rect(fx - 4, fy - 4, (fw + 8) * af, fh + 8); hctx.clip();
+      hctx.globalAlpha = regen ? 0.75 + 0.25 * Math.sin(gameTime * 6) : 1;
+      hctx.fillStyle = 'rgba(255,236,150,.62)'; hctx.fillRect(fx, fy, fw, fh);
+      hctx.strokeStyle = C_ARMOR; hctx.strokeRect(fx, fy, fw, fh);
+      hctx.restore();
+    }
+    hctx.setLineDash([]);
+    hctx.shadowColor = 'rgba(0,0,0,.65)'; hctx.shadowBlur = 5;
+    hudText(Math.ceil(F.armor) + '/' + fmtStat(ARMOR_MAX), HW / 2, fy - 9, `700 15px 'Share Tech Mono', ui-monospace, monospace`, C_ARMOR, 'center');
+    hctx.shadowBlur = 0;
+  }
+  // vida: fondo oscuro, lo que queda en claro (en rojo con poca), borde oscuro y el número, oscuro sobre lo lleno y claro sobre lo vacío
+  hctx.fillStyle = 'rgba(13,10,15,.62)'; hctx.fillRect(bx, by, bw, hh);
+  const fillW = bw * hpf, low = hpf <= 0.35;
+  hctx.fillStyle = low ? C_DANGER : '#f4ecdc'; hctx.fillRect(bx, by, fillW, hh);
+  hctx.strokeStyle = '#1a1410'; hctx.lineWidth = 1.5; hctx.strokeRect(bx + 0.75, by + 0.75, bw - 1.5, hh - 1.5);
+  const txt = Math.ceil(F.health) + '/' + fmtStat(hpMax), font = `700 14px 'Share Tech Mono', ui-monospace, monospace`, ty = by + hh / 2 + 5;
+  for (const [x0, w, col] of [[bx, fillW, low ? '#fff' : '#1a1410'], [bx + fillW, bw - fillW, C_BONE]]) {
+    if (w <= 0) continue;
+    hctx.save(); hctx.beginPath(); hctx.rect(x0, by, w, hh); hctx.clip(); hudText(txt, HW / 2, ty, font, col, 'center'); hctx.restore();
+  }
+  hctx.restore();
 }
 /* Boost en pantalla: túnel (los bordes se oscurecen y se cierran hacia el centro, con un velo cálido) y líneas radiales que nacen
    en el borde del túnel y se aceleran hacia fuera. Van debajo de los instrumentos. fx = intensidad del boost, kick = golpe al activarlo. */
@@ -6208,26 +6236,7 @@ function drawHUD() {
   hudText(String(Math.max(0, Math.round(agl))) + ' m', rx, ry + 84, FM(18), agl < 60 ? C_DANGER : C_GOLD, 'right');
   const vs = dragonVel.y;
   hudText((vs >= 0 ? '▲ +' : '▼ ') + Math.round(vs) + ' m/s', rx, ry + 106, FM(13), C_DIM, 'right');
-  // vida y armadura (abajo, centro). v24: la armadura, barra amarilla justo encima de la vida (el daño la gasta primero; se regenera).
-  // La vida no se regenera; la máxima perdida con guiadas sin munición sale rayada en rojo oscuro al final de la barra
-  const bw = Math.min(260, HW - 40), bx = HW / 2 - bw / 2, by = HH - 34, ay = by - 12, hpBase = Math.max(1, heroStats().vida);
-  hudText('VIDA', bx - 10, by + 9, FM(11), C_DIM, 'right'); hudText(String(Math.ceil(F.health)), bx + bw + 10, by + 9, FM(12), C_BONE);
-  hudText('ARMADURA', bx - 10, ay + 7, FM(11), C_DIM, 'right'); hudText(String(Math.ceil(F.armor)), bx + bw + 10, ay + 7, FM(12), C_ARMOR);
-  hctx.strokeStyle = C_DIM; hctx.lineWidth = 1; hctx.strokeRect(bx + 0.5, by + 0.5, bw, 9);
-  const hpf = clamp(F.health / hpBase, 0, 1), lost = clamp((hpBase - heroHpMax()) / hpBase, 0, 1);
-  hctx.fillStyle = F.health / heroHpMax() > 0.35 ? '#e8d9b8' : C_DANGER; hctx.fillRect(bx + 2, by + 2, (bw - 3) * hpf, 6);
-  if (lost > 0) {
-    const lx0 = bx + 2 + (bw - 3) * (1 - lost), lw = (bw - 3) * lost;
-    hctx.save(); hctx.shadowBlur = 0; hctx.fillStyle = 'rgba(120,20,15,.75)'; hctx.fillRect(lx0, by + 2, lw, 6);
-    hctx.beginPath(); hctx.rect(lx0, by + 2, lw, 6); hctx.clip(); hctx.strokeStyle = 'rgba(255,90,70,.6)'; hctx.lineWidth = 1; hctx.beginPath();
-    for (let x = lx0 - 6; x < lx0 + lw; x += 4) { hctx.moveTo(x, by + 8); hctx.lineTo(x + 6, by + 2); } hctx.stroke(); hctx.restore();
-  }
-  if (ARMOR_MAX > 0) {
-    hctx.strokeStyle = 'rgba(245,205,70,.55)'; hctx.strokeRect(bx + 0.5, ay + 0.5, bw, 7);
-    const af = clamp(F.armor / ARMOR_MAX, 0, 1), regen = F.armor < ARMOR_MAX && gameTime - F.lastHit > ARMOR_WAIT;
-    hctx.globalAlpha = regen ? 0.7 + 0.3 * Math.sin(gameTime * 6) : 1;
-    hctx.fillStyle = C_ARMOR; hctx.fillRect(bx + 2, ay + 2, (bw - 3) * af, 4); hctx.globalAlpha = 1;
-  }
+  drawHealth();
   // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
   let oy = 36;
   if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); hudText('TIEMPO  ' + fmtClock(left), HW - 28, oy, FM(15), left < 30 ? C_DANGER : C_BONE, 'right'); oy += 22; }
@@ -6447,7 +6456,7 @@ const TUTORIAL = [
     { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
       'Fija un blanco (clic central) a menos de {guiado_alcance} m: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
       'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los {guiado_fijado} s sale una gran bola de fuego que persigue al blanco y le quita {guiado_dano} de vida. Si la mira sale del círculo, la carga baja poco a poco.',
-      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan. Sin munición puedes seguir lanzándolas, pero cada una te cuesta {guiado_coste_vida} de vida máxima.'] },
+      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de {llamas_alcance} m que quema todo lo que toca ({llamas_dano} de daño por segundo). Sirve para torres y para dragones que tienes encima.',
       'Se calienta: el arco a la derecha de la mira se llena en {llamas_sobrecarga} s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
@@ -6463,12 +6472,12 @@ const TUTORIAL = [
     { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['F'], 'Usar una carga']], text: [
       'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
       'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
-    { id: 'recarga_guiadas', title: 'Guiadas sin munición', sum: 'No se recargan: sin munición, cuestan vida máxima.', keys: [], text: [
-      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y se pone en rojo al llegar a 0.',
-      'Sin munición puedes seguir lanzándolas: cada una te quita {guiado_coste_vida} de vida máxima hasta el final de la misión (en la barra de vida, la parte perdida sale rayada en rojo). La que te dejaría sin vida máxima ya no sale (<b>SIN MUNICIÓN</b>).'] },
+    { id: 'recarga_guiadas', title: 'Munición guiada', sum: 'No se recargan: administra las de la misión.', keys: [], text: [
+      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y, al llegar a 0, pone <b>SIN MUNICIÓN</b> en rojo.',
+      'Gástalas en los blancos duros o que más importan para la misión, y acaba el resto con el fuego rápido y la llamarada.'] },
     { id: 'vida', title: 'Vida, armadura y caídas', sum: 'La armadura se regenera; la vida, no.', keys: [], text: [
-      'Abajo, en el centro, tienes la <b>VIDA</b> ({vida}) y, justo encima, la <b>ARMADURA</b> amarilla ({armadura}). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
-      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, la barra late). La vida no: lo que pierdes no vuelve en toda la misión.',
+      'Abajo, en el centro, tienes la barra de <b>VIDA</b> ({vida}) rodeada por el marco amarillo de la <b>ARMADURA</b> ({armadura}, con su número encima). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
+      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, el marco late). La vida no: lo que pierdes no vuelve en toda la misión.',
       'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de los dirigibles ({dirigible.dano}) y chocar con un dragón ({enemigo.choque_dano}).',
       'Estrellarte contra el terreno, el agua, una isla flotante, una torre o un dirigible te derriba al instante, igual que quedarte sin vida. En una misión, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida y la armadura llenas (pero no recuperas escudos ni bolas guiadas).',
       'Vigila <b>SOBRE EL SUELO</b>, a la derecha: se pone en rojo por debajo de 60 m.'] }
@@ -6493,7 +6502,7 @@ const TUTORIAL = [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
       '<b>Izquierda</b>: velocidad, acelerador y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo; arriba a la derecha, torres, dragones y puntos.',
       '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde); los dirigibles, cápsulas huecas. Lo que no cuenta para la misión sale apagado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
-      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida y, encima, la armadura; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
+      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida, rodeada por la armadura; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
     { id: 'objetivo', title: 'Objetivo de la partida', sum: '30 torres y 20 dragones.', keys: [], text: [
       'Para ganar, destruye las 30 torres y derriba los 20 dragones. Los contadores de arriba a la derecha llevan la cuenta, y el radar te guía hasta las torres que quedan.',
       'Los blancos que cuentan para la misión llevan la marca <b>TGT</b> junto a su distancia. En otras misiones puede haber enemigos sin ella: también te atacan, pero no hace falta destruirlos para ganar. Los objetivos con un rombo (◇) son opcionales.',
@@ -7323,8 +7332,7 @@ const STATS_SCHEMA = {
     ['basico_recarga', 'Recarga de munición', 'disparos/s', 8, 'Disparos que vuelven cada segundo.', 1],
     { sec: 'Disparo guiado (clic izquierdo mantenido)' },
     ['guiado_dano', 'Daño disparo guiado', 'puntos', 60, 'Daño del impacto.'],
-    ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan.'],
-    ['guiado_coste_vida', 'Vida máxima por guiado sin munición', 'puntos', 15, 'Con la munición a 0 puedes seguir lanzando, pero cada uno te quita esta vida máxima hasta el final de la misión (no deja lanzar el que te la quitaría toda).'],
+    ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan. A 0, no hay más.'],
     ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco para cargar el guiado.', 1],
     ['guiado_fijado', 'Tiempo de fijado', 's', 3, 'Segundos con la mira en el círculo rojo hasta que sale.', 1],
     { sec: 'Lanzallamas (clic derecho)' },
@@ -7518,10 +7526,10 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_coste_vida":15,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_coste_vida":15,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_coste_vida":15,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_coste_vida":15,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_coste_vida":15,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":100,"velocidad":550,"deteccion":2000,"perder":3800,"puntos":300,"bola_dano":15,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":35,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2500,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":40,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":1.43},"dirigible":{"vida":50,"puntos":200,"dano":2,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"deteccion":2000,"perder":3500,"puntos":300,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
-let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1, MSL_HP_COST = 15;   // (v24) jugador: armadura, escudo y guiadas sin munición
+let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
 let BOOST_ACCEL = 37;                                      // m/s² de más con boost (de la velocidad máxima a la de boost en boost_aceleracion s)
 const TURN_RATE = [1.75, 0.95];                            // giro máximo (rad/s) despacio y a la velocidad máxima: sale de giro_radio
 const TURN_K = 1.45;                                       // el alabeo y el cabeceo ayudan a girar: el rumbo cambia ~1,45 veces más deprisa que la guiñada
@@ -7530,8 +7538,8 @@ let ENEMY_RAM_DMG = 25, ENEMY_RAM_TAKEN = 50, TOWER_SCORE = 100, TOWER_MSL_SURE 
 let ALLY_GUN_DMG = 5, ALLY_FLAME_DPS = 70, ALLY_FLAME_RANGE = 200, ALLY_VMAX = 1100 / 3.6;
 const deg = d => d * Math.PI / 180;
 
-/* Vida máxima del jugador ahora: la de su dragón menos la que le han costado las guiadas sin munición (F.hpLost). */
-function heroHpMax() { return Math.max(1, heroStats().vida - (F.hpLost || 0)); }
+/* Vida máxima del jugador: la de su dragón. */
+function heroHpMax() { return Math.max(1, heroStats().vida); }
 /* El dragón elegido (o el Excel) cambia: sus stats pasan a las variables de vuelo y armas. En partida, si un máximo sube, lo actual sube
    lo mismo (cambiar el Excel en pleno vuelo se nota al momento); si baja, lo actual baja al nuevo máximo. */
 let heroPools = null;                                      // máximos de la última vez (vida, armadura, munición, guiadas, escudos)
@@ -7545,7 +7553,7 @@ function applyHeroStats() {
   ARMOR_MAX = S.armadura; ARMOR_WAIT = S.armadura_espera; ARMOR_REGEN = S.armadura_regen;
   SHIELD_MAX = Math.max(0, Math.round(S.escudos)); SHIELD_T = S.escudo_duracion; SHIELD_PER_KILL = Math.round(S.escudo_por_derribo);
   GUN_DMG = S.basico_dano; GUN_AMMO = Math.max(1, Math.round(S.basico_municion)); GUN_COOL = S.basico_pausa; GUN_REFILL_DELAY = S.basico_recarga_espera; GUN_REFILL_RATE = S.basico_recarga;
-  MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_HP_COST = S.guiado_coste_vida; MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
+  MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;

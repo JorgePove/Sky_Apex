@@ -140,7 +140,7 @@ const TUTORIAL = [
     { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
       'Fija un blanco (clic central) a menos de {guiado_alcance} m: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
       'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los {guiado_fijado} s sale una gran bola de fuego que persigue al blanco y le quita {guiado_dano} de vida. Si la mira sale del círculo, la carga baja poco a poco.',
-      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan. Sin munición puedes seguir lanzándolas, pero cada una te cuesta {guiado_coste_vida} de vida máxima.'] },
+      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de {llamas_alcance} m que quema todo lo que toca ({llamas_dano} de daño por segundo). Sirve para torres y para dragones que tienes encima.',
       'Se calienta: el arco a la derecha de la mira se llena en {llamas_sobrecarga} s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
@@ -156,12 +156,12 @@ const TUTORIAL = [
     { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['F'], 'Usar una carga']], text: [
       'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
       'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
-    { id: 'recarga_guiadas', title: 'Guiadas sin munición', sum: 'No se recargan: sin munición, cuestan vida máxima.', keys: [], text: [
-      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y se pone en rojo al llegar a 0.',
-      'Sin munición puedes seguir lanzándolas: cada una te quita {guiado_coste_vida} de vida máxima hasta el final de la misión (en la barra de vida, la parte perdida sale rayada en rojo). La que te dejaría sin vida máxima ya no sale (<b>SIN MUNICIÓN</b>).'] },
+    { id: 'recarga_guiadas', title: 'Munición guiada', sum: 'No se recargan: administra las de la misión.', keys: [], text: [
+      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y, al llegar a 0, pone <b>SIN MUNICIÓN</b> en rojo.',
+      'Gástalas en los blancos duros o que más importan para la misión, y acaba el resto con el fuego rápido y la llamarada.'] },
     { id: 'vida', title: 'Vida, armadura y caídas', sum: 'La armadura se regenera; la vida, no.', keys: [], text: [
-      'Abajo, en el centro, tienes la <b>VIDA</b> ({vida}) y, justo encima, la <b>ARMADURA</b> amarilla ({armadura}). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
-      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, la barra late). La vida no: lo que pierdes no vuelve en toda la misión.',
+      'Abajo, en el centro, tienes la barra de <b>VIDA</b> ({vida}) rodeada por el marco amarillo de la <b>ARMADURA</b> ({armadura}, con su número encima). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
+      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, el marco late). La vida no: lo que pierdes no vuelve en toda la misión.',
       'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de los dirigibles ({dirigible.dano}) y chocar con un dragón ({enemigo.choque_dano}).',
       'Estrellarte contra el terreno, el agua, una isla flotante, una torre o un dirigible te derriba al instante, igual que quedarte sin vida. En una misión, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida y la armadura llenas (pero no recuperas escudos ni bolas guiadas).',
       'Vigila <b>SOBRE EL SUELO</b>, a la derecha: se pone en rojo por debajo de 60 m.'] }
@@ -186,7 +186,7 @@ const TUTORIAL = [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
       '<b>Izquierda</b>: velocidad, acelerador y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo; arriba a la derecha, torres, dragones y puntos.',
       '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde); los dirigibles, cápsulas huecas. Lo que no cuenta para la misión sale apagado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
-      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida y, encima, la armadura; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
+      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida, rodeada por la armadura; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
     { id: 'objetivo', title: 'Objetivo de la partida', sum: '30 torres y 20 dragones.', keys: [], text: [
       'Para ganar, destruye las 30 torres y derriba los 20 dragones. Los contadores de arriba a la derecha llevan la cuenta, y el radar te guía hasta las torres que quedan.',
       'Los blancos que cuentan para la misión llevan la marca <b>TGT</b> junto a su distancia. En otras misiones puede haber enemigos sin ella: también te atacan, pero no hace falta destruirlos para ganar. Los objetivos con un rombo (◇) son opcionales.',
