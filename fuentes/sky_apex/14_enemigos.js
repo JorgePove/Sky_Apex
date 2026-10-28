@@ -6,20 +6,20 @@
    (los lejanos, cada dos o tres fotogramas: ENEMY_ANIM_LOD); los que no se ven salen de la escena. Ciclo de combate: patrulla → (detección) → pasada de ataque con aproximación
    en arco → rompe y se aleja → se recoloca para atacar por la espalda → nueva pasada.
    Al derribar uno, tras unos segundos reaparece otro lejos del jugador (siempre hay ENEMY_COUNT).
-   Todos los valores de ajuste están aquí arriba.
+   Todos los valores de ajuste están aquí arriba. v24: los de balance (con let) salen del Excel, pestaña «Dragón enemigo» (7c: applyStats).
    ============================================================ */
 const ENEMY_COUNT = 6;                // dragones simultáneos en el mapa
 const ENEMY_TOTAL = 20;               // v10: dragones en toda la partida (siguen saliendo de ENEMY_COUNT en ENEMY_COUNT hasta que han aparecido todos)
                                       // v15: estos dos son los valores por defecto; los de cada misión van en su receta (RUN.dragons)
-const ENEMY_HP = 100;                 // vida en puntos de daño (proyectil rápido 5, bola guiada 70, llamarada y rayo por segundo: ver «Armas del jugador»)
-const ENEMY_DMG = 15;                 // daño de su bola de fuego sobre el jugador
-const ENEMY_SCORE = 300;              // puntos por derribo (una torre da 100)
-const ENEMY_VMAX = 550 / 3.6;         // = velocidad máxima del jugador SIN boost (VCRUISE_MAX)
-const ENEMY_DETECT = 2000;            // radio de detección (m)
-const ENEMY_LOSE = 3800;              // más allá de esta distancia pierden al jugador
-const ENEMY_FIRE_RANGE = 1000;        // alcance de disparo (m)
+let ENEMY_HP = 100;                   // vida en puntos de daño
+let ENEMY_DMG = 15;                   // daño de su bola de fuego sobre el jugador
+let ENEMY_SCORE = 300;                // puntos por derribo
+let ENEMY_VMAX = 550 / 3.6;           // velocidad máxima
+let ENEMY_DETECT = 2000;              // radio de detección (m)
+let ENEMY_LOSE = 3800;                // más allá de esta distancia pierden al jugador
+let ENEMY_FIRE_RANGE = 1000;          // alcance de disparo (m)
 const ENEMY_FIRE_CD = [1.7, 2.9];     // pausa entre bolas de fuego (s)
-const ENEMY_AIM_ERR = 0.022;          // imprecisión de la puntería (rad): ±2,2 % de la distancia
+let ENEMY_AIM_ERR = 0.022;            // imprecisión de la puntería (rad): ±2,2 % de la distancia
 const ENEMY_STAGGER = 0.4;            // separación mínima entre disparos de distintos dragones (s)
 const ENEMY_SCALE = 1.5;              // tamaño respecto al dragón del jugador (+50 %)
 const ENEMY_TINT = new THREE.Color(1.7, 1.25, 0.18), ENEMY_EYES = 0xff2418;  // piel amarilla (por encima de 1: compensa la luz azulada del cielo) y ojos rojos
@@ -302,9 +302,10 @@ function enemyShoot(e) {
    maniobrando se puede hacer que pase de largo, que se pierda o que choque con el terreno, una isla o una torre.
    Avisos: mientras alguien fija al jugador, «TE ESTÁN FIJANDO» y un pitido doble; con una bola en camino, «¡PROYECTIL APROXIMÁNDOSE!»,
    pitidos rápidos y flechas rojas hacia cada bola (drawMissileWarn). */
-const EMSL_DMG = 35, EMSL_CD = 60, EMSL_GAP = 20, EMSL_LOCK = 4;               // daño, segundos entre bolas de un mismo tirador, separación entre dos lanzamientos de cualquiera, segundos para fijar
+let EMSL_DMG = 35, EMSL_CD = 60, EMSL_GAP = 20, EMSL_LOCK = 4;                 // daño, segundos entre bolas de un mismo tirador, separación entre dos lanzamientos de cualquiera, segundos para fijar (v24: del Excel)
 const EMSL_RANGE = [500, 2500];                                                // distancia de lanzamiento (m): más cerca de 500 no lanzan
-const EMSL_SPEED = [170, 320], EMSL_ACCEL = 110, EMSL_TURN = 0.7, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s), aceleración (m/s²), giro (rad/s: con 0,7 se esquiva rompiendo fuerte con la bola a 400-600 m), cono del buscador (rad), adelanto, vida (s)
+const EMSL_SPEED = [170, 320], EMSL_ACCEL = 110, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s), aceleración (m/s²), cono del buscador (rad), adelanto, vida (s)
+let EMSL_TURN = 0.7;                                                           // giro (rad/s: con 0,7 se esquiva rompiendo fuerte con la bola a 400-600 m)
 const threat = { lock: 0, lastLaunch: -99, beepT: 0, incoming: [] };           // para los avisos: cuánto llevan fijándote (0-1) y bolas en camino
 const _Emd = new THREE.Vector3(), _Emo2 = new THREE.Vector3();
 /* Un tirador (dragón o torre: s.mslCool, s.mslLock) intenta fijar al jugador y lanzar desde `from`; can = además está en posición. */
@@ -408,7 +409,7 @@ function steerEnemy(e, tSpeed, dt) {
   // tasas de giro hacia la dirección deseada
   _Eiq.copy(q).invert(); _Esl.copy(d).applyQuaternion(_Eiq);
   const yawErr = Math.atan2(_Esl.x, -_Esl.z), pitErr = Math.atan2(_Esl.y, Math.hypot(_Esl.x, _Esl.z));
-  const sn = clamp((e.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1), maxRate = lerp(1.75, 0.95, sn);
+  const sn = clamp((e.speed - VMIN) / (ENEMY_VMAX - VMIN), 0, 1), maxRate = lerp(1.75, 0.95, sn);   // (v24: su velocidad, no la del dragón del jugador)
   const tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
   _Esr.set(1, 0, 0).applyQuaternion(q); _Esu.set(0, 1, 0).applyQuaternion(q);
   const rollAng = Math.atan2(_Esr.y, _Esu.y) - e.bank;
@@ -441,9 +442,7 @@ function steerEnemy(e, tSpeed, dt) {
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
   if (e.dead) return;
-  if (!byAlly) n *= heroStats().dmg;                       // (v17: el daño del dragón elegido; v23: el aliado, el suyo)
-  e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);
-  if (!byAlly) ultGain(n * ULT_PER_DMG);
+  e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);   // (v24: n ya es el daño del arma del dragón elegido, o del aliado)
   if (soft) sparks(at.x, at.y, at.z, 2, e.vel.x * 0.5, e.vel.y * 0.5, e.vel.z * 0.5);
   else {
     const k = clamp(n / 25, 0.3, 2);                       // el estallido crece con el daño: chispazo del proyectil rápido, golpe de la bola guiada
@@ -467,8 +466,8 @@ function killEnemy(e) {
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  const sh = mine && W.shield < SHIELD_MAX; if (sh) W.shield++;          // derribar dragones recarga el escudo
-  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +1 escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  const sh = mine ? Math.max(0, Math.min(SHIELD_PER_KILL, SHIELD_MAX - W.shield)) : 0; W.shield += sh;   // derribar dragones recarga el escudo (v24: SHIELD_PER_KILL)
+  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
   if (!mine) allySay('kill');
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
@@ -537,7 +536,7 @@ function updateEnemies(dt) {
     updateTrail(e, dt);
     const dist = e.pos.distanceTo(P);
     // choque con el jugador
-    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(25, 'Chocaste con un dragón enemigo'); damageEnemy(e, 50, e.pos); if (e.dead) continue; }
+    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo'); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
     if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate

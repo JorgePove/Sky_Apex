@@ -184,7 +184,8 @@ function towerSegDist2(t, a, b) { return segSegDist2(a, b, _tb.set(t.x, t.y, t.z
 
 const towers = new Map();           // id -> torre viva o ruina cargada
 const towerState = { destroyed: new Set(), score: 0, kills: 0 };
-const TOWER_LOAD = 3600, TOWER_UNLOAD = 4600, TOWER_HP = 60;   // carga y descarga (m); vida en puntos de daño (un proyectil rápido quita 5)
+const TOWER_LOAD = 3600, TOWER_UNLOAD = 4600;   // carga y descarga (m)
+let TOWER_HP = 60;                              // vida en puntos de daño (v24: del Excel, pestaña «Torre»)
 
 /* v10: el mundo tiene exactamente TOWER_TOTAL torres, repartidas en un anillo alrededor del inicio (TOWER_ZONE). Destruirlas todas es la
    mitad del objetivo. v13: en cada partida, entre TOWER_ISL[0] y TOWER_ISL[1] de ellas van sobre islas flotantes distintas (al azar, en islas
@@ -264,12 +265,11 @@ function losClear(ax, ay, az, bx, by, bz) {
   return true;
 }
 /* soft = daño continuo (llamarada, rayo): solo chispas y un golpe de sonido de vez en cuando. at = punto del impacto (si no, el centro de la torre).
-   Al caer, la torre recarga MSL_TOWER bolas guiadas (hasta MSL_MAX). */
-/* v17: el daño se multiplica por el del dragón elegido (heroStats().dmg); sure: la bola guiada destruye la torre siempre, de un impacto. */
+   sure: la bola guiada destruye la torre de un impacto (si TOWER_MSL_SURE). v24: amount ya es el daño del arma; las torres ya no recargan guiadas. */
 function damageTower(t, amount, soft, at, sure) {
   if (t.dead) return;
-  if (!byAlly) amount *= heroStats().dmg; if (sure) amount = Math.max(amount, t.hp);   // (v23: el aliado, con su daño y sin recompensas)
-  t.hp -= amount; if (!byAlly) ultGain(amount * ULT_PER_DMG);
+  if (sure && TOWER_MSL_SURE) amount = Math.max(amount, t.hp);
+  t.hp -= amount;
   const hx = at ? at.x : t.x, hy = at ? at.y : t.y + TOWER_TOP * 0.55, hz = at ? at.z : t.z;
   if (t.hp > 0) {
     if (soft) sparks(hx + rnd(-4, 4), hy + rnd(-4, 4), hz + rnd(-4, 4), 2, 0, 4, 0);
@@ -278,9 +278,9 @@ function damageTower(t, amount, soft, at, sure) {
     if (!(gameTime - t.sndT < 0.22)) { t.sndT = gameTime; sfx.hit(); }
     return;
   }
-  if (!byAlly) ultGain(ULT_PER_KILL * 0.5);
+  if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco; antes, la mitad)
   t.dead = true; towerState.destroyed.add(t.id);
-  towerState.score += 100; towerState.kills++;
+  towerState.score += TOWER_SCORE; towerState.kills++;
   if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)
   towerGroup.remove(t.mesh);
   t.mesh = new THREE.Mesh(ruinGeo, towerMat);
@@ -297,6 +297,5 @@ function damageTower(t, amount, soft, at, sure) {
   }
   explode(t.x, t.y + TOWER_TOP * 0.35, t.z, 2.2); explode(t.x, t.y + TOWER_TOP * 0.75, t.z, 1.6); sfx.boom(1.0);
   debris(t.x, t.y + TOWER_TOP * 0.3, t.z);
-  const got = byAlly ? 0 : Math.min(MSL_TOWER, MSL_MAX - W.msl); W.msl += got;
-  toast('Torre destruida  +100' + (got > 0 ? '  ·  +' + got + ' bola' + (got > 1 ? 's' : '') + ' guiada' + (got > 1 ? 's' : '') : '') + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
+  toast('Torre destruida  +' + TOWER_SCORE + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
 }

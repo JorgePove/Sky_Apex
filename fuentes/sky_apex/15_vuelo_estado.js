@@ -12,7 +12,7 @@ let gameTime = 0;
 const keys = {};
 const dragonVel = new THREE.Vector3();
 const F = {
-  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, lastHit: -99, fireFlash: 0,
+  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, armor: 50, hpLost: 0, lastHit: -99, fireFlash: 0,   // (v24: armadura y vida máxima perdida con guiadas sin munición)
   aimWorld: new THREE.Vector3(0, 0, -1), aimLocal: new THREE.Vector3(0, 0, -1),
   flapTarget: 0.6, third: false, sens: 1, locked: false, lockRequested: false, ndcX: 0, ndcY: 0, pdx: 0, pdy: 0,
   sink: 0, deadT: 0, lookYaw: 0, lookPit: 0, lookHeld: false,   // mirar alrededor con la Z (rad)
@@ -21,10 +21,13 @@ const F = {
   hover: false, hoverK: 0, hvy: 0,                       // hvy: velocidad vertical en hover (W/S)
   steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0   // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
 };
-const VMIN = 33, VMAX = 1100 / 3.6, VCRUISE_MAX = 550 / 3.6;   // m/s: pérdida; tope absoluto (con boost, 1100 km/h); máxima nivelado sin boost (550 km/h)
-// Empuje y resistencia calibrados con esas velocidades: a todo gas y nivelado, empuje = resistencia justo a VCRUISE_MAX;
-// el boost cuadruplica el empuje (resistencia ∝ v², así que dobla la velocidad: VMAX)
-const THRUST = [3, 27], DRAG = (THRUST[0] + THRUST[1]) / (VCRUISE_MAX * VCRUISE_MAX);
+/* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
+const VMIN = 33;
+let VMAX = 1000 / 3.6, VCRUISE_MAX = 600 / 3.6;               // m/s: tope absoluto (la velocidad con boost); máxima nivelado sin boost
+// Empuje y resistencia calibrados con esas velocidades: a todo gas y nivelado, empuje = resistencia justo a VCRUISE_MAX.
+// El boost (v24) añade BOOST_ACCEL y anula la resistencia: de VCRUISE_MAX a VMAX en boost_aceleracion s, en línea recta
+const THRUST = [3, 27];
+let DRAG = (THRUST[0] + THRUST[1]) / (VCRUISE_MAX * VCRUISE_MAX);
 const GRAVITY = 30;                                     // aceleración por la pendiente (m/s² en vertical): subir frena y bajar acelera, más que la gravedad real
 const DIVE_DRAG = 0.4;                                  // en picado el dragón pliega las alas: la resistencia baja hasta este tanto (por eso se gana tanta velocidad)
 const BANK_GAIN = 0.40, BANK_MAX = 0.80;                // alabeo ≈ 0,40 rad por rad/s de guiñada (máx. ~46°; v12: 0,30 y 29°). El cuerpo se inclina aún más (BODY_ROLL)
@@ -32,7 +35,8 @@ const BANK_GAIN = 0.40, BANK_MAX = 0.80;                // alabeo ≈ 0,40 rad p
    mira en ~0,1 s) y con más inercia en las tasas de giro (RATE_RESP, antes 7,5 y 4,5). STEER_GAIN: giro pedido por radián de error
    (antes 2,6). Simulado: a un salto de la mira de 20°, llega a la mitad en 0,47 s (antes 0,34) y se pasa un 6 % antes de asentarse. */
 const STEER_LAG = 12, RATE_RESP = [6, 4], STEER_GAIN = 2.2;
-const BOOST_DRAIN = 0.25, BOOST_REFILL = 0.125, BOOST_DELAY = 2.0, BOOST_THRUST = 90, BOOST_STEER = 0.2;   // BOOST_THRUST = 3 × empuje máximo: dobla la velocidad
+let BOOST_DRAIN = 0.1, BOOST_REFILL = 0.02, BOOST_DELAY = 2;   // barra por segundo: gasto (1 / duración) y recarga; espera antes de recargar (s)
+const BOOST_STEER = 0.2;                                // autoridad de giro con boost
 const BOOST_FOV = 18, BOOST_KICK_FOV = 5;               // apertura del campo de visión con boost y golpe extra al activarlo (grados)
 const SPEED_FOV = 8;                                    // y algo más según la velocidad por encima de la de crucero (picados y boost)
 const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (rad): continuo con boost y del golpe al activarlo
@@ -124,7 +128,7 @@ for (const [id, fn] of [['pResume', resumeGame], ['pRetry', restartGame], ['pMen
    v15: el objetivo y el final los lleva el motor de misiones (módulos M1 y M2): showResult muestra MISIÓN CUMPLIDA (o VICTORIA, en el
    combate libre) o MISIÓN FALLIDA, con las estadísticas y la opción de volver al menú, reintentar o salir. RUN = torres y dragones de la
    partida en curso (los copia de la receta missionSetup; al arrancar, los valores por defecto). */
-const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };
+const stats = { time: 0, deaths: 0, shots: 0, shotHits: 0, msl: 0, mslHits: 0, mslHp: 0, lasers: 0, shields: 0, blocked: 0, dmgTaken: 0, dist: 0, vmax: 0 };   // (v24: mslHp = vida máxima gastada en guiadas)
 const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new THREE.Vector3() };   // punto de partida (lo fija el arranque)
 const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
   dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
@@ -144,7 +148,7 @@ function showResult(win, why) {
     dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
     airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
-    ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
+    ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl + (stats.mslHp ? ' · ' + fmtStat(stats.mslHp) + ' de vida máxima' : '')], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
     ['Distancia recorrida', (stats.dist / 1000).toFixed(1).replace('.', ',') + ' km'], ['Velocidad máxima', Math.round(stats.vmax * 3.6) + ' km/h']
   ].filter(Boolean);
@@ -199,7 +203,7 @@ function startGame() {
   resetRun(true);
   sfx.init(); menuEl.hidden = true; state = 'playing';
   music.menu.stop(1.6); music.game.play(2.5);              // la música del menú se funde y entra la de la partida
-  F.health = heroStats().hp; towerState.score = 0; towerState.kills = 0;   // (v17: la vida máxima del dragón elegido)
+  F.hpLost = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   resetWeapons(true);
@@ -241,15 +245,16 @@ function respawn() {
   for (let i = 0, s; i < 6 && (s = islandAt(p.x, p.y, p.z, 90)); i++) p.y = s.yMax + 130;
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
-  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroStats().hp; F.aimWorld.copy(_f); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
+  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
 function boltsClear() { for (const b of bolts) scene.remove(b.mesh); bolts.length = 0; }
-/* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. */
+/* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. v24: el daño se lo lleva primero la armadura y lo que sobra, la vida. */
 function hurtDragon(n, why, light) {
-  F.health -= n; F.lastHit = gameTime; stats.dmgTaken += n;
+  F.lastHit = gameTime; stats.dmgTaken += n;
+  const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
   else { vigAlpha = 1; camShake = Math.max(camShake, 0.7); sfx.hurt(); const p = dragon.position; explode(p.x, p.y - 2, p.z, 0.35); }
   if (F.health <= 0) { F.health = 0; crash(why || 'Te derribaron'); }
@@ -288,32 +293,40 @@ function aimPointFrom(origin, dir) {
    · Bola guiada (clic izquierdo mantenido más de MSL_HOLD s): con un dragón fijado (clic central) a menos de MSL_RANGE, aparece un círculo rojo a su
      alrededor. Pasado MSL_HOLD, cada segundo con la mira dentro del círculo carga el bloqueo; a los MSL_LOCK s sale una gran bola de fuego que lo persigue
      hasta impactar. Los clics cortos son siempre fuego rápido. Fuera del círculo la carga se pierde poco a poco; al soltar, entera.
-     Munición: MSL_AMMO al empezar (máximo MSL_MAX); cada torre destruida recarga MSL_TOWER. Al morir no se recargan.
+     Munición: MSL_AMMO por misión (v24: ya no se recargan; sin munición, cada una cuesta MSL_HP_COST de vida máxima).
    · Llamarada (clic derecho mantenido): chorro de FLAME_RANGE m que daña todo lo que toca. Calienta; al llegar al 100 %, sobrecalentamiento:
      todas las armas inutilizadas OVERHEAT_T s. Al soltar antes, el calor baja solo.
-   · Rayo de fuego, la ultimate (izquierdo + derecho con menos de COMBO_WIN s entre uno y otro): la barra se carga con el tiempo (ULT_TIME s) y al
-     hacer daño. Llena, parpadea. Al estilo de un kamehameha: la energía se concentra en la boca LASER_CHARGE s, sale un rayo gordo que llega a
+   · Rayo de fuego, la ultimate (izquierdo + derecho con menos de COMBO_WIN s entre uno y otro): la barra se carga con el tiempo (ULT_TIME s) y con
+     cada blanco destruido (ULT_PER_KILL). Llena, parpadea. Al estilo de un kamehameha: la energía se concentra en la boca LASER_CHARGE s, sale un rayo gordo que llega a
      LASER_RANGE m, sigue a la mira y daña todo lo que cruza. Dura LASER_T s desde el clic; mientras dura, las demás armas callan.
    Todo sale del socket de la boca (hero.mouth, entre los labios y colgado del morro). Los disparos se lanzan después de animar al dragón en cada
    fotograma (updateAttacks), así que salen de la boca tal y como se ve en pantalla, aunque la cabeza gire.
-   Todos los valores de ajuste están aquí. Vida de un dragón enemigo: ENEMY_HP (100); de una torre: TOWER_HP (60). */
-const GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;   // munición, pausa mínima entre clics (s), espera antes de recargar (s), proyectiles recargados por segundo
-const GUN_SPEED = 1100, GUN_LIFE = 2.8, GUN_DMG = 5;                              // m/s (fija en el mundo), vida (s) y daño por impacto
-const MSL_RANGE = 3000, MSL_HOLD = 0.5, MSL_LOCK = 3, MSL_DECAY = 2, MSL_CIRCLE = 0.1;   // alcance (m), clic mantenido antes de empezar a cargar (s), segundos de carga con la mira en el círculo, fuera del círculo la carga se pierde x veces más rápido, radio mínimo del círculo (fracción del alto de pantalla)
-const MSL_AMMO = 5, MSL_MAX = 5, MSL_TOWER = 2;
-const MSL_CIRCLE_K = 0.5;                                                         // tamaño del círculo rojo respecto al de la v9 (que medía lo del cuadro dorado + 14 px, o el 10 % del alto)                                   // bolas guiadas al empezar, máximo y recarga por torre destruida
-const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15, MSL_DMG = 70;   // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s), daño
-const FLAME_RANGE = 200, FLAME_SPEED = 240, FLAME_DPS = 70, FLAME_HEAT = 5, FLAME_COOL = 4, OVERHEAT_T = 10;   // alcance (m), velocidad de las llamas (m/s), daño por segundo, segundos seguidos hasta sobrecalentarse, segundos en enfriarse del todo, segundos sin armas
-const ULT_TIME = 90, ULT_PER_DMG = 0.001, ULT_PER_KILL = 0.05, COMBO_WIN = 0.3;  // rayo: de 0 a 100 % en 90 s, +0,1 % por punto de daño, +5 % por derribo (una torre, la mitad); ventana de los dos clics (s)
-const LASER_T = 10, LASER_CHARGE = 0.4, LASER_SHOOT = 6000, LASER_RANGE = 3000, LASER_DPS = 220, LASER_R = 8;   // duración (s, desde el clic), carga en la boca (s), velocidad a la que sale el rayo (m/s), alcance (m), daño por segundo, radio de daño (m)
+   v24: los valores de balance (daño, munición, alcances, tiempos) son stats del dragón elegido, del Excel (7c: applyHeroStats); los de
+   aquí (con let) son los de la Base. Las guiadas ya no se recargan: MSL_AMMO por misión y, sin munición, cada una cuesta MSL_HP_COST de
+   vida máxima. El rayo se carga solo con el tiempo y con los derribos (ya no con el daño hecho). */
+let GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;     // munición, pausa mínima entre clics (s), espera antes de recargar (s), proyectiles recargados por segundo
+const GUN_SPEED = 1100, GUN_LIFE = 2.8;                                           // m/s (fija en el mundo) y vida (s)
+let GUN_DMG = 5;                                                                  // daño por impacto
+const MSL_HOLD = 0.5, MSL_DECAY = 2, MSL_CIRCLE = 0.1;                            // clic mantenido antes de empezar a cargar (s), fuera del círculo la carga se pierde x veces más rápido, radio mínimo del círculo (fracción del alto de pantalla)
+let MSL_RANGE = 3000, MSL_LOCK = 3, MSL_AMMO = 20, MSL_DMG = 60;                  // alcance (m), segundos de carga con la mira en el círculo, guiadas por misión, daño
+const MSL_CIRCLE_K = 0.5;                                                         // tamaño del círculo rojo respecto al de la v9 (que medía lo del cuadro dorado + 14 px, o el 10 % del alto)
+const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15;    // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s)
+const FLAME_SPEED = 240;                                                          // velocidad de las llamas (m/s)
+let FLAME_RANGE = 300, FLAME_DPS = 15, FLAME_HEAT = 5, FLAME_COOL = 4, OVERHEAT_T = 10;   // alcance (m), daño por segundo, segundos seguidos hasta sobrecalentarse, segundos en enfriarse del todo, segundos sin armas
+let ULT_TIME = 200, ULT_PER_KILL = 0.05;                                          // rayo: de 0 a 100 % en ULT_TIME s; carga por blanco destruido (dragón, torre o dirigible)
+const COMBO_WIN = 0.3;                                                            // ventana de los dos clics (s)
+const LASER_CHARGE = 0.4, LASER_SHOOT = 6000, LASER_R = 8;                        // carga en la boca (s), velocidad a la que sale el rayo (m/s), radio de daño (m)
+let LASER_T = 5, LASER_RANGE = 8000, LASER_DPS = 50;                              // duración (s, desde el clic), alcance (m), daño por segundo
 const W = {
   ammo: GUN_AMMO, cool: 0, refill: 0, refillAcc: 0, shotQ: false,                 // fuego rápido: munición, pausa entre clics, espera hasta recargar, disparo pendiente (sale en updateAttacks)
   lmb: false, rmb: false, lmbT: -9, rmbT: -9, holdT: 0,                           // botones pulsados, cuándo (para el «a la vez» del rayo) y cuánto lleva mantenido el izquierdo
   msl: MSL_AMMO, lock: 0, lockArmed: false, lockWhy: 'sin', lockIn: false, beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, carga 0-1, si el clic actual puede cargar, estado del círculo, lanzamiento pendiente
   heat: 0, heatDelay: 0, overheat: 0, flame: false,                               // llamarada: calor 0-1, segundos de sobrecalentamiento que quedan
   ult: 0, ultFull: false, laser: 0, snd: false,                                   // rayo: carga 0-1, segundos de rayo que quedan
-  shield: 3, shieldT: 0, shieldFade: 0, shieldHit: 0                              // escudo: cargas, segundos que le quedan, desvanecido final y destello de impacto
+  shield: 2, shieldT: 0, shieldFade: 0, shieldHit: 0                              // escudo: cargas, segundos que le quedan, desvanecido final y destello de impacto
 };
+/* v24: ¿se puede cargar una guiada? Con munición, sí; sin ella, mientras no cueste toda la vida máxima. */
+function mslCanFire() { return W.msl > 0 || heroHpMax() - MSL_HP_COST >= 1; }
 function ultGain(x) { if (W.laser <= 0) W.ult = Math.min(1, W.ult + x); }
 function weaponsReady() { return W.overheat <= 0 && W.laser <= 0; }
 function resetWeapons(full) {
@@ -364,7 +377,12 @@ function launchMissile(e) {
   heroMouth(_mouth);
   const f = spawnFireball(_mouth, F.aimWorld, false, 1.2, 'msl');
   f.target = e; f.speed = Math.max(MSL_SPEED[0], F.speed + 40); f.vel.copy(F.aimWorld).multiplyScalar(f.speed);   // sale hacia la mira y gira hacia su blanco
-  W.msl = Math.max(0, W.msl - 1); stats.msl++;
+  stats.msl++;
+  if (W.msl > 0) W.msl--;
+  else {                                                   // v24: sin munición, cuesta vida máxima hasta el final de la misión
+    F.hpLost += MSL_HP_COST; F.health = Math.min(F.health, heroHpMax()); stats.mslHp += MSL_HP_COST;
+    toast('Sin munición guiada  ·  −' + fmtStat(MSL_HP_COST) + ' de vida máxima');
+  }
   F.fireFlash = 1; camShake = Math.max(camShake, 0.35); W.mslFlash = 1.5;
   sfx.locked(); sfx.launch();
   const d = F.aimWorld;
@@ -381,7 +399,8 @@ function tryLaser() {
    Esfera de energía azul alrededor del dragón durante SHIELD_T s: anula el daño de bolas de fuego, bolas guiadas y virotes, que revientan
    contra ella (no el de los choques). SHIELD_MAX cargas, marcadas con rayas azules bajo la mira (la usada se vacía y queda negra); solo se
    recargan derribando dragones (+1 cada uno). En su último SHIELD_BLINK s parpadea y luego se disipa. */
-const SHIELD_MAX = 3, SHIELD_T = 5, SHIELD_R = 18, SHIELD_BLINK = 1.2, SHIELD_POS = new THREE.Vector3(0, 0.5, 2.5);   // cargas, duración (s), radio (m: cubre la envergadura y deja fuera la cámara de 3ª persona), parpadeo final (s), centro (ejes del dragón)
+let SHIELD_MAX = 2, SHIELD_T = 5;                                                   // cargas y duración (s): stats del dragón (v24; antes 3 cargas)
+const SHIELD_R = 18, SHIELD_BLINK = 1.2, SHIELD_POS = new THREE.Vector3(0, 0.5, 2.5);   // radio (m: cubre la envergadura y deja fuera la cámara de 3ª persona), parpadeo final (s), centro (ejes del dragón)
 const shieldMesh = (() => {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
@@ -409,7 +428,7 @@ function shieldOn() { return W.shieldT > 0 && state === 'playing'; }
 function shieldCenter(out) { return dragon.localToWorld(out.copy(SHIELD_POS)); }
 function activateShield() {
   if (state !== 'playing' || W.shieldT > 0) return;
-  if (W.shield <= 0) { sfx.empty(); toast('Sin cargas de escudo  ·  derriba dragones'); return; }
+  if (W.shield <= 0) { sfx.empty(); toast('Sin cargas de escudo' + (SHIELD_PER_KILL > 0 ? '  ·  derriba dragones' : '')); return; }
   W.shield--; W.shieldT = SHIELD_T; W.shieldFade = 0; stats.shields++; sfx.shieldOn(); toast('ESCUDO');
 }
 /* Un proyectil revienta contra el escudo en `at` (mundo): chispas azules, destello en ese punto y sonido. */
@@ -467,7 +486,7 @@ function updateWeapons(dt) {
   // bola guiada: con el clic mantenido más de MSL_HOLD s y la mira dentro del círculo, carga; pitidos cada vez más rápidos
   W.lockWhy = lockCircle(_Wl); W.lockIn = W.lockWhy === '' && _Wl.in;
   if (W.lmb) W.holdT += dt;
-  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && W.msl > 0 && weaponsReady() && W.lockWhy === '') {
+  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && mslCanFire() && weaponsReady() && W.lockWhy === '') {
     if (W.lockIn) {
       W.lock += dt / MSL_LOCK;
       W.beepT -= dt; if (W.beepT <= 0) { W.beepT = lerp(0.3, 0.07, W.lock); sfx.lockTick(W.lock); }
@@ -749,11 +768,12 @@ function updateFlight(dt, auto) {
     // velocidad: empuje (+boost) - resistencia + pendiente (subir frena, bajar acelera; en picado, con las alas
     // plegadas, la resistencia baja y se gana mucha velocidad, por encima de la de crucero)
     const dive = smooth(0.2, 0.8, -_f.y);
-    // (v17) la velocidad de cada dragón (heroStats().speed, ×): con la resistencia entre su cuadrado, todas sus velocidades de equilibrio
-    // (crucero y boost) y su tope se multiplican por ella
-    const spd = heroStats().speed;
-    const thrust = THRUST[0] + THRUST[1] * F.throttle + BOOST_THRUST * F.boostFx, drag = DRAG / (spd * spd) * (1 - DIVE_DRAG * dive) * F.speed * F.speed;
-    F.speed = clamp(F.speed + (thrust - drag - GRAVITY * _f.y) * dt, 18, VMAX * spd);
+    // (v24) VCRUISE_MAX y VMAX son las velocidades máxima y de boost del dragón elegido (DRAG ya está calibrada con la suya). Con boost, la
+    // resistencia deja de frenar y se suma BOOST_ACCEL: en línea recta, de la máxima a la de boost en boost_aceleracion s. Al soltarlo, la
+    // resistencia vuelve poco a poco (boostFx) y frena hasta la máxima.
+    const thrust = THRUST[0] + THRUST[1] * F.throttle, drag = DRAG * (1 - DIVE_DRAG * dive) * F.speed * F.speed;
+    const bk = boosting ? 1 : F.boostFx, acc = lerp(thrust - drag, BOOST_ACCEL, bk) - GRAVITY * _f.y;
+    F.speed = clamp(F.speed + acc * dt, 18, VMAX);
     // planeo: por debajo de la velocidad mínima pierde sustentación y se hunde, sin llegar a entrar en barrena
     lack = clamp((VMIN - F.speed) / VMIN, 0, 1);
     F.sink += ((lack * 34 + 2.5) - F.sink) * (1 - Math.exp(-dt * 1.5));
@@ -761,7 +781,7 @@ function updateFlight(dt, auto) {
   // giros hacia el marcador (el marcador fijo en el mundo, el dragón gira hacia él).
   // Con boost la autoridad de giro del ratón cae a BOOST_STEER: se puede, pero muy poco.
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1);
-  const maxRate = lerp(1.75, 0.95, sn), steer = lerp(1, BOOST_STEER, F.boostFx);
+  const maxRate = lerp(TURN_RATE[0], TURN_RATE[1], sn), steer = lerp(1, BOOST_STEER, F.boostFx);   // (v24: TURN_RATE sale del radio de giro del dragón)
   F.steer.lerp(F.aimLocal, 1 - Math.exp(-dt * STEER_LAG)).normalize();   // v13: el dragón persigue la mira con un poco de retraso
   const a = F.steer;
   const yawErr = Math.atan2(a.x, -a.z), pitErr = Math.atan2(a.y, Math.hypot(a.x, a.z));
@@ -825,6 +845,6 @@ function updateFlight(dt, auto) {
   }
   F.fireFlash = Math.max(0, F.fireFlash - dt * 3.2);
   if (!auto && state === 'playing') { updateWeapons(dt); stats.time += dt; stats.dist += F.speed * dt; stats.vmax = Math.max(stats.vmax, F.speed); missionUpdate(dt); }   // v15: objetivos, eventos, área y final
-  const hpMax = heroStats().hp;
-  if (F.health < hpMax && gameTime - F.lastHit > 7) F.health = Math.min(hpMax, F.health + 3 * dt);
+  // v24: la vida ya no se regenera; la armadura sí, tras ARMOR_WAIT s sin recibir daño
+  if (F.armor < ARMOR_MAX && gameTime - F.lastHit > ARMOR_WAIT) F.armor = Math.min(ARMOR_MAX, F.armor + ARMOR_REGEN * dt);
 }

@@ -2,7 +2,7 @@
    8. HUD (canvas 2D), BUCLE PRINCIPAL Y ARRANQUE
    ============================================================ */
 const hctx = hudEl.getContext('2d');
-const C_BONE = '#f1e6d3', C_DIM = 'rgba(241,230,211,.62)', C_EMBER = '#ff7a2e', C_GOLD = '#f2b84b', C_DANGER = '#ff4a3a';
+const C_BONE = '#f1e6d3', C_DIM = 'rgba(241,230,211,.62)', C_EMBER = '#ff7a2e', C_GOLD = '#f2b84b', C_DANGER = '#ff4a3a', C_ARMOR = '#f5d142';   // (v24: armadura)
 const FM = n => `${n}px 'Share Tech Mono', ui-monospace, monospace`, FD = n => `700 ${n}px 'Cinzel', Georgia, serif`;
 const _pv = new THREE.Vector3(), _camP = new THREE.Vector3(), _sp = { x: 0, y: 0 };
 let HW = 1, HH = 1;
@@ -81,7 +81,7 @@ function drawMarkers(fwd) {
     hctx.fillStyle = col; hctx.beginPath(); hctx.arc(a.x, a.y, 2.2, 0, 6.283); hctx.fill();
     // cargas de escudo: rayas azules bajo la mira (la que está en uso se vacía mientras dura; las usadas, negras)
     for (let i = 0; i < SHIELD_MAX; i++) {
-      const x = a.x - 22 + i * 15, y = a.y + 33;
+      const x = a.x - (SHIELD_MAX * 15 - 2) / 2 + i * 15, y = a.y + 33;   // (v24: centradas, sean las que sean)
       hctx.fillStyle = 'rgba(4,6,10,.88)'; hctx.fillRect(x - 1, y - 1, 15, 6);
       const f = i < W.shield ? 1 : i === W.shield && W.shieldT > 0 ? W.shieldT / SHIELD_T : 0;
       if (f > 0) { hctx.fillStyle = i < W.shield ? '#3fa9ff' : '#9fd8ff'; hctx.fillRect(x, y, 13 * f, 4); }
@@ -185,7 +185,7 @@ function drawAllyMarker(a) {
 /* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
 const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
 function drawLockCircle() {
-  if (W.msl <= 0 || lockCircle(_Wh) !== '' || !weaponsReady()) return;
+  if (!mslCanFire() || lockCircle(_Wh) !== '' || !weaponsReady()) return;
   const { x, y, r } = _Wh, p = W.lock;
   hctx.globalAlpha = _Wh.in ? 1 : 0.7;
   hctx.lineWidth = 4.5; hctx.strokeStyle = 'rgba(25,6,6,.55)'; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
@@ -373,18 +373,15 @@ function drawWeapons() {
   hudText(String(W.ammo), x1, by - 6, FM(20), W.ammo === 0 ? C_DANGER : refilling ? C_GOLD : C_BONE, 'right');
   const tw = (w - (GUN_AMMO - 1) * 2) / GUN_AMMO;
   for (let i = 0; i < GUN_AMMO; i++) { hctx.fillStyle = i < W.ammo ? (refilling ? C_GOLD : C_BONE) : faint; hctx.fillRect(x0 + i * (tw + 2), by, tw, 7); }
-  // bola guiada: munición (bolitas tras el nombre), estado del círculo y carga del bloqueo
-  const why = W.lockWhy;
-  const [mv, mc] = W.mslFlash > 0 ? ['LANZADA', C_GOLD] : W.msl <= 0 ? ['DESTRUYE TORRES', C_DANGER] : W.lock > 0 ? ['FIJANDO  ' + Math.round(W.lock * 100) + ' %', C_GOLD]
-    : why === 'sin' ? ['SIN BLANCO', C_DIM] : why === 'rango' ? ['FUERA DE RANGO', C_DIM] : why === 'fuera' ? ['FUERA DE VISTA', C_DIM]
+  // bola guiada: munición (v24: «X/20» tras el nombre), estado del círculo y carga del bloqueo. Sin munición, cada una cuesta vida máxima
+  const why = W.lockWhy, noMsl = W.msl <= 0, can = mslCanFire();
+  const [mv, mc] = W.mslFlash > 0 ? ['LANZADA', C_GOLD] : !can ? ['SIN MUNICIÓN', C_DANGER] : W.lock > 0 ? ['FIJANDO  ' + Math.round(W.lock * 100) + ' %', noMsl ? C_DANGER : C_GOLD]
+    : why === 'sin' ? [noMsl ? '−' + fmtStat(MSL_HP_COST) + ' VIDA MÁX.' : 'SIN BLANCO', noMsl ? C_DANGER : C_DIM] : why === 'rango' ? ['FUERA DE RANGO', C_DIM] : why === 'fuera' ? ['FUERA DE VISTA', C_DIM]
     : [W.lockIn ? 'MANTÉN EL CLIC' : 'EN RANGO', C_DANGER];
   by = row(1, 'MANTENER CLIC', 'BOLA GUIADA', mv, mc, oh || las);
   hctx.font = FM(13); const mx = x0 + hctx.measureText('BOLA GUIADA').width + 11;
-  for (let i = 0; i < MSL_MAX; i++) {
-    hctx.beginPath(); hctx.arc(mx + i * 10, by - 11, 3.4, 0, 6.283);
-    if (i < W.msl) { hctx.fillStyle = C_GOLD; hctx.fill(); } else { hctx.strokeStyle = 'rgba(241,230,211,.4)'; hctx.lineWidth = 1; hctx.stroke(); }
-  }
-  bar(by, W.mslFlash > 0 ? 1 : W.lock, C_GOLD);
+  hudText(W.msl + '/' + MSL_AMMO, mx, by - 7, FM(13), noMsl ? C_DANGER : C_GOLD);
+  bar(by, W.mslFlash > 0 ? 1 : W.lock, noMsl ? C_DANGER : C_GOLD);
   // llamarada: calor (y la cuenta atrás del sobrecalentamiento)
   const hc = oh || W.heat > 0.85 ? C_DANGER : W.heat > 0.6 ? C_EMBER : C_BONE;
   by = row(2, 'CLIC DCHO.', 'LLAMARADA', oh ? 'SOBRECALENTADO  ' + W.overheat.toFixed(1) + ' s' : (W.flame ? 'ACTIVA  ' : 'CALOR  ') + Math.round(W.heat * 100) + ' %', oh ? C_DANGER : W.flame ? C_EMBER : C_DIM, las);
@@ -477,12 +474,26 @@ function drawHUD() {
   hudText(String(Math.max(0, Math.round(agl))) + ' m', rx, ry + 84, FM(18), agl < 60 ? C_DANGER : C_GOLD, 'right');
   const vs = dragonVel.y;
   hudText((vs >= 0 ? '▲ +' : '▼ ') + Math.round(vs) + ' m/s', rx, ry + 106, FM(13), C_DIM, 'right');
-  // vida (abajo, centro)
-  const bw = Math.min(260, HW - 40), bx = HW / 2 - bw / 2, by = HH - 34;
-  hudText('VIDA', bx, by - 7, FM(11), C_DIM);
-  hctx.strokeStyle = C_DIM; hctx.strokeRect(bx + 0.5, by + 0.5, bw, 9);
-  const hpf = clamp(F.health / heroStats().hp, 0, 1);    // (v17: sobre la vida máxima del dragón elegido)
-  hctx.fillStyle = hpf > 0.35 ? '#e8d9b8' : C_DANGER; hctx.fillRect(bx + 2, by + 2, (bw - 3) * hpf, 6);
+  // vida y armadura (abajo, centro). v24: la armadura, barra amarilla justo encima de la vida (el daño la gasta primero; se regenera).
+  // La vida no se regenera; la máxima perdida con guiadas sin munición sale rayada en rojo oscuro al final de la barra
+  const bw = Math.min(260, HW - 40), bx = HW / 2 - bw / 2, by = HH - 34, ay = by - 12, hpBase = Math.max(1, heroStats().vida);
+  hudText('VIDA', bx - 10, by + 9, FM(11), C_DIM, 'right'); hudText(String(Math.ceil(F.health)), bx + bw + 10, by + 9, FM(12), C_BONE);
+  hudText('ARMADURA', bx - 10, ay + 7, FM(11), C_DIM, 'right'); hudText(String(Math.ceil(F.armor)), bx + bw + 10, ay + 7, FM(12), C_ARMOR);
+  hctx.strokeStyle = C_DIM; hctx.lineWidth = 1; hctx.strokeRect(bx + 0.5, by + 0.5, bw, 9);
+  const hpf = clamp(F.health / hpBase, 0, 1), lost = clamp((hpBase - heroHpMax()) / hpBase, 0, 1);
+  hctx.fillStyle = F.health / heroHpMax() > 0.35 ? '#e8d9b8' : C_DANGER; hctx.fillRect(bx + 2, by + 2, (bw - 3) * hpf, 6);
+  if (lost > 0) {
+    const lx0 = bx + 2 + (bw - 3) * (1 - lost), lw = (bw - 3) * lost;
+    hctx.save(); hctx.shadowBlur = 0; hctx.fillStyle = 'rgba(120,20,15,.75)'; hctx.fillRect(lx0, by + 2, lw, 6);
+    hctx.beginPath(); hctx.rect(lx0, by + 2, lw, 6); hctx.clip(); hctx.strokeStyle = 'rgba(255,90,70,.6)'; hctx.lineWidth = 1; hctx.beginPath();
+    for (let x = lx0 - 6; x < lx0 + lw; x += 4) { hctx.moveTo(x, by + 8); hctx.lineTo(x + 6, by + 2); } hctx.stroke(); hctx.restore();
+  }
+  if (ARMOR_MAX > 0) {
+    hctx.strokeStyle = 'rgba(245,205,70,.55)'; hctx.strokeRect(bx + 0.5, ay + 0.5, bw, 7);
+    const af = clamp(F.armor / ARMOR_MAX, 0, 1), regen = F.armor < ARMOR_MAX && gameTime - F.lastHit > ARMOR_WAIT;
+    hctx.globalAlpha = regen ? 0.7 + 0.3 * Math.sin(gameTime * 6) : 1;
+    hctx.fillStyle = C_ARMOR; hctx.fillRect(bx + 2, ay + 2, (bw - 3) * af, 4); hctx.globalAlpha = 1;
+  }
   // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
   let oy = 36;
   if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); hudText('TIEMPO  ' + fmtClock(left), HW - 28, oy, FM(15), left < 30 ? C_DANGER : C_BONE, 'right'); oy += 22; }

@@ -198,7 +198,7 @@ function spawnFireball(from, dir, enemy, vol, kind, ally) {
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map, color: colH, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
   const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
-  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? GUN_DMG : MSL_DMG, target: null, lost: false,
+  const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? (ally ? ALLY_GUN_DMG : GUN_DMG) : MSL_DMG, target: null, lost: false,
     c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: !!ally };
   fireballs.push(f);
   if (gun) sfx.shot(ally ? vol : undefined); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
@@ -352,7 +352,7 @@ function updateBolts(dt) {
 }
 /* v10: las torres son baterías antiaéreas: ráfagas de AA_BURST proyectiles rápidos (como el fuego rápido del jugador, pero con aún
    menos daño) hacia el punto de interceptación del jugador, con dispersión. Ya no lanzan bolas guiadas ni virotes. */
-const AA_DMG = 3, AA_SPEED = 1100, AA_LIFE = 1.7, AA_RANGE = 1500, AA_BURST = 5, AA_RATE = 0.12, AA_PAUSE = [2.2, 3.6], AA_SPREAD = 0.025;   // daño, m/s, vida (s), alcance (m), disparos por ráfaga, pausa entre disparos y entre ráfagas (s), dispersión (rad)
+let AA_DMG = 3, AA_SPEED = 1100, AA_LIFE = 1.7, AA_RANGE = 1500, AA_BURST = 5, AA_RATE = 0.12, AA_PAUSE = [2.2, 3.6], AA_SPREAD = 0.025;   // daño, m/s, vida (s), alcance (m), disparos por ráfaga, pausa entre disparos y entre ráfagas (s), dispersión (rad). v24: del Excel, pestaña «Torre»
 const _Etop = new THREE.Vector3(), _Eaa = new THREE.Vector3(), _Eaa2 = new THREE.Vector3();
 function updateTowerAI(dt) {
   if (crystalRes) crystalRes.halo.opacity = 0.6 + 0.2 * Math.sin(gameTime * 2.3);

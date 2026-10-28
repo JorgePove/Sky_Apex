@@ -7,6 +7,7 @@
     "optimizar": "node optimizar_modelo.mjs"
   },
   "dependencies": {
+    "exceljs": "4.4.0",
     "jpeg-js": "0.4.4",
     "meshoptimizer": "1.3.0",
     "pngjs": "7.0.0",

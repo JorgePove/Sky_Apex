@@ -47,11 +47,11 @@
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
-      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición por misión; sin ella, cuesta vida máxima)</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
       <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
-      <dt><kbd>F</kbd></dt><dd>Escudo: 5 s sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
+      <dt><kbd>F</kbd></dt><dd>Escudo: unos segundos sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
       <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
       <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
       <dt><kbd>M</kbd></dt><dd>Silenciar el sonido</dd>
@@ -70,6 +70,8 @@
     <div class="opt"><label for="volGame">Música de la partida</label><input id="volGame" type="range" min="0" max="100"><span class="vol-val" id="volGameV"></span></div>
     <div class="opt"><label for="volSfx">Efectos de sonido</label><input id="volSfx" type="range" min="0" max="100"><span class="vol-val" id="volSfxV"></span></div>
     <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
+    <div class="kicker">Stats de las unidades</div>
+    <p class="lead stats-info" id="statsInfo"></p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel tut" id="pTutorial" hidden role="dialog" aria-label="Tutorial">

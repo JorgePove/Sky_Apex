@@ -88,11 +88,16 @@ function refreshDragonButtons() {
   document.getElementById('selName').textContent = D.name;
   document.getElementById('selDesc').textContent = D.desc;
   const cr = document.getElementById('selCredit'); cr.textContent = D.credit || ''; cr.hidden = !D.credit;
-  // v17: stats, con una barra respecto al mejor de todos (vida en puntos; velocidad y daño en % sobre lo normal)
-  const S = D.stats, all = DRAGON_IDS.map(k => DRAGONS[k].stats), best = k => Math.max(...all.map(s => s[k]));
-  const pct = v => Math.abs(v - 1) < 1e-3 ? '=' : (v > 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + ' %';
-  document.getElementById('selStats').innerHTML = [['Vida', S.hp, String(S.hp), S.hp - 100, 'hp'], ['Velocidad', S.speed, pct(S.speed), S.speed - 1, 'speed'], ['Daño', S.dmg, pct(S.dmg), S.dmg - 1, 'dmg']]
-    .map(([n, v, txt, d, k]) => `<dt>${n}</dt><dd class="${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${txt}</dd><i><b style="width:${(100 * v / best(k)).toFixed(0)}%"></b></i>`).join('');
+  // v24: stats del Excel, con una barra respecto al mejor de los cuatro; en dorado lo que está por encima de la Base y en rojo lo que está
+  // por debajo. Daño: la media de sus cuatro armas respecto a las de la Base (en %)
+  const B = STATS.base, dmg = S => ['basico_dano', 'guiado_dano', 'llamas_dano', 'rayo_dano'].reduce((a, k) => a + S[k] / (B[k] || 1), 0) / 4;
+  const ROWS = [['Vida', S => S.vida, v => fmtStat(v)], ['Armadura', S => S.armadura, v => fmtStat(v)], ['Velocidad', S => S.vel_max, v => fmtStat(v) + ' km/h'],
+    ['Boost', S => S.vel_boost, v => fmtStat(v) + ' km/h'], ['Daño', dmg, v => Math.abs(v - 1) < 1e-3 ? '=' : (v > 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + ' %']];
+  const S = heroStats(), all = DRAGON_IDS.map(k => STATS[k] || B);
+  document.getElementById('selStats').innerHTML = ROWS.map(([n, f, txt]) => {
+    const v = f(S), d = v - f(B), best = Math.max(...all.map(f), 1e-6);
+    return `<dt>${n}</dt><dd class="${d > 1e-6 ? 'up' : d < -1e-6 ? 'down' : ''}">${txt(v)}</dd><i><b style="width:${(100 * v / best).toFixed(0)}%"></b></i>`;
+  }).join('');
   for (const b of document.querySelectorAll('#selDragons button')) {
     const E = DRAGONS[b.dataset.id], ok = b.dataset.id === 'tyrant' || E.ready;
     b.disabled = !ok; b.classList.toggle('on', b.dataset.id === alt.id);
@@ -302,7 +307,7 @@ document.getElementById('fireReset').addEventListener('click', () => { colors.fi
 const AIR_FIRE = 2.6;                                      // (s) llamarada de prueba de los que flotan
 document.getElementById('fireTry').addEventListener('click', () => { if (state !== 'select') return; if (show.own) show.airFire = AIR_FIRE; else playShow('fuego', 0.3); });   // ver el aliento sin esperar al azar
 for (const b of document.querySelectorAll('#selDragons button')) b.addEventListener('click', () => chooseDragon(b.dataset.id));   // v16: los dragones (v20: cuatro)
-syncPickers(); refreshDragonButtons();
+syncPickers();                                             // (v24: los botones y las stats, al cargar las stats: applyStats, 7c)
 /* Clic derecho mantenido: girar la plataforma. Rueda: acercar. */
 window.addEventListener('mousedown', e => { if (e.button === 2 && state === 'select') { show.drag = true; show.lastX = e.clientX; show.lastT = performance.now(); show.vel = 0; canvasGL.style.cursor = 'grabbing'; } });
 window.addEventListener('mousemove', e => {

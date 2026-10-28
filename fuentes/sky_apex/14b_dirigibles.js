@@ -14,16 +14,17 @@
    ============================================================ */
 const AIRSHIP_LEN = 95;                  // eslora en el juego (m)
 const AIRSHIP_MODEL_LEN = 20.57;         // eslora del modelo (m): la escala es AIRSHIP_LEN / AIRSHIP_MODEL_LEN
-const AIRSHIP_HP = 50;                   // vida (un proyectil rápido quita 5; una bola guiada, 70)
-const AIRSHIP_SCORE = 200;               // puntos (una torre da 100 y un dragón 300)
+/* v24: los valores de balance (con let) salen del Excel, pestaña «Dirigible» (7c: applyStats). */
+let AIRSHIP_HP = 50;                     // vida
+let AIRSHIP_SCORE = 200;                 // puntos
 const AIRSHIP_ALT = [500, 1000];         // altura sobre el suelo (m) por defecto
 const AIRSHIP_ZONE = [1500, 7000];       // anillo alrededor del punto de partida donde se reparten (m) por defecto
 const AIRSHIP_GAP = 900;                 // separación mínima entre dos (m)
-const AIRSHIP_RANGE = 2000;              // alcance de los cañones (m) (v22: antes 1000)
-const AIRSHIP_ARC = 35 * Math.PI / 180;  // ángulo muerto a proa y a popa, desde el eje: ahí no pueden disparar
-const AIRSHIP_ELEV = 70 * Math.PI / 180; // por encima (o por debajo) de esta elevación tampoco: los cañones van en los costados
-const AIRSHIP_RATE = 0.3;                // s entre disparos, sin pausas (las torres: ráfagas de 5 cada 0,12 s y 2-3,6 s de pausa)
-const AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 2.8, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s: llega algo más allá del alcance) y dispersión (rad) de cada proyectil
+let AIRSHIP_RANGE = 2000;                // alcance de los cañones (m) (v22: antes 1000)
+let AIRSHIP_ARC = 35 * Math.PI / 180;    // ángulo muerto a proa y a popa, desde el eje: ahí no pueden disparar
+let AIRSHIP_ELEV = 70 * Math.PI / 180;   // por encima (o por debajo) de esta elevación tampoco: los cañones van en los costados
+let AIRSHIP_RATE = 0.3;                  // s entre disparos, sin pausas (las torres: ráfagas de 5 cada 0,12 s y 2-3,6 s de pausa)
+let AIRSHIP_DMG = 2, AIRSHIP_SHOT_SPEED = 800, AIRSHIP_SHOT_LIFE = 2.8, AIRSHIP_SPREAD = 0.03;   // daño, m/s, vida (s: llega algo más allá del alcance) y dispersión (rad) de cada proyectil
 const AIRSHIP_DRAW = 8500;               // más lejos no se dibujan (la niebla ya los oculta)
 const AIRSHIP_DIE = 0.45;                // s de agonía antes de la explosión
 const AIRSHIP_HULL = { y: 0.6, z0: 7.5, z1: -5.5, r: 5.2 };                 // cápsula del casco en unidades del modelo (popa +z, proa -z)
@@ -163,12 +164,10 @@ function airshipRayHit(o, d, maxT) {
 }
 
 /* ---------- Daño y destrucción ---------- */
-/* n = puntos de daño (se multiplican por el daño del dragón elegido). soft = continuo (llamarada, rayo). at = punto del impacto. */
+/* n = puntos de daño (v24: ya es el del arma del dragón elegido, o del aliado). soft = continuo (llamarada, rayo). at = punto del impacto. */
 function damageAirship(a, n, soft, at) {
   if (a.dead) return;
-  if (!byAlly) n *= heroStats().dmg;                       // (v23: el aliado, con su daño y sin cargar el rayo del jugador)
   a.hp -= n; a.hitFlash = Math.max(a.hitFlash, soft ? 0.55 : 1);
-  if (!byAlly) ultGain(n * ULT_PER_DMG);
   const c = ARC_COLOR;
   if (soft) sparks(at.x, at.y, at.z, 2, 0, 0, 0);
   else {
@@ -184,7 +183,7 @@ function damageAirship(a, n, soft, at) {
 }
 function killAirship(a) {
   a.hp = 0; a.dead = true; a.dying = AIRSHIP_DIE;
-  if (!byAlly) ultGain(ULT_PER_KILL * 0.75);
+  if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
   toast((byAlly ? allyName() + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);

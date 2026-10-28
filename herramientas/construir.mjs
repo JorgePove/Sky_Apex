@@ -3,6 +3,8 @@
       con el servidor local, porque carga los modelos sueltos de ../modelos/).
    2. Comprueba la sintaxis del JavaScript junto (node --check).
    3. Incrusta el dragón, los brazos, el caballero y el logo → sky_apex.html (el archivo para jugar).
+   v24: en el paso 1 mete además una copia de las stats del Excel (datos/sky_apex_stats.xlsx) en STATS_EMBED (19c_stats.js): es lo que
+   usa el juego cuando no puede leer el Excel (sky_apex.html abierto con doble clic).
    Uso (desde la raíz del proyecto o desde herramientas/):
      node herramientas/construir.mjs                 todo
      node herramientas/construir.mjs --solo-fuente   solo los pasos 1 y 2 (para probar en el navegador sin generar el HTML de 10 MB) */
@@ -11,6 +13,7 @@ import os from 'os';
 import path from 'path';
 import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { cargarEsquema, inflar } from './stats_excel.mjs';
 
 const HERR = path.dirname(fileURLToPath(import.meta.url)), RAIZ = path.resolve(HERR, '..');
 const MOD = path.join(RAIZ, 'fuentes', 'sky_apex'), SRC = path.join(RAIZ, 'fuentes', 'sky_apex.src.html');
@@ -19,6 +22,15 @@ const soloFuente = process.argv.includes('--solo-fuente');
 // 1. Módulos en orden (00_…, 01_…); los demás archivos de la carpeta se ignoran
 const files = fs.readdirSync(MOD).filter(f => /^\d\d[a-z]?_.+\.(html|css|js)$/.test(f)).sort();
 const bufs = files.map(f => fs.readFileSync(path.join(MOD, f)));
+// (v24) copia de las stats del Excel, leída con el mismo lector que el juego
+const EMBED = '/*STATS_EMBED*/null/*FIN*/', iStats = files.indexOf('19c_stats.js');
+if (iStats < 0 || !bufs[iStats].includes(EMBED)) { console.error('ERROR: falta ' + EMBED + ' en 19c_stats.js'); process.exit(1); }
+const S = cargarEsquema(), XLSX = path.join(RAIZ, S.STATS_FILE);
+if (fs.existsSync(XLSX)) {
+  const vals = S.statsFromSheets(await S.xlsxSheets(fs.readFileSync(XLSX), inflar)), { miss } = S.statsResolve(vals);
+  bufs[iStats] = Buffer.from(bufs[iStats].toString('utf8').replace(EMBED, '/*STATS_EMBED*/' + JSON.stringify(vals) + '/*FIN*/'));
+  console.log(`Stats: ${S.STATS_FILE} (${Object.keys(vals).length} pestañas de unidades)` + (miss.length ? ` · AVISO, faltan: ${miss.join(', ')}` : ''));
+} else console.warn('AVISO: no está ' + S.STATS_FILE + ': el HTML usará los valores por defecto del código');
 fs.writeFileSync(SRC, Buffer.concat(bufs));
 console.log(`Fuente: ${path.relative(RAIZ, SRC)} (${files.length} módulos, ${(fs.statSync(SRC).size / 1e3).toFixed(0)} kB)`);
 

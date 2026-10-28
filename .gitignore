@@ -36,3 +36,6 @@ __pycache__/
 /herramientas/blender/ruta_local.txt
 /.claude/settings.local.json
 /.claude/worktrees/
+
+# Archivo de bloqueo que crea Excel mientras el libro está abierto
+~$*

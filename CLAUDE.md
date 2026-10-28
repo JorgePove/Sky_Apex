@@ -16,9 +16,10 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 
 ## Flujo del juego (línea activa, rama Tyrant)
 - Editar solo los módulos de `fuentes/sky_apex/` (`NN_*.html|css|js`, en ese orden; misiones en `18_misiones_datos.js` y `19_misiones_motor.js`).
-- `node herramientas/construir.mjs` junta los módulos y genera `fuentes/sky_apex.src.html` (para probar con servidor) y `sky_apex.html` (para jugar, con los modelos incrustados). Con `--solo-fuente`, solo la fuente.
+- `node herramientas/construir.mjs` junta los módulos y genera `fuentes/sky_apex.src.html` (para probar con servidor) y `sky_apex.html` (para jugar, con los modelos incrustados y una copia de las stats del Excel). Con `--solo-fuente`, solo la fuente.
+- Stats de las unidades (desde la v24): en `datos/sky_apex_stats.xlsx`, que edita Jorge y el juego lee solo. Ningún valor de balance fijo en el código: se añade a `STATS_SCHEMA` (`19c_stats.js`), se usa en `applyStats`/`applyHeroStats` y se amplía el Excel con `node herramientas/stats_excel.mjs` (conserva los valores de Jorge). `Jugar.bat` abre el juego con servidor local para que lea el Excel al momento.
 - Nunca editar ni leer entero un HTML generado: lleva líneas base64 de varios MB.
-- Fuera del HTML, junto a él: `musica/`, `tutorial/` e `imagenes/`. Modelos procesados en `modelos/`.
+- Fuera del HTML, junto a él: `musica/`, `tutorial/`, `imagenes/` y `datos/`. Modelos procesados en `modelos/`.
 - Servidores de prueba en `.claude/launch.json`; el habitual es `sky-apex-2` (8767): `http://localhost:8767/fuentes/sky_apex.src.html`.
 - Blender: `node herramientas/blender/lanzar.mjs script.py`. Los `.blend` de trabajo van fuera del repo (`D:\Herramientas\Blender\Proyectos`); los GLB finales, a `modelos/`.
 

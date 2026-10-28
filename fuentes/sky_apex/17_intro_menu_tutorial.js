@@ -119,72 +119,74 @@ const TUTORIAL = [
   ] },
   { cat: 'Velocidad', items: [
     { id: 'acelerar', title: 'Acelerar y frenar', sum: 'W abre el acelerador y S lo cierra.', keys: [[['W', 'S'], 'Acelerar / frenar']], text: [
-      K('W') + ' abre el acelerador y ' + K('S') + ' lo cierra. A la izquierda tienes la <b>VELOCIDAD</b> en km/h y, debajo, la barra del <b>ACELERADOR</b>. A todo gas, en vuelo nivelado, el dragón llega a unos 550 km/h.',
+      K('W') + ' abre el acelerador y ' + K('S') + ' lo cierra. A la izquierda tienes la <b>VELOCIDAD</b> en km/h y, debajo, la barra del <b>ACELERADOR</b>. A todo gas, en vuelo nivelado, el dragón llega a {vel_max} km/h.',
       'Volar más despacio permite girar más cerrado, pero por debajo de unos 120 km/h el dragón pierde sustentación y empieza a hundirse.'] },
-    { id: 'boost', title: 'Boost', sum: 'Dobla la velocidad durante unos segundos.', keys: [[['Shift'], 'Mantener: boost']], text: [
-      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y llega a unos 1100 km/h. La barra <b>BOOST</b> se vacía en 4 s de uso seguido.',
-      'Se recarga sola 2 s después de soltar ' + K('Shift') + ' (<b>RECARGA EN…</b> y luego <b>RECARGANDO</b>); llenarla del todo lleva unos 8 s. Si la vacías por completo (<b>AGOTADO</b>), tiene que recargar un poco antes de volver a usarla.',
+    { id: 'boost', title: 'Boost', sum: 'Mucha más velocidad durante unos segundos.', keys: [[['Shift'], 'Mantener: boost']], text: [
+      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y en {boost_aceleracion} s pasa de {vel_max} a {vel_boost} km/h. La barra <b>BOOST</b> dura {boost_duracion} s de uso seguido.',
+      'Se recarga sola {boost_espera} s después de soltar ' + K('Shift') + ' (<b>RECARGA EN…</b> y luego <b>RECARGANDO</b>), un {boost_recarga} % por segundo. Si la vacías por completo (<b>AGOTADO</b>), tiene que recargar un poco antes de volver a usarla.',
       'Con boost casi no se puede girar: úsalo en línea recta para acercarte, escapar o esquivar. En hover no funciona.'] },
     { id: 'picados', title: 'Subidas y picados', sum: 'Subir cuesta velocidad; bajar la da.', keys: [[['Ratón'], 'Mira arriba: subir · abajo: picar']], text: [
-      'La gravedad cuenta: al subir, el dragón pierde velocidad, y al bajar la gana. En un picado pronunciado pliega las alas y puede pasar de 900 km/h sin usar el boost.',
+      'La gravedad cuenta: al subir, el dragón pierde velocidad, y al bajar la gana. En un picado pronunciado pliega las alas y puede llegar a {vel_boost} km/h sin usar el boost.',
       'Aprovéchalo: pica para ganar velocidad antes de un ataque o para escapar, y no encadenes subidas largas si vas despacio. Al picar, vigila <b>SOBRE EL SUELO</b>.'] }
   ] },
   { cat: 'Ataques', items: [
     { id: 'fuego', title: 'Fuego rápido', sum: 'Un proyectil rápido por clic, hacia la mira.', keys: [[['Clic izq.'], 'Un disparo por clic']], text: [
-      'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño (un dragón aguanta 20 impactos y una torre, 12), pero acierta fácil y desde lejos.',
-      'Tienes 20 disparos, que ves en el panel de <b>ARMAS</b> (abajo a la derecha). Un segundo después de dejar de disparar empiezan a recargarse solos: las marcas se vuelven doradas.',
+      'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño ({basico_dano} por impacto: un dragón enemigo tiene {enemigo.vida} de vida y una torre, {torre.vida}), pero acierta fácil y desde lejos.',
+      'Tienes {basico_municion} disparos, que ves en el panel de <b>ARMAS</b> (abajo a la derecha). {basico_recarga_espera} s después de dejar de disparar empiezan a recargarse solos: las marcas se vuelven doradas.',
       'Si tienes un dragón fijado, apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo.'] },
     { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué blanco seguir.', keys: [[['Clic central'], 'Fijar el siguiente blanco a la vista']], text: [
       'El clic central (la rueda) fija un blanco que tengas en pantalla: un dragón, una torre o un dirigible (estos dos, a menos de 6 km). Primero los que cuentan para la misión (<b>TGT</b>), del más cercano al más lejano; luego los demás. Lo rodea un recuadro dorado con su distancia. Cada clic pasa al siguiente; si no hay otro, lo suelta.',
       'Con un blanco fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar.'] },
     { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
-      'Fija un blanco (clic central) a menos de 3 km: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
-      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los 3 s sale una gran bola de fuego que persigue al blanco y le quita 70 de vida: derriba de un golpe una torre o un dirigible. Si la mira sale del círculo, la carga baja poco a poco.',
-      'Empiezas con 5 bolas (las bolitas doradas del panel). No se recargan solas: cada torre destruida te da 2 más.'] },
+      'Fija un blanco (clic central) a menos de {guiado_alcance} m: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
+      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los {guiado_fijado} s sale una gran bola de fuego que persigue al blanco y le quita {guiado_dano} de vida. Si la mira sale del círculo, la carga baja poco a poco.',
+      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan. Sin munición puedes seguir lanzándolas, pero cada una te cuesta {guiado_coste_vida} de vida máxima.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
-      'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de 200 m que quema todo lo que toca (70 de daño por segundo). Es el arma más fuerte de cerca: ideal para torres y para dragones que tienes encima.',
-      'Se calienta: el arco a la derecha de la mira se llena en 5 s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante 10 s. Suelta antes y se enfría sola.'] },
-    { id: 'rayo', title: 'Rayo de fuego', sum: 'El ataque definitivo: un rayo de 3 km durante 10 s.', keys: [[['Clic izq.', 'Clic dcho.'], 'A la vez, con la barra llena']], text: [
-      'Su barra, la última del panel de <b>ARMAS</b>, se llena con el tiempo (en 90 s) y más deprisa haciendo daño y derribando enemigos. Llena, parpadea y pone <b>LISTO</b>.',
-      'Pulsa los dos botones a la vez: la energía se concentra en la boca y sale un rayo de hasta 3 km que sigue a la mira durante 10 s y arrasa todo lo que cruza. Mientras dura, las demás armas no funcionan.'] }
+      'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de {llamas_alcance} m que quema todo lo que toca ({llamas_dano} de daño por segundo). Sirve para torres y para dragones que tienes encima.',
+      'Se calienta: el arco a la derecha de la mira se llena en {llamas_sobrecarga} s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
+    { id: 'rayo', title: 'Rayo de fuego', sum: 'El ataque definitivo: un rayo larguísimo durante unos segundos.', keys: [[['Clic izq.', 'Clic dcho.'], 'A la vez, con la barra llena']], text: [
+      'Su barra, la última del panel de <b>ARMAS</b>, se llena con el tiempo ({rayo_recarga} % por segundo) y un {rayo_por_derribo} % más por cada enemigo que destruyes (dragón, torre o dirigible). Llena, parpadea y pone <b>LISTO</b>.',
+      'Pulsa los dos botones a la vez: la energía se concentra en la boca y sale un rayo de hasta {rayo_alcance} km que sigue a la mira durante {rayo_duracion} s y quema todo lo que cruza ({rayo_dano} de daño por segundo). Mientras dura, las demás armas no funcionan.'] }
   ] },
   { cat: 'Defensa', items: [
-    { id: 'escudo', title: 'Escudo', sum: '5 s a salvo de los proyectiles.', keys: [[['F'], 'Activar el escudo']], text: [
-      K('F') + ' rodea al dragón con una esfera de energía durante 5 s: los proyectiles (bolas guiadas, bolas de fuego y fuego antiaéreo) revientan contra ella sin hacerte daño. No te protege de los choques.',
-      'Tienes 3 cargas: las rayas azules bajo la mira. La que está en uso se vacía mientras dura y las gastadas quedan negras. Cuando el escudo parpadea, está a punto de apagarse.',
+    { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['F'], 'Activar el escudo']], text: [
+      K('F') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo y de los dirigibles) revientan contra ella sin hacerte daño. No te protege de los choques.',
+      'Tienes {escudos} cargas: las rayas azules bajo la mira. La que está en uso se vacía mientras dura y las gastadas quedan negras. Cuando el escudo parpadea, está a punto de apagarse.',
       'Guárdalo para cuando veas <b>¡PROYECTIL APROXIMÁNDOSE!</b> y no puedas esquivarlo.'] },
-    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Cada dragón derribado devuelve una carga.', keys: [[['F'], 'Usar una carga']], text: [
-      'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón derribado te devuelve una (hasta 3), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
+    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['F'], 'Usar una carga']], text: [
+      'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
       'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
-    { id: 'recarga_guiadas', title: 'Recargar bolas guiadas', sum: 'Cada torre destruida da 2 bolas guiadas.', keys: [], text: [
-      'Las bolas guiadas tampoco se recargan solas. Cada torre destruida te da 2 (hasta 5), y el aviso lo dice: <b>Torre destruida · +2 bolas guiadas</b>.',
-      'Sin bolas, el panel de <b>ARMAS</b> pone <b>DESTRUYE TORRES</b>. Las torres no se mueven y aguantan 60 de daño: con fuego rápido (12 impactos) o un momento de llamarada caen enseguida.'] },
-    { id: 'vida', title: 'Vida y caídas', sum: 'Cuida la vida y no te estrelles.', keys: [], text: [
-      'La barra de <b>VIDA</b> está abajo, en el centro. La pierdes con las bolas de fuego (15) y las bolas guiadas (35) de los dragones, con el fuego antiaéreo de las torres (3 por impacto) y al chocar con un dragón (25). Se regenera sola si pasas 7 s sin recibir daño. Cada dragón tiene la suya: Alientormenta 120, Abrasanubes 80 y Ventoscuro 130.',
-      'Estrellarte contra el terreno, el agua, una isla flotante o una torre te derriba al instante, igual que quedarte sin vida. En una misión, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire y sigues la partida (pero no recuperas escudos ni bolas guiadas).',
+    { id: 'recarga_guiadas', title: 'Guiadas sin munición', sum: 'No se recargan: sin munición, cuestan vida máxima.', keys: [], text: [
+      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y se pone en rojo al llegar a 0.',
+      'Sin munición puedes seguir lanzándolas: cada una te quita {guiado_coste_vida} de vida máxima hasta el final de la misión (en la barra de vida, la parte perdida sale rayada en rojo). La que te dejaría sin vida máxima ya no sale (<b>SIN MUNICIÓN</b>).'] },
+    { id: 'vida', title: 'Vida, armadura y caídas', sum: 'La armadura se regenera; la vida, no.', keys: [], text: [
+      'Abajo, en el centro, tienes la <b>VIDA</b> ({vida}) y, justo encima, la <b>ARMADURA</b> amarilla ({armadura}). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
+      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, la barra late). La vida no: lo que pierdes no vuelve en toda la misión.',
+      'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de los dirigibles ({dirigible.dano}) y chocar con un dragón ({enemigo.choque_dano}).',
+      'Estrellarte contra el terreno, el agua, una isla flotante, una torre o un dirigible te derriba al instante, igual que quedarte sin vida. En una misión, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida y la armadura llenas (pero no recuperas escudos ni bolas guiadas).',
       'Vigila <b>SOBRE EL SUELO</b>, a la derecha: se pone en rojo por debajo de 60 m.'] }
   ] },
   { cat: 'Enemigos', items: [
     { id: 'dragones', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
-      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Sobre cada uno, un triángulo rojo marca su distancia y, si está herido, su vida (100).',
-      'Patrullan hasta que te detectan (a unos 2 km). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan tan rápido como tú sin boost.',
+      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Sobre cada uno, un triángulo rojo marca su distancia y, si está herido, su vida ({enemigo.vida}).',
+      'Patrullan hasta que te detectan (a unos {enemigo.deteccion} m). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan a {enemigo.velocidad} km/h.',
       'Hay 20 en toda la partida, como mucho 6 a la vez. En el radar son triángulos rojos.'] },
     { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['F'], 'Escudo, si no hay escapatoria']], text: [
-      'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los 4 s lanza una bola guiada (35 de daño) y aparece <b>¡PROYECTIL APROXIMÁNDOSE!</b>, con un rombo rojo y su distancia (o una flecha roja si viene por detrás).',
+      'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño) y aparece <b>¡PROYECTIL APROXIMÁNDOSE!</b>, con un rombo rojo y su distancia (o una flecha roja si viene por detrás).',
       'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('F') + ').'] },
     { id: 'torres', title: 'Torres antiaéreas', sum: '30 torres fijas que disparan ráfagas.', keys: [], text: [
       'Hay 30 torres repartidas alrededor del punto de partida; en cada partida, entre 10 y 15 de ellas están sobre islas flotantes. Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está en una isla).',
-      'A menos de 1,5 km te disparan ráfagas antiaéreas de 5 proyectiles (3 de daño cada uno). Aguantan 60 de daño; destruirlas da 100 puntos y 2 bolas guiadas. No se pueden atravesar: rodéalas o pasa por encima.'] },
+      'A menos de {torre.aa_alcance} m te disparan ráfagas antiaéreas de {torre.aa_rafaga} proyectiles ({torre.aa_dano} de daño cada uno). Aguantan {torre.vida} de daño y destruirlas da {torre.puntos} puntos. No se pueden atravesar: rodéalas o pasa por encima.'] },
     { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
       'Grandes barcos voladores quietos en el aire, entre 500 y 1000 m sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
-      'A menos de 2 km disparan sin parar proyectiles arcanos morados (2 de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
-      'Aguantan 50 de daño (una bola guiada los derriba de un golpe) y dan 200 puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
+      'A menos de {dirigible.alcance} m disparan sin parar proyectiles arcanos morados ({dirigible.dano} de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
+      'Aguantan {dirigible.vida} de daño y dan {dirigible.puntos} puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] }
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
       '<b>Izquierda</b>: velocidad, acelerador y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo; arriba a la derecha, torres, dragones y puntos.',
       '<b>Abajo a la izquierda</b>, el radar (2,4 km): tú eres el triángulo dorado del centro; los dragones, triángulos rojos; las torres, cuadrados rojos (las lejanas, en el borde); los dirigibles, cápsulas huecas. Lo que no cuenta para la misión sale apagado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
-      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
+      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida y, encima, la armadura; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
     { id: 'objetivo', title: 'Objetivo de la partida', sum: '30 torres y 20 dragones.', keys: [], text: [
       'Para ganar, destruye las 30 torres y derriba los 20 dragones. Los contadores de arriba a la derecha llevan la cuenta, y el radar te guía hasta las torres que quedan.',
       'Los blancos que cuentan para la misión llevan la marca <b>TGT</b> junto a su distancia. En otras misiones puede haber enemigos sin ella: también te atacan, pero no hace falta destruirlos para ganar. Los objetivos con un rombo (◇) son opcionales.',
@@ -196,20 +198,21 @@ const tutEls = { panel: document.getElementById('pTutorial'), list: document.get
   none: document.getElementById('tutNoVideo'), prog: document.getElementById('tutProg'), cat: document.getElementById('tutCapCat'), title: document.getElementById('tutCapTitle'),
   sum: document.getElementById('tutCapSum'), zoom: document.getElementById('tutZoom') };
 const tut = { items: [], cur: null, srcs: [], tries: 0, raf: 0 };
-(function buildTutorial() {
-  let html = '';
+/* v24: se construye al abrir la ventana: los números de los textos ({clave}) salen de las stats del Excel en ese momento (statText, 7c). */
+function buildTutorial() {
+  let html = ''; tut.items = [];
   for (const c of TUTORIAL) {
     html += `<div class="tut-cat">${c.cat}</div>`;
     for (const it of c.items) {
       tut.items.push(it); it.n = tut.items.length; it.cat = c.cat;
       const keys = it.keys.length ? `<dl class="keys">${it.keys.map(([k, d]) => `<dt>${K(...k)}</dt><dd>${d}</dd>`).join('')}</dl>` : '';
       html += `<div class="tut-item" data-id="${it.id}"><button class="tut-btn" aria-expanded="false" aria-controls="tt-${it.id}"><span class="n">${String(it.n).padStart(2, '0')}</span>${it.title}<i class="chev" aria-hidden="true"></i></button>`
-        + `<div class="tut-text" id="tt-${it.id}">${it.text.map(p => `<p>${p}</p>`).join('')}${keys}</div></div>`;
+        + `<div class="tut-text" id="tt-${it.id}">${it.text.map(p => `<p>${statText(p)}</p>`).join('')}${keys}</div></div>`;
     }
   }
   tutEls.list.innerHTML = html;
   for (const el of tutEls.list.querySelectorAll('.tut-item')) el.querySelector('.tut-btn').addEventListener('click', () => tutSelect(el.dataset.id));
-})();
+}
 /* Elegir una sección: se despliega su texto (las demás se pliegan) y empieza su vídeo. */
 function tutSelect(id) {
   const it = tut.items.find(i => i.id === id) || tut.items[0];
@@ -240,7 +243,7 @@ function tutTick() {                                         // barra de progres
   tut.raf = requestAnimationFrame(tutTick);
 }
 function openTutorial() {
-  openPanel('pTutorial');
+  buildTutorial(); openPanel('pTutorial');
   let id = null; try { id = localStorage.getItem(TUT_KEY); } catch (err) { }
   tut.cur = null; tutSelect(id);
   if (!tut.raf) tut.raf = requestAnimationFrame(tutTick);

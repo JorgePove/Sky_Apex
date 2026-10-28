@@ -31,6 +31,7 @@ function frame(now) {
 
 /* ---------- Arranque ---------- */
 (function boot() {
+  statsInit();                                             // v24: stats de las unidades (la copia del HTML y, enseguida, el Excel)
   missionSetup('libre');                                   // v19: al abrir el juego, el mundo del combate libre (semilla del arranque)
   placeStart(RUN.world.start); WORLD.startKey = startKey(RUN.world.start);
   refreshTerrainSelection(dragon.position.x, dragon.position.y, dragon.position.z, true);
@@ -43,6 +44,7 @@ function frame(now) {
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
-    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally };   // (v21; v23: ally)
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally,   // (v21; v23: ally)
+    get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
   requestAnimationFrame(frame);
 })();

@@ -12,12 +12,15 @@
    Sus derribos cuentan para la misión, pero no dan rayo, escudo ni bolas guiadas al jugador (byAlly). Lo que dice por radio sale de
    ally.lines de la receta (start, engage, protect, kill, regroup: un texto o una lista, uno al azar), con ALLY_SAY_GAP s entre dos iguales.
    ============================================================ */
+/* v24: los valores de balance (con let, y ALLY_GUN_DMG, ALLY_FLAME_*, ALLY_VMAX en 7c) salen del Excel, pestaña «Lance (aliado)». */
 const ALLY_SLOT = [200, -70];            // a la derecha del jugador y hacia delante (negativo: detrás), en m
-const ALLY_ENGAGE = 2000, ALLY_CALM = 6; // distancia a la que entra en combate (m) y s sin enemigos para volver a la formación
+let ALLY_ENGAGE = 2000;                  // distancia a la que entra en combate (m)
+const ALLY_CALM = 6;                     // s sin enemigos para volver a la formación
 const ALLY_TINT = new THREE.Color(0.55, 0.85, 1.75), ALLY_EYES = 0x5fd0ff;   // piel azul acero y ojos azules
-const ALLY_GUN_CD = [0.14, 0.26], ALLY_GUN_RANGE = 1000, ALLY_AIM = 0.985, ALLY_AIM_ERR = 0.01;   // s entre disparos, alcance (m), coseno del cono de tiro (≈10°, como los enemigos) y error de puntería
+const ALLY_GUN_CD = [0.14, 0.26], ALLY_AIM = 0.985;   // s entre disparos y coseno del cono de tiro (≈10°, como los enemigos)
+let ALLY_GUN_RANGE = 1000, ALLY_AIM_ERR = 0.01;       // alcance (m) y error de puntería
 const ALLY_PICK = [5, 10];               // s con el mismo blanco antes de cambiar (salvo para proteger al jugador)
-const ALLY_PROTECT = 1000, ALLY_URGENT = 600, ALLY_PROTECT_P = 0.6;   // dragón en pasada de ataque hacia el jugador: a menos de ALLY_URGENT va
+let ALLY_PROTECT = 1000, ALLY_URGENT = 600, ALLY_PROTECT_P = 0.6;   // dragón en pasada de ataque hacia el jugador: a menos de ALLY_URGENT va
                                          // a por él al momento; a menos de ALLY_PROTECT, al cambiar de blanco lo elige con probabilidad ALLY_PROTECT_P
 const ALLY_SAY_GAP = 9;
 const ally = { e: null, on: false, mode: 'form', target: null, protect: false, pickT: 0, calmT: 0, gunCool: 0, breakT: 0, breakDir: new THREE.Vector3(), said: {} };
@@ -36,7 +39,7 @@ function allyStart() {
   if (!ally.e) {
     const e = ally.e = makeEnemy();
     e.g.scale.setScalar(1);                                // del tamaño del dragón del jugador (los enemigos, +50 %)
-    e.U.uTint.value = ALLY_TINT; e.vmax = VMAX; e.kind = 'ally';
+    e.U.uTint.value = ALLY_TINT; e.vmax = ALLY_VMAX; e.kind = 'ally';
     e.model.traverse(o => { if (o.isSkinnedMesh && !o.material.map && o.material.emissive) o.material.emissive.set(ALLY_EYES); });
     e.glow.material.color.copy(ALLY_FIRE);
   }
@@ -92,7 +95,7 @@ function allyFormation(e) {
   _Ad2.subVectors(_Al, e.pos); const gap = _Ad2.length(), along = _Ad2.dot(_Af2);
   _Am.copy(_Al).addScaledVector(_Af2, 250); _Am.y += fy * 250;
   _Ewant.subVectors(_Am, e.pos).normalize();
-  return gap > 1500 ? VMAX : clamp(F.speed + along * 0.4, 45, VMAX);
+  return gap > 1500 ? ALLY_VMAX : clamp(F.speed + along * 0.4, 45, ALLY_VMAX);
 }
 /* Elige blanco. Un dragón en pasada de ataque muy cerca del jugador, al momento (protegerle); si no, sigue con el suyo un rato y, al
    cambiar, elige con probabilidad ALLY_PROTECT_P al que esté atacando al jugador o, si no, uno al azar entre los dragones y dirigibles cercanos. */
@@ -135,27 +138,27 @@ function allyFight(e, dt) {
     spawnFireball(mouth, _Ar2, false, clamp(1 - e.pos.distanceTo(dragon.position) / 1500, 0.05, 0.5), 'gun', true);
     e.fireFlash = 1; ally.gunCool = rnd(ALLY_GUN_CD[0], ALLY_GUN_CD[1]);
   }
-  if (state === 'playing' && dist < FLAME_RANGE + (ship ? t.r : 15) && dot > 0.94) allyFlame(e, mouth, dt);
+  if (state === 'playing' && dist < ALLY_FLAME_RANGE + (ship ? t.r : 15) && dot > 0.94) allyFlame(e, mouth, dt);
   return tSpeed;
 }
-/* Llamarada del aliado: un chorro más ligero que el del jugador (menos partículas) con el mismo daño, en su color. */
+/* Llamarada del aliado: un chorro más ligero que el del jugador (menos partículas), en su color, con su daño y su alcance (v24). */
 function allyFlame(e, mouth, dt) {
   _Af2.set(0, 0, -1).applyQuaternion(e.q);
-  const c = ALLY_FIRE, n = Math.round(260 * dt + Math.random());
+  const c = ALLY_FIRE, n = Math.round(260 * dt + Math.random()), R = ALLY_FLAME_RANGE;
   for (let i = 0; i < n; i++) {
     const sp = FLAME_SPEED * rnd(0.9, 1.1), vx = (_Af2.x + rnd(-0.1, 0.1)) * sp, vy = (_Af2.y + rnd(-0.1, 0.1)) * sp, vz = (_Af2.z + rnd(-0.1, 0.1)) * sp;
-    emit(fxAdd, mouth.x, mouth.y, mouth.z, vx + e.vel.x, vy + e.vel.y, vz + e.vel.z, FLAME_RANGE / sp * rnd(0.7, 1.05), rnd(1, 1.8), rnd(14, 22), c.r, c.g * rnd(0.85, 1.1), c.b, 0.4, 0, -8);
+    emit(fxAdd, mouth.x, mouth.y, mouth.z, vx + e.vel.x, vy + e.vel.y, vz + e.vel.z, R / sp * rnd(0.7, 1.05), rnd(1, 1.8), rnd(14, 22), c.r, c.g * rnd(0.85, 1.1), c.b, 0.4, 0, -8);
   }
   e.fireFlash = 1;
-  const amt = FLAME_DPS * dt;
-  _Am.copy(mouth); _Al.copy(mouth).addScaledVector(_Af2, FLAME_RANGE);
+  const amt = ALLY_FLAME_DPS * dt;
+  _Am.copy(mouth); _Al.copy(mouth).addScaledVector(_Af2, R);
   byAlly = true;
   for (const o of enemies) {
     if (o.dead || o.off) continue;
     _Ad2.subVectors(o.pos, _Am); const along = _Ad2.dot(_Af2);
-    if (along < -ENEMY_HIT_R || along > FLAME_RANGE + ENEMY_HIT_R) continue;
-    const r = ENEMY_HIT_R + 2 + clamp(along, 0, FLAME_RANGE) * 0.11;
-    if (_Ad2.lengthSq() - along * along < r * r) damageEnemy(o, amt, _Ad2.copy(_Am).addScaledVector(_Af2, clamp(along, 0, FLAME_RANGE)), true);
+    if (along < -ENEMY_HIT_R || along > R + ENEMY_HIT_R) continue;
+    const r = ENEMY_HIT_R + 2 + clamp(along, 0, R) * 0.11;
+    if (_Ad2.lengthSq() - along * along < r * r) damageEnemy(o, amt, _Ad2.copy(_Am).addScaledVector(_Af2, clamp(along, 0, R)), true);
   }
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _Am, _Al) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);
   byAlly = false;

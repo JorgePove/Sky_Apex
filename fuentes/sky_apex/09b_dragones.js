@@ -19,15 +19,13 @@
 const DRAGON_IDS = ['tyrant', 'rojo', 'drogon', 'fulgor'];   // (v20: Fulgor)
 const seqB = (fmt, n, from = 1) => Array.from({ length: n }, (_, i) => fmt.replace('#', i + from));
 const chainB = (tgt, src) => tgt.map((t, i) => [t, src[tgt.length > 1 ? Math.round(i * (src.length - 1) / (tgt.length - 1)) : 0]]);
-/* v17: nombres del juego y stats (vida máxima, multiplicador de la velocidad punta y del daño de todos los ataques del jugador). */
+/* v17: nombres del juego. v24: sus stats ya no están aquí: salen del Excel (pestaña de cada dragón; ver 7c y heroStats). */
 const DRAGONS = {
   tyrant: {
-    name: 'Alientormenta', desc: 'Wyvern de las cumbres de ceniza que cabalga las tormentas: rápido y duro de abatir, aunque su fuego quema menos.',
-    stats: { hp: 120, speed: 1.2, dmg: 0.85 }
+    name: 'Alientormenta', desc: 'Wyvern de las cumbres de ceniza que cabalga las tormentas: rápido y duro de abatir, aunque su fuego quema menos.'
   },
   rojo: {
     name: 'Abrasanubes', desc: 'Dragón de cuatro patas nacido en las forjas del sur: veloz y con un fuego que abrasa hasta las nubes, pero de piel frágil.',
-    stats: { hp: 80, speed: 1.15, dmg: 1.15 },
     credit: 'Modelo «Red Dragon» de GadgetHamster (Sketchfab, CC-BY 4.0)',
     embed: 'rojo-glb', url: '../modelos/dragon_rojo.glb', sides: ['L', 'R'], span: 34, ref: null, seatBone: 'spine1',
     showClip: 'pie', idle: true,                             // plataforma: de pie a cuatro patas (pose «pie») y el reposo por código
@@ -45,7 +43,6 @@ const DRAGONS = {
   },
   drogon: {
     name: 'Ventoscuro', desc: 'Wyvern negro como la obsidiana: lento, pero una fortaleza con alas de aliento devastador.',
-    stats: { hp: 130, speed: 0.75, dmg: 1.15 },
     embed: 'drogon-glb', url: '../modelos/drogon_web.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'Bip002-Spine3',
     showClip: 'reposo',                                     // plataforma: su propio reposo de combate
     rider: { path: [['Bip002-Neck', 'Bip002-Neck1', 0.35], ['Bip002-Neck', 'Bip002-Neck1', 0.75]], collar: ['Bip002-Neck1', 'Bip002-Neck2', 0.4] },
@@ -64,10 +61,9 @@ const DRAGONS = {
      su pose de enlace ya es la de planeo (ref: 'enlace'). Dedos de las alas emparejados por su papel en el planeo del Tyrant:
      f4 (el largo, borde de ataque) ← wingIndex, f3 ← wingMiddle, f2 ← wingRing, f1 (el corto, junto al cuerpo) ← wingPinky,
      pulgar ← wingBigThumb (el wingFirst del Tyrant no tiene pareja). Patas de ave: el pie (metatarso) ← Knee1 y los dedos ← foot.
-     En la plataforma flota con su propio hover (showClip) un poco por encima de ella (showLift, m). Stats: de momento, los de Ventoscuro. */
+     En la plataforma flota con su propio hover (showClip) un poco por encima de ella (showLift, m). */
   fulgor: {
     name: 'Fulgor', desc: 'Wyvern dorado de alas inmensas que deslumbra al sol: lento, pero una fortaleza con un aliento devastador.',
-    stats: { hp: 130, speed: 0.75, dmg: 1.15 },
     embed: 'fulgor-glb', url: '../modelos/syrax_web.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'spine1',
     fpAdj: [0, 0.5, -0.08, 1.0],                             // jinete 1 m tras el hueso spine1 (~1,9 m tras los hombros), sentado en el lomo; cámara 1 m más alta y algo más inclinada: el cuello y la cabeza por encima de las púas
     showClip: 'hover', showLift: 1.5, showTag: 'Vuelo estático',
@@ -481,10 +477,11 @@ function setDragon(id) {
   heroFP = alt.D ? alt.D.fp : HERO_FP;
   dragonAnim.fp = null;                                     // el asiento cambia: sin suavizado desde el anterior
   dragonPose();
+  applyHeroStats();                                         // v24: sus stats (vuelo, armas, vida…)
   return true;
 }
-/* v17: stats del dragón elegido: vida máxima (hp), velocidad punta (speed, ×) y daño de los ataques del jugador (dmg, ×). */
-function heroStats() { return DRAGONS[alt.id].stats; }
+/* v24: stats del dragón elegido, del Excel (STATS, ver 7c): vida, armadura, armas, velocidades… con las claves de STATS_SCHEMA.dragon. */
+function heroStats() { return STATS[alt.id] || STATS.base; }
 /* Boca, asiento y huesos del cuello del dragón visible (para el fuego, la cámara y las riendas). */
 function seatBone() { return alt.D ? alt.D.seat : hero.B[HERO_FP_BONE]; }
 function dragonHead() { return alt.D ? alt.D.fromTy.get('head') : hero.B.head; }
