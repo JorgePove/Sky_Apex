@@ -214,7 +214,7 @@ function spawnEnemies() {
   while (enemies.length < n) enemies.push(makeEnemy());
   enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior)
+    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
@@ -249,6 +249,19 @@ function spawnSquad(id) {
     if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
     resetTrail(e);
   }
+}
+/* v29: dragón quieto (galería de enemigos, receta units con type 'dragon'): flota en el sitio con la animación de hover, mirando al rumbo
+   heading (°), sin IA, sin disparar y sin reaparecer; se le puede fijar, dañar y derribar como a cualquiera. */
+function spawnStatue(x, y, z, heading, tags) {
+  let e = enemies.find(o => o.off);
+  if (!e) { e = makeEnemy(); enemies.push(e); }
+  if (!e.act.hover) { e.act.hover = e.mixer.clipAction(hero.clips.hover); e.act.hover.play(); e.act.hover.time = Math.random() * hero.hoverDur; }
+  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
+  const a = heading * Math.PI / 180; _Eef.set(Math.sin(a), 0, -Math.cos(a));
+  e.pos.set(x, y, z); e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP)); e.vel.set(0, 0, 0);
+  e.speed = 0; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.aimLocal.set(0, 0, -1); setEnemyMode(e, 'patrol'); e.alert = 1e9;
+  resetTrail(e);
+  return e;
 }
 /* El jugador reaparece: los enemigos pierden el rastro un momento. */
 function enemiesCalm() {
@@ -337,7 +350,7 @@ function enemyMouth(e, out) {
   return out.addScaledVector(_hF.set(0, 0, -1).applyQuaternion(e.q), 1.2 * ENEMY_SCALE);
 }
 function enemyShoot(e) {
-  if (gameTime - enemyLastShot < ENEMY_STAGGER) return false;
+  if (gameTime - enemyLastShot < ENEMY_STAGGER || holdFire()) return false;   // (v29: «Los enemigos disparan», panel de pruebas)
   const P = dragon.position, mouth = enemyMouth(e, _Emo);
   _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(P) / FIREBALL_SPEED * 0.9);                 // punto de adelanto
   _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(_Eai) / FIREBALL_SPEED * 0.9);
@@ -366,7 +379,7 @@ const threat = { lock: 0, lastLaunch: -99, beepT: 0, incoming: [] };           /
 const _Emd = new THREE.Vector3(), _Emo2 = new THREE.Vector3();
 /* Un tirador (dragón o torre: s.mslCool, s.mslLock) intenta fijar al jugador y lanzar desde `from`; can = además está en posición. */
 function enemyMissileTry(s, from, dt, can) {
-  if (state !== 'playing') { s.mslLock = 0; return false; }
+  if (state !== 'playing' || holdFire()) { s.mslLock = 0; return false; }
   if (s.mslCool > 0) { s.mslCool -= dt; return false; }
   const P = dragon.position, d = from.distanceTo(P);
   // solo se empieza a fijar cuando ya casi se puede lanzar (así el aviso no se queda encendido mientras se espera a EMSL_GAP)
@@ -602,6 +615,11 @@ function updateEnemies(dt) {
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
     if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
+    if (e.statue) {                                          // v29: quieto en la galería, en hover
+      e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
+      _Est.hover = 1; animateEnemyModel(e, dt, e.pos.distanceTo(P)); _Est.hover = 0;
+      continue;
+    }
     if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);

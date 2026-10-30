@@ -132,14 +132,40 @@ scene.add(waterMesh);
 
 /* ---------- Terreno ---------- */
 const terrainUniforms = {
-  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex }
+  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex },
+  uGrid: { value: 0 }                                     // v29: 1 = suelo de blockout (campo de pruebas): cuadros grises de 10 m con borde blanco
 };
 const terrainVS = `
 attribute vec2 aux; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vAux = aux; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const terrainFS = GLSL_COMMON + `
-uniform float uFog; uniform sampler2D uNoise; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+uniform float uFog; uniform sampler2D uNoise; uniform float uGrid; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+// v29: líneas de una cuadrícula de celda «cell» y medio grosor «hw» (m), suavizadas por píxel; se apagan cuando ya no caben en pantalla
+float gridLine(vec2 p, float cell, float hw){
+  vec2 d = abs(mod(p + cell * 0.5, cell) - cell * 0.5), aa = fwidth(p) * 0.8;
+  vec2 l = 1.0 - smoothstep(vec2(hw) - aa, vec2(hw) + aa, d);
+  return max(l.x, l.y) * (1.0 - smoothstep(0.12, 0.3, max(aa.x, aa.y) / cell));
+}
+vec3 blockout(vec2 p){
+  vec2 c = floor(p / 10.0);
+  vec3 col = mix(vec3(0.40, 0.40, 0.41), vec3(0.45, 0.45, 0.46), mod(c.x + c.y, 2.0));
+  col = mix(col, vec3(0.92), gridLine(p, 10.0, 0.18));
+  col = mix(col, vec3(1.0), gridLine(p, 100.0, 0.7));
+  return col;
+}
 void main(){
+  if (uGrid > 0.5) {
+    vec3 N = normalize(vN); float h = vW.y;
+    vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+    vec3 col = blockout(vW.xz);
+    float dep = clamp(-h / 14.0, 0.0, 1.0);
+    col = mix(col, mix(vec3(0.20, 0.34, 0.31), vec3(0.03, 0.10, 0.17), dep), smoothstep(0.4, -0.6, h));
+    float wrap = max((dot(N, uSunDir) + 0.20) / 1.20, 0.0);
+    vec3 lit = col * (vec3(1.0, 0.70, 0.43) * 1.70 * wrap + mix(vec3(0.20, 0.20, 0.28), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5) * 0.95);
+    float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+    gl_FragColor = vec4(mix(lit, skyColor(normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z))), fogF), 1.0);
+    return;
+  }
   vec3 N = normalize(vN);
   float h = vW.y;
   vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
@@ -184,7 +210,7 @@ const terrainMats = [];
 function terrainMaterial(level) {
   if (!terrainMats[level]) {
     terrainMats[level] = new THREE.ShaderMaterial({
-      uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide,
+      uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide, extensions: { derivatives: true },
       polygonOffset: true, polygonOffsetFactor: level * 0.6, polygonOffsetUnits: level * 3
     });
   }

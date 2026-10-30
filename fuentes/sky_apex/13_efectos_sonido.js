@@ -247,13 +247,14 @@ function updateFireballs(dt) {
   let near = null, nearD = 700;
   const shOn = shieldOn(); if (shOn) shieldCenter(_shC);
   for (let i = fireballs.length - 1; i >= 0; i--) {
-    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', fast = gun || aa || arc;
+    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', ushot = f.kind === 'ushot', fast = gun || aa || arc || (ushot && f.fastLook);
     if (msl) steerMissile(f, dt); else if (emsl) steerEnemyMissile(f, dt);
     const steps = fast ? 3 : 2, h = dt / steps;
     let hit = false, onTarget = false;
     _fp.copy(f.pos);
     for (let s = 0; s < steps && !hit; s++) {
       _fo.copy(f.pos);
+      if (f.grav) f.vel.y -= f.grav * h;                   // (v29: los de la artillería y las torretas, con parábola)
       f.pos.addScaledVector(f.vel, h);
       const gy = Math.max(heightAt(f.pos.x, f.pos.z), WL);
       if (f.pos.y < gy) {
@@ -269,7 +270,8 @@ function updateFireballs(dt) {
           if (emsl) { explode(f.pos.x, f.pos.y, f.pos.z, 0.9); hurtDragon(EMSL_DMG, 'Una bola guiada te derribó'); }
           else if (aa) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(AA_DMG, 'La artillería de una torre te derribó', true); }
           else if (arc) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, 'Los cañones de un dirigible te derribaron', true); }
-          else hurtDragon(ENEMY_DMG, 'Un dragón enemigo te derribó');
+          else if (ushot) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, f.msg, true); }   // v29: unidades nuevas (6f)
+          else hurtDragon(f.dmg, f.msg || 'Un dragón enemigo te derribó');   // (v29: la sierpe lanza las mismas bolas con su daño)
         } else if (emsl) for (const t of towers.values()) {
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
           if (!t.dead && dx * dx + dz * dz < (TOWER_R + 3) ** 2 && f.pos.y > t.y - 1 && f.pos.y < t.y + TOWER_TOP + 4) { hit = true; explode(f.pos.x, f.pos.y, f.pos.z, 1.1); break; }
@@ -292,6 +294,7 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
+        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
         byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
@@ -369,7 +372,7 @@ function updateTowerAI(dt) {
       continue;
     }
     const P = dragon.position, from = _Etop.set(t.x, t.y + 27 * TOWER_SY, t.z), d = from.distanceTo(P);   // la batería, en la plataforma de arriba
-    if (d > AA_RANGE || state !== 'playing') { t.burst = 0; continue; }
+    if (d > AA_RANGE || state !== 'playing' || holdFire()) { t.burst = 0; continue; }   // (v29: «Los enemigos disparan», panel de pruebas)
     t.cool -= dt;
     if (t.cool > 0) continue;
     if (!(t.burst > 0)) {                                                         // nueva ráfaga, si lo ve

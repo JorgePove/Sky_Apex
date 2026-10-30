@@ -10,7 +10,8 @@
        seed: número entero; la misma semilla da siempre el mismo terreno, las mismas islas y los mismos árboles. null = la del arranque
        (al azar cada vez que se abre el juego, o la de ?semilla=N). Si es otra que la del mundo cargado, al empezar se genera el nuevo
        (pantalla de carga de unos segundos). La tecla º (modo diseño) muestra la semilla del mundo en el que se vuela.
-       biome: de momento solo 'valle' (BIOMES, en M3; los demás llegarán en la Fase 3).
+       biome: 'valle' o, desde la v29, 'pruebas' (mundo llano con suelo de blockout, sin islas ni árboles; BIOMES, en M3; los demás
+       llegarán en la Fase 3). lakes (v29, solo en 'pruebas'): lagos rectangulares [{ x0, z0, x1, z1 }] (m) para los barcos navales.
    · start (v19): punto de partida. { x, z, heading, height } en metros: heading = rumbo en grados como en la brújula (0 = norte, 90 = este;
      null = hacia donde más relieve hay), height = metros sobre el suelo (o el agua). Con y, la altitud absoluta en lugar de height (nunca
      a menos de 40 m del suelo). Si cae dentro de una isla, se sube por encima. Las coordenadas se leen en vuelo con el modo diseño (º).
@@ -29,6 +30,15 @@
      dirigibles van en formación con ese rumbo, cada uno a una altitud de alt (sobre el agua, como la ALTITUD del HUD; sube solo si hay
      montaña o isla delante). escape: 'fail' = si uno sale del área,
      MISIÓN FALLIDA (el HUD muestra «BORDE» con lo que le falta al más adelantado).
+   · units (v29): unidades nuevas (ver 6f). Lista de grupos { type, x, z, heading (°: hacia donde miran), n (cuántas; 1 por defecto),
+     formation ('linea' | 'columna' | 'cuna' | 'rejilla'), gap (m entre una y otra), tag, … } con type:
+       'artilleria' (variant: 'balista' | 'catapulta' | 'canon' | 'mixta'), 'batallon' (soldiers: número o lista de números por bloque; sin él,
+       al azar entre los del Excel), 'barco' (naval: en el agua), 'superdirigible' (height: m sobre el suelo; nunca menos que su altura
+       mínima del Excel), 'sierpe' (height; mode: 'idle' quieta ondulando o 'circle' en círculo) y 'dragon' (dragones enemigos quietos en
+       hover, a height m: los de la galería). Las torretas del superdirigible y los hechiceros de la sierpe salen solos con ellos.
+     Para objetivos y eventos, sus tipos son 'artilleria', 'batallon', 'barco', 'superdirigible', 'torreta', 'sierpe' y 'hechicero'.
+   · static (v29): true = las unidades no se mueven (de momento ninguna se mueve; la galería).
+   · gallery (v29): galería de enemigos (panel de pruebas: «Restaurar galería»).
    · callsign (v23): nombre en clave del jugador (lo usan los textos de la radio).
    · ally (v23): compañero de escuadrón (ver 6e). { id (el de radio, con su nombre y color), lines: { start, engage, protect, kill,
      regroup } (un texto o una lista: dice uno al azar) }. Va en formación hasta que hay enemigos a 2 km; no recibe daño.
@@ -186,6 +196,40 @@ const MISSIONS = {
       { id: 'torres', text: 'Destruye las torres de cristal', hud: 'TORRES', target: 'tower', count: 30 },
       { id: 'dragones', text: 'Derriba a los dragones enemigos', hud: 'DRAGONES', target: 'dragon', count: 200 }
     ],
+    radio: {},
+    events: []
+  },
+  /* v29: galería de enemigos (petición de Jorge, 30-oct): campo de pruebas totalmente llano (suelo de blockout) con todos los tipos de
+     enemigos en varias formaciones, quietos (solo su animación de reposo), para ver cómo se ven y probar a dispararles. Con los trucos y el
+     panel del modo Dev Test (Tab), donde además se puede parar su fuego, poner a volar a la sierpe y restaurar la galería. Delante del
+     inicio (hacia el norte): artillería, batallones, torres y dragones quietos; detrás, los dirigibles, el superdirigible y la sierpe; a la
+     derecha, un lago con barcos. */
+  galeria: {
+    name: 'Galería de enemigos', place: 'Campo de pruebas', free: true, dev: true, gallery: true, static: true,
+    world: { seed: 29, biome: 'pruebas', lakes: [{ x0: 1300, z0: -3600, x1: 4300, z1: 400 }] },
+    start: { x: 0, z: 700, heading: 0, height: 90 },
+    intro: 0,
+    area: null,
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 0, sites: [{ x: -700, z: -1900 }, { x: 0, z: -2000 }, { x: 700, z: -1900 }] },
+    dragons: { total: 0, atOnce: 0 },
+    airships: { total: 3, alt: [600, 600], sites: [{ x: -900, z: -3000, height: 600, heading: 90 }, { x: 0, z: -3100, height: 650, heading: 90 }, { x: 900, z: -3000, height: 600, heading: 90 }] },
+    units: [
+      { type: 'artilleria', variant: 'balista', n: 5, formation: 'linea', x: -600, z: -500, heading: 180 },
+      { type: 'artilleria', variant: 'catapulta', n: 5, formation: 'columna', x: -300, z: -550, heading: 180 },
+      { type: 'artilleria', variant: 'canon', n: 5, formation: 'cuna', x: 0, z: -560, heading: 180 },
+      { type: 'artilleria', variant: 'mixta', n: 9, formation: 'rejilla', x: 320, z: -560, heading: 180 },
+      { type: 'batallon', n: 4, soldiers: [80, 150, 220, 300], formation: 'linea', gap: 300, x: 0, z: -1150, heading: 180 },
+      { type: 'dragon', n: 5, formation: 'cuna', gap: 110, x: 0, z: -2500, height: 160, heading: 180 },
+      { type: 'dragon', n: 3, formation: 'linea', gap: 120, x: -1400, z: -1300, height: 90, heading: 90 },
+      { type: 'barco', n: 3, formation: 'columna', x: 2800, z: -1700, heading: 270 },
+      { type: 'barco', n: 2, formation: 'linea', gap: 300, x: 2600, z: -200, heading: 180 },
+      { type: 'superdirigible', x: -400, z: -4200, height: 1500, heading: 90 },
+      { type: 'sierpe', x: 900, z: -6000, height: 2000, heading: 270, mode: 'idle' }
+    ],
+    objectives: [],
     radio: {},
     events: []
   },

@@ -13,8 +13,11 @@
    · Vuelo y cámara: sensación de vuelo, cámaras (1ª, 3ª, apuntado, objetivo) y campo de visión. «Copiar ajustes» deja los valores con el
      nombre de su constante, para fijarlos después en el código.
    · Depuración: FPS, hitboxes (dragones, Lance, el jugador y las torres), duración de las quemaduras, entrada de cine y reaparecer.
+   · v29: Enemigos (en todos los modos con panel): si disparan o no; en la galería de enemigos, además, la sierpe en vuelo circular,
+     «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
-const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '' };
+const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
+  fire: true, serpentFly: false };                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
@@ -96,6 +99,17 @@ function devBuild() {
   devCheck(t, 'Escudos infinitos', 'shield');
   devCheck(t, 'Sin sobrecalentamiento', 'heat');
   devCheck(t, 'Rayo siempre listo', 'ult');
+  // v29: enemigos y galería
+  const en = devSection('Enemigos', !!mission.gallery);
+  devCheck(en, 'Los enemigos disparan', 'fire');
+  if (mission.gallery) {
+    devCheck(en, 'Sierpe: vuelo circular (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
+    const eb = devEl$('div', 'd-btns', null, en);
+    devButton(eb, 'Restaurar galería', galleryRestore);
+    devEl$('div', 'd-sub', 'Ir a…', en);
+    const go = devEl$('div', 'd-btns', null, en);
+    for (const [label, fn] of GALLERY_SPOTS) devButton(go, label, () => galleryGo(fn));
+  }
   // Stats en vivo
   devStats.sec = devSection('Stats en vivo', false);
   devBuildStats();
@@ -108,7 +122,7 @@ function devBuild() {
   // Depuración
   const g = devSection('Depuración', false);
   devCheck(g, 'Mostrar FPS', 'fps');
-  devCheck(g, 'Hitboxes (dragones, Lance, tú y las torres)', 'hitbox');
+  devCheck(g, 'Hitboxes (dragones, Lance, tú, las torres y las unidades nuevas)', 'hitbox');
   devEl$('div', 'd-sub', 'Quemaduras de la llamarada', g);
   devSlider(g, { label: 'Duración (s)', get: () => SCORCH.life, set: x => SCORCH.life = Math.max(1, x), min: 5, max: 300, step: 1, base: 60 });
   devSlider(g, { label: 'Desvanecido final (s)', get: () => SCORCH.fade, set: x => SCORCH.fade = Math.max(0.5, x), min: 1, max: 120, step: 1, base: 20 });
@@ -179,6 +193,7 @@ const devFeelBase = {}; for (const d of devFeel) if (typeof d !== 'string') devF
 
 /* ---------- Depuración: hitboxes y FPS ---------- */
 const devHit = { pool: [], geo: new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 14, 10)), cyl: new THREE.WireframeGeometry(new THREE.CylinderGeometry(1, 1, 1, 14, 1, true)) };
+const _devAx = new THREE.Vector3();
 function devHitBox(i, cyl, color) {
   let m = devHit.pool[i];
   if (!m || m.userData.cyl !== cyl) {
@@ -186,7 +201,7 @@ function devHitBox(i, cyl, color) {
     m = devHit.pool[i] = new THREE.LineSegments(cyl ? devHit.cyl : devHit.geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7, depthTest: false }));
     m.userData.cyl = cyl; m.renderOrder = 9; m.frustumCulled = false; scene.add(m);
   }
-  m.material.color.set(color); m.visible = true;
+  m.material.color.set(color); m.visible = true; m.quaternion.identity();
   return m;
 }
 /* Cada fotograma (updateWorld). */
@@ -198,6 +213,49 @@ function devDebug() {
     if (ally.e && ally.on) { const p = ally.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }
     const P = dragon.position; put(false, 0xf2b84b, P.x, P.y, P.z, PLAYER_HIT_R, PLAYER_HIT_R);
     for (const t of towers.values()) if (!t.dead && Math.hypot(t.x - P.x, t.z - P.z) < 4000) put(true, 0xff7a2e, t.x, t.y + TOWER_TOP / 2, t.z, TOWER_R, TOWER_TOP);
+    for (const u of UNITS) {                                 // v29: cápsulas de las unidades nuevas (cilindro a lo largo y una esfera en cada punta)
+      if (u.dead || u.bc.distanceTo(P) > 9000 || n > 400) continue;
+      const col = u.kind === 'hechicero' || u.kind === 'torreta' ? 0xffe07a : 0xff4ad0;
+      for (const c of u.caps) {
+        const m = devHitBox(n++, true, col), l = c.a.distanceTo(c.b);
+        m.position.lerpVectors(c.a, c.b, 0.5); m.scale.set(c.r, Math.max(0.01, l), c.r);
+        m.quaternion.setFromUnitVectors(UP, _devAx.subVectors(c.b, c.a).normalize());
+        put(false, col, c.a.x, c.a.y, c.a.z, c.r, c.r); put(false, col, c.b.x, c.b.y, c.b.z, c.r, c.r);
+      }
+    }
   }
   for (let i = n; i < devHit.pool.length; i++) devHit.pool[i].visible = false;
+}
+
+/* ---------- v29: galería de enemigos ----------
+   Restaurar: todo vuelve a estar en pie donde dice la receta (torres, dirigibles, unidades nuevas y dragones quietos), sin tocar al
+   jugador. Ir a…: te deja delante de cada grupo, mirándolo. */
+function galleryRestore() {
+  if (!mission.gallery || !devInGame()) return;
+  towerState.destroyed.clear(); towerState.kills = 0;
+  for (const t of [...towers.values()]) dropTower(t);
+  planTowers(); planAirships(); planUnits();
+  for (const e of enemies) if (e.statue) { e.dead = true; e.off = true; showEnemy(e, false); e.glow.visible = false; }
+  unitsStart(); enemyLock.e = null;
+  for (const u of UNITS) if (u.kind === 'sierpe') serpentMode(u, DEV.serpentFly ? 'circle' : 'idle');
+  const P = dragon.position; updateTowerStreaming(P.x, P.z);
+  toast('Galería restaurada');
+}
+const GALLERY_SPOTS = [                                    // [botón, función que da { x, y, z, mira: [x, y, z] }]
+  ['Artillería', () => ({ x: 0, y: 70, z: -150, at: [0, 0, -560] })],
+  ['Batallones', () => ({ x: 0, y: 45, z: -900, at: [0, 0, -1150] })],
+  ['Dragones', () => ({ x: 0, y: 200, z: -2100, at: [0, 160, -2500] })],
+  ['Barcos', () => ({ x: 2000, y: 60, z: -900, at: [2800, 0, -1700] })],
+  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + 150, z: u.pos.z + 1100, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
+  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); return u ? { x: u.pos.x - 300, y: u.pos.y + 250, z: u.pos.z + 1300, at: [u.bc.x, u.bc.y, u.bc.z] } : null; }]
+];
+function galleryGo(fn) {
+  const s = fn(); if (!s || state !== 'playing') return;
+  dragon.position.set(s.x, s.y, s.z);
+  _devAx.set(s.at[0] - s.x, s.at[1] - s.y, s.at[2] - s.z).normalize();
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _devAx, UP));
+  F.aimWorld.copy(_devAx); F.aimPt.copy(_devAx).multiplyScalar(1400).add(dragon.position); F.steer.set(0, 0, -1);
+  F.speed = 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null;
+  const P = dragon.position; refreshTerrainSelection(P.x, P.y, P.z, true); updateTowerStreaming(P.x, P.z);
+  devPanel(false);
 }

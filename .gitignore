@@ -6,6 +6,7 @@
 /barcos/
 /dragones raw/
 /modelos/dragon_01.glb
+/modelos/* guay*.glb
 /red_dragon.glb
 *.stl
 *.STL

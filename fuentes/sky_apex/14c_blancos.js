@@ -4,6 +4,7 @@
    Torres (cada sitio de TOWER_SITES), dragones enemigos y dirigibles comparten { kind ('tower' | 'dragon' | 'airship'), pos, vel, dead,
    tags }, así que las misiones los cuentan por tipo o por etiqueta (missionKill, M2), se fijan igual y la bola guiada persigue a cualquiera.
    · Los tipos nuevos (estructuras, soldados, jefes) solo tienen que tener esa forma, una entrada en BLANCO y aparecer en eachTarget.
+     v29: así entran las unidades nuevas de 6f (artillería, batallones, barcos, superdirigibles y sus torretas, la sierpe y sus hechiceros).
    · TGT: lo es todo lo que cuenta para un objetivo de la misión visible, sin cumplir y no opcional (isTgt). Se marca «TGT» en el HUD y
      destaca en el radar; lo demás se ve, pero no cuenta para ganar.
    · Fijar (clic central, cycleTarget): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE); primero los TGT,
@@ -12,15 +13,19 @@
 const BLANCO = {                          // nombre (avisos) y medio tamaño (m): recuadro del fijado y círculo de la bola guiada
   tower: { name: 'Torre', half: TOWER_TOP * 0.5 },
   dragon: { name: 'Dragón', half: ENEMY_SCALE * 30 },
-  airship: { name: 'Dirigible', half: AIRSHIP_LEN * 0.5 }
+  airship: { name: 'Dirigible', half: AIRSHIP_LEN * 0.5 },
+  // v29: unidades nuevas (6f); su medio tamaño va en cada una (t.half: depende de la stat «largo» y de los soldados)
+  artilleria: { name: 'Artillería', half: 6 }, batallon: { name: 'Batallón', half: 20 }, barco: { name: 'Barco', half: 55 },
+  superdirigible: { name: 'Superdirigible', half: 175 }, torreta: { name: 'Torreta', half: 12 }, sierpe: { name: 'Sierpe', half: 40 }, hechicero: { name: 'Hechicero', half: 7 }
 };
 const LOCK_STATIC_RANGE = 6000;           // torres y dirigibles se fijan hasta esta distancia (los dragones, a cualquiera, como antes)
-const targetHalf = t => (BLANCO[t.kind] || BLANCO.dragon).half;
+const targetHalf = t => t.half || (BLANCO[t.kind] || BLANCO.dragon).half;
 /* Recorre los blancos en pie. */
 function eachTarget(fn) {
   for (const s of TOWER_SITES) if (!s.dead) fn(s);
   for (const e of enemies) if (!e.dead && !e.off) fn(e);
   for (const a of airships) if (!a.dead) fn(a);
+  for (const u of UNITS) if (!u.dead) fn(u);                // v29: unidades nuevas (también las torretas y los hechiceros, una a una)
 }
 /* ¿El blanco t cumple la selección de un objetivo o condición? { target: tipo, tag: etiqueta } (las dos, si están). */
 function matchSel(sel, t) { return (!sel.target || sel.target === t.kind) && (!sel.tag || (!!t.tags && t.tags.includes(sel.tag))); }
@@ -36,7 +41,7 @@ function cycleTarget() {
   const P = dragon.position, cand = [];
   eachTarget(t => {
     const d = t.pos.distanceTo(P);
-    if (t.kind !== 'dragon' && d > LOCK_STATIC_RANGE) return;
+    if (t.kind !== 'dragon' && d > (t.lockRange || LOCK_STATIC_RANGE)) return;   // (v29: el superdirigible y la sierpe, desde más lejos)
     if (!enemyNdc(t, _Ln) || Math.abs(_Ln.x) >= 0.98 || Math.abs(_Ln.y) >= 0.98) return;
     cand.push({ t, d, tgt: isTgt(t) });
   });
@@ -44,5 +49,5 @@ function cycleTarget() {
   cand.sort((a, b) => (b.tgt - a.tgt) || (a.d - b.d));
   const i = cand.findIndex(c => c.t === enemyLock.e), next = cand[i < 0 ? 0 : (i + 1) % cand.length];
   if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + BLANCO[next.t.kind].name + '  ·  ' + fmtDist(next.d)); }
+  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + (next.t.label || BLANCO[next.t.kind].name) + '  ·  ' + fmtDist(next.d)); }
 }

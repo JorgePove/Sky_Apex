@@ -75,6 +75,7 @@ async function main() {
     ['', '   «Diferencia» dice cuánto se aparta de la Base, y el valor se pone en naranja. Para volver a la Base, escribe en la celda: =Base!B<fila> (o copia la de otra fila).'],
     ['', '• Comparativa: los cuatro dragones y la Base lado a lado (solo para mirar; se rellena sola). En naranja, lo que cambia respecto a la Base.'],
     ['', '• Dragón enemigo, Torre, Dirigible y Lance (aliado): sus valores de ahora, pendientes de rediseñar.'],
+    ['', '• Artillería, Batallón, Barco naval, Superdirigible y Sierpe (v29): los enemigos nuevos, con valores provisionales para ajustarlos en la galería de enemigos.'],
     ['', '• En gris: ajustes que no estaban en la lista de stats; tienen los valores que ya usaba el juego.'],
     ['h', 'Qué no hay que cambiar'],
     ['', '• Los nombres de las pestañas y la columna «Clave» (es como el juego reconoce cada stat). Si falta una clave, el juego usa el valor de la Base o el de siempre y lo avisa.'],
@@ -106,7 +107,7 @@ async function main() {
     const ci = n => cols.indexOf(n) + 1;
     ws.mergeCells(1, 1, 1, cols.length); ws.getCell(1, 1).value = T.tab; ws.getCell(1, 1).font = fuente({ size: 18, bold: true }); ws.getRow(1).height = 28;
     ws.mergeCells(2, 1, 2, cols.length);
-    ws.getCell(2, 1).value = T.unit === 'base' ? 'Valores base de los dragones del jugador. Cada dragón los copia salvo los que cambies en su pestaña.'
+    ws.getCell(2, 1).value = T.note ? T.note : T.unit === 'base' ? 'Valores base de los dragones del jugador. Cada dragón los copia salvo los que cambies en su pestaña.'
       : dr ? 'Dragón del jugador. «Valor» sigue a la Base hasta que escribas otro número (su variación, en naranja).'
         : T.unit === 'lance' ? 'Compañero de escuadrón con IA (Misión 1). Valores de ahora, pendientes de rediseñar.' : 'Valores de ahora, pendientes de rediseñar.';
     ws.getCell(2, 1).font = fuente({ italic: true, color: { argb: COL.gris } });

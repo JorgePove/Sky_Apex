@@ -65,7 +65,22 @@ function seededRandom(seed) {
 /* Rellena out.h (altura), out.forest (densidad de bosque 0..1) y out.wet (cercanía a ríos/lagos 0..1).
    full=false calcula solo la altura (colisiones, puntería). */
 const _o = { h: 0, forest: 0, wet: 0 };
+/* v29: mundo llano (bioma «pruebas», el campo de pruebas): suelo a FLAT.h m y lagos rectangulares (FLAT.lakes: { x0, z0, x1, z1 }, con
+   orillas de FLAT_SHORE m) de FLAT_DEPTH m de hondo, para los barcos. Lo fija setBiome (M3); null = el terreno de siempre. */
+let FLAT = null;
+const FLAT_SHORE = 60, FLAT_DEPTH = 12;
+function flatTerrain(x, z, out, full) {
+  let h = FLAT.h;
+  for (const L of FLAT.lakes) {
+    const dx = Math.max(L.x0 - x, x - L.x1, 0), dz = Math.max(L.z0 - z, z - L.z1, 0), d = Math.hypot(dx, dz);   // 0 dentro
+    if (d < FLAT_SHORE) h = Math.min(h, lerp(-FLAT_DEPTH, FLAT.h, smooth(0, FLAT_SHORE, d)));
+  }
+  out.h = h;
+  if (full) { out.forest = 0; out.wet = 0; }
+  return h;
+}
 function terrain(x, z, out, full) {
+  if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;
   // máscara de cordilleras

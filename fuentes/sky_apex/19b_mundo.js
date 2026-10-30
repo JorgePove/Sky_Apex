@@ -8,21 +8,31 @@
    · placeStart(inicio): coloca al dragón en el punto de partida y lo guarda en START.
    · Modo diseño (tecla º): coordenadas, altitud, rumbo, semilla y marcas de puntos (Intro), para diseñar misiones.
    ============================================================ */
-const BIOMES = { valle: { name: 'Valle templado' } };     // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma); de momento, solo el valle
+const BIOMES = {                                          // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma)
+  valle: { name: 'Valle templado' },
+  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 }  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+};
 const START_DEFAULT = { x: 0, z: 0, heading: null, height: 260, y: null };
-const WORLD = { seed: SEED_BOOT, biome: 'valle', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
+const WORLD = { seed: SEED_BOOT, biome: 'valle', shape: 'valle[]', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
 const WG = { total: 1, phase: 0 };                          // carga: chunks pendientes al empezar; fase 0 = terreno, 1 = islas
 const wgEl = document.getElementById('worldgen'), wgBar = document.getElementById('wgBar');
 
 function missionWorld(m) {
   const w = m.world || {}, s = Object.assign({}, START_DEFAULT, m.start || {});
   let biome = w.biome || 'valle';
-  if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle»)'); biome = 'valle'; }
-  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s };
+  if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle» y «pruebas»)'); biome = 'valle'; }
+  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)) };
 }
 const startKey = s => [s.x, s.z, s.heading, s.height, s.y].join(',');
+const shapeKey = w => w.biome + JSON.stringify(w.lakes || []);   // v29: bioma y lagos (el relieve del mundo llano)
 function worldNeedsGen() {
-  const w = RUN.world; return !!w && (w.seed !== WORLD.seed || startKey(w.start) !== WORLD.startKey);
+  const w = RUN.world; return !!w && (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape || startKey(w.start) !== WORLD.startKey);
+}
+/* v29: el bioma cambia el relieve: con «pruebas», mundo llano (FLAT, en 1) y suelo de blockout (uGrid, en 2). */
+function setBiome(w) {
+  const B = BIOMES[w.biome];
+  FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
+  terrainUniforms.uGrid.value = FLAT ? 1 : 0;
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {
@@ -60,8 +70,8 @@ function placeStart(s) {
 /* Desde startGame: otra semilla → se borra el mundo; en cualquier caso, nuevo punto de partida y carga del terreno de allí. */
 function beginWorldGen() {
   const w = RUN.world;
-  if (w.seed !== WORLD.seed) { clearWorld(); setSeed(w.seed); }
-  WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.startKey = startKey(w.start);
+  if (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape) { clearWorld(); setSeed(w.seed); setBiome(w); }   // (v29: o con otro bioma)
+  WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.shape = shapeKey(w); WORLD.startKey = startKey(w.start);
   placeStart(w.start);
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);

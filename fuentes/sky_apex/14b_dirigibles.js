@@ -313,7 +313,7 @@ function updateAirships(dt) {
       }
     }
     // cañones: solo por el costado que mira al jugador, y nunca a proa, a popa ni en la vertical
-    if (!playing || d > AIRSHIP_RANGE) continue;
+    if (!playing || d > AIRSHIP_RANGE || holdFire()) continue;   // (v29: panel de pruebas)
     a.cool -= dt; if (a.cool > 0) continue;
     _Ad.subVectors(P, a.pos).divideScalar(d || 1);
     _Af.set(0, 0, -1).applyQuaternion(a.q); _As.set(1, 0, 0).applyQuaternion(a.q);

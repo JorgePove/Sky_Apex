@@ -39,6 +39,7 @@ function missionSetup(id) {
   RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag), escort: !!D.escort };   // (v23: escort = con la flota)
   RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
     center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag), fleet: A.fleet ? Object.assign({}, A.fleet) : null };   // (v23: fleet = en movimiento)
+  RUN.units = (mission.units || []).map(g => Object.assign({}, g));   // v29: unidades nuevas (6f)
 }
 /* v23: flota que escapa (airships.escape: 'fail'): si un dirigible sale del área, MISIÓN FALLIDA. airshipEdgeDist = cuánto le falta al
    que está más cerca del borde (HUD «BORDE» y condición airshipEdge de los eventos). */
@@ -51,6 +52,7 @@ function airshipEdgeDist() {
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
   MS.kills = {}; MS.planned = {};
+  unitsStart();                                            // v29: dragones quietos de la galería (tras spawnEnemies)
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
   for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
@@ -58,7 +60,7 @@ function missionStart() {
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const intro = mission.intro != null ? mission.intro : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
-  else toast(mission.free ? 'Objetivo: ' + goal : mission.name);
+  else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
@@ -81,6 +83,8 @@ function plannedCount(sel) {
   let n = 0;
   for (const s of TOWER_SITES) if (matchSel(sel, s)) n++;
   for (const a of airships) if (matchSel(sel, a)) n++;
+  for (const u of UNITS) if (matchSel(sel, u)) n++;        // v29: unidades nuevas (también torretas y hechiceros, cada uno)
+  for (const e of enemies) if (e.statue && matchSel(sel, e)) n++;
   if (matchSel(sel, { kind: 'dragon', tags: RUN.dragons.tags })) n += RUN.dragons.total;
   const Q = mission.squads || {};
   for (const id in Q) if (matchSel(sel, { kind: 'dragon', tags: squadTags(id, Q[id]) })) n += Q[id].n || 1;

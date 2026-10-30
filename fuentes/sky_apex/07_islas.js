@@ -143,6 +143,7 @@ function fineCell(fx, fz) {
 }
 function islandsInRange(px, pz, range) {
   const out = [];
+  if (FLAT) return out;                                     // v29: el campo de pruebas no tiene islas
   const f0x = Math.floor((px - range) / ISL_FINE), f1x = Math.floor((px + range) / ISL_FINE);
   const f0z = Math.floor((pz - range) / ISL_FINE), f1z = Math.floor((pz + range) / ISL_FINE);
   for (let fz = f0z; fz <= f1z; fz++) for (let fx = f0x; fx <= f1x; fx++) for (const s of fineCell(fx, fz)) if (Math.hypot(s.x - px, s.z - pz) < range + s.R) out.push(s);

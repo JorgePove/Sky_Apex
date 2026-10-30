@@ -47,7 +47,7 @@ const STATS_SCHEMA = {
     ['rayo_duracion', 'Duración rayo láser', 's', 5, 'Segundos desde que lo lanzas.'],
     ['rayo_alcance', 'Distancia rayo láser', 'km', 8, 'Largo máximo del rayo (se corta al chocar con el terreno o una isla).'],
     ['rayo_recarga', 'Recarga rayo láser', '%/s', 0.5, 'Carga con el tiempo (con 0,5 %/s, de 0 a 100 % en 200 s).'],
-    ['rayo_por_derribo', 'Recarga por enemigo destruido', '%', 5, 'Por cada dragón, torre o dirigible que destruyes tú (no Lance).'],
+    ['rayo_por_derribo', 'Recarga por enemigo destruido', '%', 5, 'Por cada dragón, torre, dirigible u otra unidad enemiga que destruyes tú (no Lance; los soldados sueltos no cuentan, el batallón entero sí).'],
     { sec: 'Vuelo' },
     ['vel_max', 'Velocidad máxima', 'km/h', 600, 'A todo gas y en vuelo nivelado, sin boost (en picado se puede pasar).'],
     ['vel_boost', 'Velocidad boost', 'km/h', 1000, 'Con boost. También es el tope absoluto, picados incluidos.'],
@@ -116,6 +116,105 @@ const STATS_SCHEMA = {
     ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Medido desde el eje del barco: ahí no pueden apuntarte.'],
     ['muerto_vertical', 'Elevación máxima de los cañones', '°', 70, 'Más arriba o más abajo no pueden apuntarte.']
   ],
+  /* v29: unidades nuevas (6f; lista de Jorge del 30-oct). Valores provisionales, para ajustar en la galería de enemigos. */
+  artilleria: [
+    { sec: 'Vida' },
+    ['vida', 'Puntos de vida', 'puntos', 40, 'Balista, catapulta y cañón son iguales: solo cambia el aspecto (y el aspecto del proyectil).'],
+    ['puntos', 'Puntos al destruirla', 'puntos', 80, ''],
+    { sec: 'Tamaño y movimiento' },
+    ['largo', 'Largo', 'm', 11, 'Tamaño en el juego: los tres modelos se escalan a este largo.'],
+    ['velocidad', 'Velocidad', 'km/h', 20, 'Unidad de tierra lenta. Aún sin uso: en la galería están quietas (llegará con las misiones).'],
+    { sec: 'Disparo (muy de vez en cuando)' },
+    ['dano', 'Daño por proyectil', 'puntos', 3, 'Anecdótico: en las misiones su papel será atacar a las unidades de tierra aliadas.'],
+    ['alcance', 'Alcance', 'm', 1500, ''],
+    ['pausa_min', 'Pausa entre disparos (mínima)', 's', 6, ''],
+    ['pausa_max', 'Pausa entre disparos (máxima)', 's', 10, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 200, 'Con parábola: la gravedad lo hace caer (apuntan con adelanto).'],
+    ['dispersion', 'Dispersión', '°', 2.5, '']
+  ],
+  batallon: [
+    { sec: 'Soldados' },
+    ['soldados_min', 'Soldados por batallón (mínimo)', 'soldados', 80, 'Cada bloque sale con un número al azar entre el mínimo y el máximo (la receta puede fijarlo).'],
+    ['soldados_max', 'Soldados por batallón (máximo)', 'soldados', 300, ''],
+    ['separacion', 'Separación entre soldados', 'm', 1.6, 'En la formación rectangular. Se nota al empezar otra partida o al restaurar la galería.'],
+    ['vida', 'Vida de cada soldado', 'puntos', 2, 'Con la llamarada (15/s) arden casi al instante.'],
+    ['puntos_soldado', 'Puntos por soldado', 'puntos', 2, ''],
+    ['puntos', 'Puntos al aniquilar el batallón', 'puntos', 150, 'Además de los de cada soldado.'],
+    ['velocidad', 'Velocidad de marcha', 'km/h', 5, 'Aún sin uso: en la galería están quietos.', 1],
+    { sec: 'Daño que reciben' },
+    ['radio_llamas', 'Radio extra de la llamarada', 'm', 3, 'Se suma al cono de la llamarada (2 m + un 11 % de la distancia).'],
+    ['radio_basico', 'Radio del disparo básico', 'm', 2.5, 'Mueren los soldados a menos de esto del impacto.'],
+    ['radio_guiado', 'Radio del disparo guiado', 'm', 12, ''],
+    ['radio_rayo', 'Radio del rayo láser', 'm', 5, ''],
+    { sec: 'Flechas (sobre todo un efecto)' },
+    ['flechas_alcance', 'Alcance', 'm', 400, 'Disparan cuando pasas a menos de esto.'],
+    ['flechas_andanada', 'Flechas por andanada', 'flechas', 40, 'Con el batallón entero (con menos soldados, menos flechas).'],
+    ['flechas_pausa', 'Pausa entre andanadas', 's', 2.5, ''],
+    ['flechas_vel', 'Velocidad de las flechas', 'm/s', 75, 'Con parábola.'],
+    ['flechas_dispersion', 'Dispersión', '°', 4, ''],
+    ['flechas_dano', 'Daño por flecha', 'puntos', 0.1, 'Despreciable, a propósito (en hover justo encima, ~1 punto por segundo).']
+  ],
+  barco_naval: [
+    { sec: 'Vida' },
+    ['vida', 'Puntos de vida', 'puntos', 50, 'Como los dirigibles: un disparo guiado (60) lo hunde.'],
+    ['puntos', 'Puntos al hundirlo', 'puntos', 200, ''],
+    { sec: 'Tamaño y movimiento' },
+    ['largo', 'Eslora', 'm', 110, ''],
+    ['velocidad', 'Velocidad', 'km/h', 30, 'Aún sin uso: en la galería están quietos.'],
+    { sec: 'Cañones (solo por los costados, como los dirigibles)' },
+    ['dano', 'Daño por proyectil', 'puntos', 2, ''],
+    ['alcance', 'Alcance', 'm', 2000, ''],
+    ['cadencia', 'Pausa entre disparos', 's', 0.3, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
+    ['dispersion', 'Dispersión', '°', 1.72, ''],
+    ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Medido desde el eje del barco: ahí no pueden apuntarte.'],
+    ['muerto_vertical', 'Elevación máxima de los cañones', '°', 70, '']
+  ],
+  superdirigible: [
+    { sec: 'Núcleo (el casco)' },
+    ['vida', 'Puntos de vida del núcleo', 'puntos', 1500, 'Se puede dañar aunque queden torretas; al caer, caen todas.'],
+    ['puntos', 'Puntos al destruirlo', 'puntos', 2000, ''],
+    ['largo', 'Eslora', 'm', 500, 'Jorge: 500 m como mínimo.'],
+    ['altura_min', 'Altura mínima de vuelo', 'm', 1500, 'Sobre el suelo. La receta puede ponerlo más alto, nunca más bajo.'],
+    ['velocidad', 'Velocidad', 'km/h', 60, 'Aún sin uso: en la galería está quieto.'],
+    { sec: 'Torretas (cañones y balistas sobre la cubierta)' },
+    ['torretas', 'Torretas por costado', 'torretas', 6, 'Alternan cañón y balista; se fijan y se destruyen una a una (como mucho 6).'],
+    ['torreta_vida', 'Vida de cada torreta', 'puntos', 50, ''],
+    ['torreta_puntos', 'Puntos por torreta', 'puntos', 100, ''],
+    ['torreta_largo', 'Tamaño de cada torreta', 'm', 24, ''],
+    ['torreta_cadencia', 'Pausa entre disparos de cada torreta', 's', 1.5, 'Cada torreta dispara por su cuenta, solo hacia su costado.'],
+    ['dano', 'Daño por proyectil', 'puntos', 2, 'Como los cañones de los dirigibles.'],
+    ['alcance', 'Alcance', 'm', 2000, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
+    ['dispersion', 'Dispersión', '°', 1.72, ''],
+    ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Como los dirigibles: medido desde el eje del casco.'],
+    ['muerto_vertical', 'Elevación máxima', '°', 70, '']
+  ],
+  sierpe: [
+    { sec: 'Vida y tamaño' },
+    ['vida', 'Puntos de vida', 'puntos', 3000, 'Solo recibe daño cuando cae su escudo.'],
+    ['puntos', 'Puntos al abatirla', 'puntos', 5000, ''],
+    ['largo', 'Largo', 'm', 500, ''],
+    { sec: 'Vuelo' },
+    ['altura', 'Altura de vuelo', 'm', 2000, 'Sobre el suelo, si la receta no dice otra.'],
+    ['radio_circulo', 'Radio del círculo', 'm', 2500, 'En vuelo circular (en la galería, con el panel de pruebas).'],
+    ['velocidad', 'Velocidad', 'km/h', 150, 'En vuelo circular.'],
+    { sec: 'Llamarada (si te pones delante de la cabeza)' },
+    ['llamas_dano', 'Daño', 'puntos/s', 40, ''],
+    ['llamas_alcance', 'Alcance', 'm', 900, ''],
+    ['llamas_angulo', 'Ángulo para empezarla', '°', 25, 'Te tiene que tener delante de la cabeza, a menos de este ángulo.'],
+    ['llamas_duracion', 'Duración', 's', 4, ''],
+    ['llamas_pausa', 'Pausa entre llamaradas', 's', 6, ''],
+    { sec: 'Bolas de fuego (como los dragones enemigos)' },
+    ['bola_dano', 'Daño', 'puntos', 15, ''],
+    ['bola_alcance', 'Alcance', 'm', 1500, ''],
+    ['bola_pausa_min', 'Pausa entre bolas (mínima)', 's', 1.2, ''],
+    ['bola_pausa_max', 'Pausa entre bolas (máxima)', 's', 2.4, ''],
+    { sec: 'Hechiceros y escudo' },
+    ['hechiceros', 'Hechiceros en el lomo', 'hechiceros', 3, 'Mientras quede alguno, el escudo la protege de todo daño (como mucho 3).'],
+    ['hechicero_vida', 'Vida de cada hechicero', 'puntos', 60, ''],
+    ['hechicero_puntos', 'Puntos por hechicero', 'puntos', 300, '']
+  ],
   lance: [
     { sec: 'Armas (solo disparo básico y lanzallamas)' },
     ['basico_dano', 'Daño disparo básico', 'puntos', 5, ''],
@@ -141,7 +240,14 @@ const STATS_TABS = [
   { tab: 'Alientormenta', unit: 'tyrant', kind: 'dragon' }, { tab: 'Abrasanubes', unit: 'rojo', kind: 'dragon' },
   { tab: 'Ventoscuro', unit: 'drogon', kind: 'dragon' }, { tab: 'Fulgor', unit: 'fulgor', kind: 'dragon' },
   { tab: 'Dragón enemigo', unit: 'enemigo', kind: 'enemigo' }, { tab: 'Torre', unit: 'torre', kind: 'torre' },
-  { tab: 'Dirigible', unit: 'dirigible', kind: 'dirigible' }, { tab: 'Lance (aliado)', unit: 'lance', kind: 'lance' }
+  { tab: 'Dirigible', unit: 'dirigible', kind: 'dirigible' },
+  // v29: unidades nuevas (6f); note = subtítulo de su pestaña en el Excel
+  { tab: 'Artillería', unit: 'artilleria', kind: 'artilleria', note: 'Nueva (v29): balistas, catapultas y cañones, la defensa terrestre móvil. Valores provisionales.' },
+  { tab: 'Batallón', unit: 'batallon', kind: 'batallon', note: 'Nueva (v29): bloques de soldados, el objetivo de la llamarada a ras de tierra. Valores provisionales.' },
+  { tab: 'Barco naval', unit: 'barco_naval', kind: 'barco_naval', note: 'Nueva (v29): barcos en el mar, como los dirigibles. Valores provisionales.' },
+  { tab: 'Superdirigible', unit: 'superdirigible', kind: 'superdirigible', note: 'Nueva (v29): megaestructura del cielo con torretas que se destruyen aparte. Valores provisionales.' },
+  { tab: 'Sierpe', unit: 'sierpe', kind: 'sierpe', note: 'Nueva (v29): dragón serpiente gigante (minijefe) con hechiceros que la escudan. Valores provisionales.' },
+  { tab: 'Lance (aliado)', unit: 'lance', kind: 'lance' }
 ];
 const statsNorm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -297,6 +403,7 @@ function applyStats(vals, src) {
   ALLY_FLAME_DPS = L.llamas_dano; ALLY_FLAME_RANGE = L.llamas_alcance; ALLY_VMAX = L.vel_max / 3.6; ALLY_ENGAGE = L.combate_distancia;
   ALLY_PROTECT = L.proteger_dist; ALLY_PROTECT_P = L.proteger_prob / 100; ALLY_URGENT = L.proteger_urgente; ALLY_PICK[0] = L.blanco_min; ALLY_PICK[1] = Math.max(L.blanco_min, L.blanco_max);
   if (ally.e) ally.e.vmax = ALLY_VMAX;
+  if (typeof applyUnitStats === 'function') applyUnitStats();   // v29: tamaños y vidas de las unidades nuevas (6f; el resto lo leen al usarlo)
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();
   if (src !== 'panel de pruebas' && typeof devStatsSnap === 'function') devStatsSnap();   // v27: referencia del panel de pruebas (19d)

@@ -146,6 +146,7 @@ const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new TH
 const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
   dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
   airships: { total: 0, zone: AIRSHIP_ZONE.slice(), alt: AIRSHIP_ALT.slice(), center: [0, 0], random: true, sites: [], tags: [] },   // v21: dirigibles (6c)
+  units: [],                                               // v29: unidades nuevas de la receta (6f)
   world: null };                                           // v19: semilla, bioma y punto de partida de la misión (missionSetup)
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
@@ -160,6 +161,7 @@ function showResult(win, why) {
     RUN.towers.total ? ['Torres destruidas', towerState.kills + ' / ' + RUN.towers.total] : null,
     dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
     airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
+    UNITS.length ? ['Otras unidades destruidas', unitState.kills + ' / ' + UNITS.length + (stats.soldiers ? '  ·  ' + stats.soldiers + ' soldados' : '')] : null,   // (v29)
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
     ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
@@ -181,6 +183,7 @@ function resetRun(pump) {
   for (const t of [...towers.values()]) dropTower(t);
   planTowers();                                            // v13: nuevo reparto de torres (entre 10 y 15 en islas)
   planAirships();                                          // v21: y los dirigibles de la misión
+  planUnits();                                             // v29: y las unidades nuevas (artillería, batallones, barcos, superdirigibles, la sierpe)
   for (let i = fireballs.length - 1; i >= 0; i--) killFireball(i);
   boltsClear();
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
@@ -311,8 +314,8 @@ const _mouth = new THREE.Vector3(), _dir = new THREE.Vector3(), _org = new THREE
 function aimPointFrom(origin, dir) {
   // marcha a lo largo del rayo del marcador: terreno o torres; si no hay impacto, un punto lejano
   let t = 25, last = 0;
-  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT);
-  const tI = Math.min(tIsl, tEn, tAir), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo o el dirigible (v21) más cercano en el rayo
+  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT), tUn = unitRayHit(origin, dir, maxT);
+  const tI = Math.min(tIsl, tEn, tAir, tUn), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo, el dirigible (v21) o la unidad (v29) más cercana en el rayo
   while (t < limit) {
     _hit.copy(origin).addScaledVector(dir, t);
     const gy = Math.max(heightAt(_hit.x, _hit.z), WL);
@@ -678,6 +681,7 @@ function flameFx(dt, reach) {
   _bF.copy(_bS).addScaledVector(_bD, lim);
   for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) { damageTower(t, amt, true, _sdc); flameHit(_sdc, dt); }   // _sdc: punto de la llamarada más cercano a la torre
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) { damageAirship(a, amt, true, _sdc); flameHit(_sdc, dt); }      // v21: dirigibles
+  unitsFlame(_bS, _bD, lim, amt, dt);                                                                                                           // v29: unidades nuevas (6f; los batallones, soldado a soldado)
   fbLight.position.copy(_bS).addScaledVector(_bD, Math.min(40, len * 0.5)); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
 }
 /* Llamarada corta sin sonido ni temblor (impacto del rayo contra el terreno). */
@@ -723,6 +727,7 @@ function laserFx(dt) {
   for (const e of enemies) if (!e.dead && segHitsSphere(_bS, _bE, e.pos, ENEMY_HIT_R + LASER_R)) damageEnemy(e, amt, _fc, true);   // _fc: punto del rayo más cercano
   for (const tw of towers.values()) if (!tw.dead && towerSegDist2(tw, _bS, _bE) < (TOWER_R + LASER_R) ** 2) damageTower(tw, amt, true, _sdc);
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bE) < (a.r + LASER_R) ** 2) damageAirship(a, amt, true, _sdc);
+  unitsLaser(_bS, _bE, amt);                                                                                     // v29: unidades nuevas (6f)
   // 5. impacto: llamaradas y humo donde choca
   if (blocked) { W.burstT = (W.burstT || 0) - dt; if (W.burstT <= 0) { W.burstT = 0.09; burstFx(_bE.x, _bE.y + 2, _bE.z, c); } }
   // 6. espiral de energía alrededor del primer tramo (dos hebras que giran) y destello en la boca
@@ -957,6 +962,7 @@ function updateFlight(dt, auto) {
   if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
     if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
   }
+  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crash('Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
     for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);

@@ -160,6 +160,7 @@ function drawEnemyMarkers() {
     if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
   }
+  if (drawUnitMarkers(a, lock)) lockShown = true;          // v29: unidades nuevas (6f)
   for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
     if (t.dead) continue;
     const locked = t === lock, tgt = isTgt(t);
@@ -175,6 +176,38 @@ function drawEnemyMarkers() {
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
   drawAllyMarker(a);
+}
+/* v29: unidades nuevas (6f). Artillería y torretas: cuadrado hueco; batallones: rectángulo con los soldados que quedan; barcos: rombo
+   (como los dirigibles); superdirigible y sierpe: rombo doble con su nombre (la sierpe, «ESCUDO» mientras lo tiene); hechiceros: círculo.
+   Se ven hasta u.markR (las TGT y la fijada, siempre); el texto, de cerca, si es TGT o si está fijada. Devuelve si dibujó el recuadro del
+   blanco fijado. */
+function drawUnitMarkers(a, lock) {
+  let shown = false;
+  for (const u of UNITS) {
+    if (u.dead) continue;
+    const d = u.pos.distanceTo(_camP), locked = u === lock, tgt = isTgt(u);
+    if ((d > u.markR && !locked && !tgt) || d > 16000 || !proj(u.bc.x, u.bc.y, u.bc.z, a)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
+    let half = 0;
+    if (locked && onScreen) { shown = true; half = drawLockBox(u, a, d); }
+    const big = u.kind === 'superdirigible' || u.kind === 'sierpe', r = (big ? 9 : 5) + 3 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : big ? 34 : 18);
+    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = u.kind === 'hechicero' ? C_TGT : C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath();
+    if (u.kind === 'artilleria' || u.kind === 'torreta') hctx.rect(a.x - r, y - r, 2 * r, 2 * r);
+    else if (u.kind === 'batallon') hctx.rect(a.x - r * 1.8, y - r * 0.8, 3.6 * r, 1.6 * r);
+    else if (u.kind === 'hechicero') hctx.arc(a.x, y, r, 0, 6.283);
+    else { hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); }
+    hctx.stroke();
+    if (big) { hctx.beginPath(); hctx.moveTo(a.x, y - r * 0.5); hctx.lineTo(a.x + r * 0.75, y); hctx.lineTo(a.x, y + r * 0.5); hctx.lineTo(a.x - r * 0.75, y); hctx.closePath(); hctx.stroke(); }
+    if (d < (big ? 15000 : u.kind === 'batallon' ? 2500 : 1000) || locked || tgt) {   // (la artillería va en grupos: de lejos, solo el símbolo)
+      const name = big ? u.label.toUpperCase() + (u.kind === 'sierpe' && u.shield ? ' · ESCUDO' : '') + '  ' : u.kind === 'batallon' ? u.alive + '  ·  ' : '';
+      hudText((tgt ? 'TGT  ' : '') + name + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    }
+    if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
+  }
+  hctx.globalAlpha = 1;
+  return shown;
 }
 /* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
 const C_ALLY = '#5ab4ff';
@@ -272,6 +305,20 @@ function drawRadar(heading, fwd) {
     _Eef.set(0, 0, -1).applyQuaternion(s.q);
     hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
     hctx.strokeStyle = col(tgt, q.d > range, false); hctx.lineWidth = 1.8;
+    hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
+    hctx.restore();
+  }
+  for (const u of UNITS) {                                 // v29: unidades nuevas (las montadas, no: va su unidad)
+    if (u.dead || !u.radar) continue;
+    const tgt = isTgt(u) || u.kids.some(k => !k.dead && isTgt(k)), q = at(u.pos.x, u.pos.z), far = q.d > range;
+    if (tgt) nearest = Math.min(nearest, q.d);
+    if (u.radar === 'sq') { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 2.5, q.y - 2.5, 5, 5); continue; }
+    if (u.radar === 'rect') { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 4, q.y - 2, 8, 4); continue; }
+    if (u.radar === 'serpent') { hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 2; hctx.beginPath(); hctx.arc(q.x, q.y, 6, 0, 6.283); hctx.stroke(); hctx.beginPath(); hctx.arc(q.x, q.y, 2.5, 0, 6.283); hctx.stroke(); continue; }
+    _Eef.set(0, 0, -1).applyQuaternion(u.q);                 // barcos y superdirigible: cápsula hueca a lo largo del casco (el superdirigible, más grande)
+    const k = u.radar === 'super' ? 1.6 : 1;
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz)); hctx.scale(k, k);
+    hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 1.8 / k;
     hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
     hctx.restore();
   }
@@ -545,7 +592,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt); updateUnits(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado; v29: unidades nuevas, 6f)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateScorch(); devDebug();   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;

@@ -345,6 +345,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
         <button class="mbtn" id="mFree">Combate libre</button>
         <button class="mbtn" id="mObj">Prueba de objetivos</button>
         <button class="mbtn" id="mDev">Dev Test</button>   <!-- v27 -->
+        <button class="mbtn" id="mGal">Galería de enemigos</button>   <!-- v29 -->
         <button class="ghost" id="mBack">← Volver</button>
       </div>
     </nav>
@@ -380,6 +381,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
     <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
+    <p class="lead"><b>Galería de enemigos</b>: campo de pruebas llano con todos los tipos de enemigos quietos, con los mismos trucos y panel; en el panel, además, parar su fuego, la sierpe en vuelo circular, «Restaurar galería» e «Ir a…» cada grupo.</p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -484,6 +486,14 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <script id="drogon-glb" type="application/octet-stream"></script>
 <script id="fulgor-glb" type="application/octet-stream"></script>
 <script id="dirigible-glb" type="application/octet-stream"></script>
+<!-- v29: las unidades nuevas (6f): artillería, barco naval, superdirigible, sierpe y soldado/hechicero -->
+<script id="balista-glb" type="application/octet-stream"></script>
+<script id="catapulta-glb" type="application/octet-stream"></script>
+<script id="canon-glb" type="application/octet-stream"></script>
+<script id="barco-glb" type="application/octet-stream"></script>
+<script id="superdirigible-glb" type="application/octet-stream"></script>
+<script id="sierpe-glb" type="application/octet-stream"></script>
+<script id="soldado-glb" type="application/octet-stream"></script>
 <script id="logo-sky-png" type="application/octet-stream"></script>
 <script id="logo-apex-png" type="application/octet-stream"></script>
 <script>
@@ -554,7 +564,22 @@ function seededRandom(seed) {
 /* Rellena out.h (altura), out.forest (densidad de bosque 0..1) y out.wet (cercanía a ríos/lagos 0..1).
    full=false calcula solo la altura (colisiones, puntería). */
 const _o = { h: 0, forest: 0, wet: 0 };
+/* v29: mundo llano (bioma «pruebas», el campo de pruebas): suelo a FLAT.h m y lagos rectangulares (FLAT.lakes: { x0, z0, x1, z1 }, con
+   orillas de FLAT_SHORE m) de FLAT_DEPTH m de hondo, para los barcos. Lo fija setBiome (M3); null = el terreno de siempre. */
+let FLAT = null;
+const FLAT_SHORE = 60, FLAT_DEPTH = 12;
+function flatTerrain(x, z, out, full) {
+  let h = FLAT.h;
+  for (const L of FLAT.lakes) {
+    const dx = Math.max(L.x0 - x, x - L.x1, 0), dz = Math.max(L.z0 - z, z - L.z1, 0), d = Math.hypot(dx, dz);   // 0 dentro
+    if (d < FLAT_SHORE) h = Math.min(h, lerp(-FLAT_DEPTH, FLAT.h, smooth(0, FLAT_SHORE, d)));
+  }
+  out.h = h;
+  if (full) { out.forest = 0; out.wet = 0; }
+  return h;
+}
 function terrain(x, z, out, full) {
+  if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;
   // máscara de cordilleras
@@ -738,14 +763,40 @@ scene.add(waterMesh);
 
 /* ---------- Terreno ---------- */
 const terrainUniforms = {
-  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex }
+  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex },
+  uGrid: { value: 0 }                                     // v29: 1 = suelo de blockout (campo de pruebas): cuadros grises de 10 m con borde blanco
 };
 const terrainVS = `
 attribute vec2 aux; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vAux = aux; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const terrainFS = GLSL_COMMON + `
-uniform float uFog; uniform sampler2D uNoise; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+uniform float uFog; uniform sampler2D uNoise; uniform float uGrid; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+// v29: líneas de una cuadrícula de celda «cell» y medio grosor «hw» (m), suavizadas por píxel; se apagan cuando ya no caben en pantalla
+float gridLine(vec2 p, float cell, float hw){
+  vec2 d = abs(mod(p + cell * 0.5, cell) - cell * 0.5), aa = fwidth(p) * 0.8;
+  vec2 l = 1.0 - smoothstep(vec2(hw) - aa, vec2(hw) + aa, d);
+  return max(l.x, l.y) * (1.0 - smoothstep(0.12, 0.3, max(aa.x, aa.y) / cell));
+}
+vec3 blockout(vec2 p){
+  vec2 c = floor(p / 10.0);
+  vec3 col = mix(vec3(0.40, 0.40, 0.41), vec3(0.45, 0.45, 0.46), mod(c.x + c.y, 2.0));
+  col = mix(col, vec3(0.92), gridLine(p, 10.0, 0.18));
+  col = mix(col, vec3(1.0), gridLine(p, 100.0, 0.7));
+  return col;
+}
 void main(){
+  if (uGrid > 0.5) {
+    vec3 N = normalize(vN); float h = vW.y;
+    vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+    vec3 col = blockout(vW.xz);
+    float dep = clamp(-h / 14.0, 0.0, 1.0);
+    col = mix(col, mix(vec3(0.20, 0.34, 0.31), vec3(0.03, 0.10, 0.17), dep), smoothstep(0.4, -0.6, h));
+    float wrap = max((dot(N, uSunDir) + 0.20) / 1.20, 0.0);
+    vec3 lit = col * (vec3(1.0, 0.70, 0.43) * 1.70 * wrap + mix(vec3(0.20, 0.20, 0.28), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5) * 0.95);
+    float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+    gl_FragColor = vec4(mix(lit, skyColor(normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z))), fogF), 1.0);
+    return;
+  }
   vec3 N = normalize(vN);
   float h = vW.y;
   vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
@@ -790,7 +841,7 @@ const terrainMats = [];
 function terrainMaterial(level) {
   if (!terrainMats[level]) {
     terrainMats[level] = new THREE.ShaderMaterial({
-      uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide,
+      uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide, extensions: { derivatives: true },
       polygonOffset: true, polygonOffsetFactor: level * 0.6, polygonOffsetUnits: level * 3
     });
   }
@@ -1373,6 +1424,7 @@ function fineCell(fx, fz) {
 }
 function islandsInRange(px, pz, range) {
   const out = [];
+  if (FLAT) return out;                                     // v29: el campo de pruebas no tiene islas
   const f0x = Math.floor((px - range) / ISL_FINE), f1x = Math.floor((px + range) / ISL_FINE);
   const f0z = Math.floor((pz - range) / ISL_FINE), f1z = Math.floor((pz + range) / ISL_FINE);
   for (let fz = f0z; fz <= f1z; fz++) for (let fx = f0x; fx <= f1x; fx++) for (const s of fineCell(fx, fz)) if (Math.hypot(s.x - px, s.z - pz) < range + s.R) out.push(s);
@@ -3234,13 +3286,14 @@ function updateFireballs(dt) {
   let near = null, nearD = 700;
   const shOn = shieldOn(); if (shOn) shieldCenter(_shC);
   for (let i = fireballs.length - 1; i >= 0; i--) {
-    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', fast = gun || aa || arc;
+    const f = fireballs[i], gun = f.kind === 'gun', msl = f.kind === 'msl', emsl = f.kind === 'emsl', aa = f.kind === 'aa', arc = f.kind === 'arc', ushot = f.kind === 'ushot', fast = gun || aa || arc || (ushot && f.fastLook);
     if (msl) steerMissile(f, dt); else if (emsl) steerEnemyMissile(f, dt);
     const steps = fast ? 3 : 2, h = dt / steps;
     let hit = false, onTarget = false;
     _fp.copy(f.pos);
     for (let s = 0; s < steps && !hit; s++) {
       _fo.copy(f.pos);
+      if (f.grav) f.vel.y -= f.grav * h;                   // (v29: los de la artillería y las torretas, con parábola)
       f.pos.addScaledVector(f.vel, h);
       const gy = Math.max(heightAt(f.pos.x, f.pos.z), WL);
       if (f.pos.y < gy) {
@@ -3256,7 +3309,8 @@ function updateFireballs(dt) {
           if (emsl) { explode(f.pos.x, f.pos.y, f.pos.z, 0.9); hurtDragon(EMSL_DMG, 'Una bola guiada te derribó'); }
           else if (aa) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(AA_DMG, 'La artillería de una torre te derribó', true); }
           else if (arc) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, 'Los cañones de un dirigible te derribaron', true); }
-          else hurtDragon(ENEMY_DMG, 'Un dragón enemigo te derribó');
+          else if (ushot) { sparks(f.pos.x, f.pos.y, f.pos.z, 8, dragonVel.x, dragonVel.y, dragonVel.z); hurtDragon(f.dmg, f.msg, true); }   // v29: unidades nuevas (6f)
+          else hurtDragon(f.dmg, f.msg || 'Un dragón enemigo te derribó');   // (v29: la sierpe lanza las mismas bolas con su daño)
         } else if (emsl) for (const t of towers.values()) {
           const dx = f.pos.x - t.x, dz = f.pos.z - t.z;
           if (!t.dead && dx * dx + dz * dz < (TOWER_R + 3) ** 2 && f.pos.y > t.y - 1 && f.pos.y < t.y + TOWER_TOP + 4) { hit = true; explode(f.pos.x, f.pos.y, f.pos.z, 1.1); break; }
@@ -3279,6 +3333,7 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
+        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
         byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
@@ -3356,7 +3411,7 @@ function updateTowerAI(dt) {
       continue;
     }
     const P = dragon.position, from = _Etop.set(t.x, t.y + 27 * TOWER_SY, t.z), d = from.distanceTo(P);   // la batería, en la plataforma de arriba
-    if (d > AA_RANGE || state !== 'playing') { t.burst = 0; continue; }
+    if (d > AA_RANGE || state !== 'playing' || holdFire()) { t.burst = 0; continue; }   // (v29: «Los enemigos disparan», panel de pruebas)
     t.cool -= dt;
     if (t.cool > 0) continue;
     if (!(t.burst > 0)) {                                                         // nueva ráfaga, si lo ve
@@ -3924,7 +3979,7 @@ function spawnEnemies() {
   while (enemies.length < n) enemies.push(makeEnemy());
   enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior)
+    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
@@ -3959,6 +4014,19 @@ function spawnSquad(id) {
     if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
     resetTrail(e);
   }
+}
+/* v29: dragón quieto (galería de enemigos, receta units con type 'dragon'): flota en el sitio con la animación de hover, mirando al rumbo
+   heading (°), sin IA, sin disparar y sin reaparecer; se le puede fijar, dañar y derribar como a cualquiera. */
+function spawnStatue(x, y, z, heading, tags) {
+  let e = enemies.find(o => o.off);
+  if (!e) { e = makeEnemy(); enemies.push(e); }
+  if (!e.act.hover) { e.act.hover = e.mixer.clipAction(hero.clips.hover); e.act.hover.play(); e.act.hover.time = Math.random() * hero.hoverDur; }
+  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
+  const a = heading * Math.PI / 180; _Eef.set(Math.sin(a), 0, -Math.cos(a));
+  e.pos.set(x, y, z); e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP)); e.vel.set(0, 0, 0);
+  e.speed = 0; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.aimLocal.set(0, 0, -1); setEnemyMode(e, 'patrol'); e.alert = 1e9;
+  resetTrail(e);
+  return e;
 }
 /* El jugador reaparece: los enemigos pierden el rastro un momento. */
 function enemiesCalm() {
@@ -4047,7 +4115,7 @@ function enemyMouth(e, out) {
   return out.addScaledVector(_hF.set(0, 0, -1).applyQuaternion(e.q), 1.2 * ENEMY_SCALE);
 }
 function enemyShoot(e) {
-  if (gameTime - enemyLastShot < ENEMY_STAGGER) return false;
+  if (gameTime - enemyLastShot < ENEMY_STAGGER || holdFire()) return false;   // (v29: «Los enemigos disparan», panel de pruebas)
   const P = dragon.position, mouth = enemyMouth(e, _Emo);
   _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(P) / FIREBALL_SPEED * 0.9);                 // punto de adelanto
   _Eai.copy(P).addScaledVector(dragonVel, mouth.distanceTo(_Eai) / FIREBALL_SPEED * 0.9);
@@ -4076,7 +4144,7 @@ const threat = { lock: 0, lastLaunch: -99, beepT: 0, incoming: [] };           /
 const _Emd = new THREE.Vector3(), _Emo2 = new THREE.Vector3();
 /* Un tirador (dragón o torre: s.mslCool, s.mslLock) intenta fijar al jugador y lanzar desde `from`; can = además está en posición. */
 function enemyMissileTry(s, from, dt, can) {
-  if (state !== 'playing') { s.mslLock = 0; return false; }
+  if (state !== 'playing' || holdFire()) { s.mslLock = 0; return false; }
   if (s.mslCool > 0) { s.mslCool -= dt; return false; }
   const P = dragon.position, d = from.distanceTo(P);
   // solo se empieza a fijar cuando ya casi se puede lanzar (así el aviso no se queda encendido mientras se espera a EMSL_GAP)
@@ -4312,6 +4380,11 @@ function updateEnemies(dt) {
   for (const e of enemies) {
     if (e.off) continue;                                     // v15: sobra en esta misión (más a la vez en una anterior)
     if (e.dead) { e.respawnT -= dt; updateTrail(e, dt); if (!e.squad && e.respawnT <= 0 && state !== 'menu' && enemyState.spawned < RUN.dragons.total) reviveEnemy(e); continue; }
+    if (e.statue) {                                          // v29: quieto en la galería, en hover
+      e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
+      _Est.hover = 1; animateEnemyModel(e, dt, e.pos.distanceTo(P)); _Est.hover = 0;
+      continue;
+    }
     if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
@@ -4662,7 +4735,7 @@ function updateAirships(dt) {
       }
     }
     // cañones: solo por el costado que mira al jugador, y nunca a proa, a popa ni en la vertical
-    if (!playing || d > AIRSHIP_RANGE) continue;
+    if (!playing || d > AIRSHIP_RANGE || holdFire()) continue;   // (v29: panel de pruebas)
     a.cool -= dt; if (a.cool > 0) continue;
     _Ad.subVectors(P, a.pos).divideScalar(d || 1);
     _Af.set(0, 0, -1).applyQuaternion(a.q); _As.set(1, 0, 0).applyQuaternion(a.q);
@@ -4684,6 +4757,7 @@ function updateAirships(dt) {
    Torres (cada sitio de TOWER_SITES), dragones enemigos y dirigibles comparten { kind ('tower' | 'dragon' | 'airship'), pos, vel, dead,
    tags }, así que las misiones los cuentan por tipo o por etiqueta (missionKill, M2), se fijan igual y la bola guiada persigue a cualquiera.
    · Los tipos nuevos (estructuras, soldados, jefes) solo tienen que tener esa forma, una entrada en BLANCO y aparecer en eachTarget.
+     v29: así entran las unidades nuevas de 6f (artillería, batallones, barcos, superdirigibles y sus torretas, la sierpe y sus hechiceros).
    · TGT: lo es todo lo que cuenta para un objetivo de la misión visible, sin cumplir y no opcional (isTgt). Se marca «TGT» en el HUD y
      destaca en el radar; lo demás se ve, pero no cuenta para ganar.
    · Fijar (clic central, cycleTarget): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE); primero los TGT,
@@ -4692,15 +4766,19 @@ function updateAirships(dt) {
 const BLANCO = {                          // nombre (avisos) y medio tamaño (m): recuadro del fijado y círculo de la bola guiada
   tower: { name: 'Torre', half: TOWER_TOP * 0.5 },
   dragon: { name: 'Dragón', half: ENEMY_SCALE * 30 },
-  airship: { name: 'Dirigible', half: AIRSHIP_LEN * 0.5 }
+  airship: { name: 'Dirigible', half: AIRSHIP_LEN * 0.5 },
+  // v29: unidades nuevas (6f); su medio tamaño va en cada una (t.half: depende de la stat «largo» y de los soldados)
+  artilleria: { name: 'Artillería', half: 6 }, batallon: { name: 'Batallón', half: 20 }, barco: { name: 'Barco', half: 55 },
+  superdirigible: { name: 'Superdirigible', half: 175 }, torreta: { name: 'Torreta', half: 12 }, sierpe: { name: 'Sierpe', half: 40 }, hechicero: { name: 'Hechicero', half: 7 }
 };
 const LOCK_STATIC_RANGE = 6000;           // torres y dirigibles se fijan hasta esta distancia (los dragones, a cualquiera, como antes)
-const targetHalf = t => (BLANCO[t.kind] || BLANCO.dragon).half;
+const targetHalf = t => t.half || (BLANCO[t.kind] || BLANCO.dragon).half;
 /* Recorre los blancos en pie. */
 function eachTarget(fn) {
   for (const s of TOWER_SITES) if (!s.dead) fn(s);
   for (const e of enemies) if (!e.dead && !e.off) fn(e);
   for (const a of airships) if (!a.dead) fn(a);
+  for (const u of UNITS) if (!u.dead) fn(u);                // v29: unidades nuevas (también las torretas y los hechiceros, una a una)
 }
 /* ¿El blanco t cumple la selección de un objetivo o condición? { target: tipo, tag: etiqueta } (las dos, si están). */
 function matchSel(sel, t) { return (!sel.target || sel.target === t.kind) && (!sel.tag || (!!t.tags && t.tags.includes(sel.tag))); }
@@ -4716,7 +4794,7 @@ function cycleTarget() {
   const P = dragon.position, cand = [];
   eachTarget(t => {
     const d = t.pos.distanceTo(P);
-    if (t.kind !== 'dragon' && d > LOCK_STATIC_RANGE) return;
+    if (t.kind !== 'dragon' && d > (t.lockRange || LOCK_STATIC_RANGE)) return;   // (v29: el superdirigible y la sierpe, desde más lejos)
     if (!enemyNdc(t, _Ln) || Math.abs(_Ln.x) >= 0.98 || Math.abs(_Ln.y) >= 0.98) return;
     cand.push({ t, d, tgt: isTgt(t) });
   });
@@ -4724,7 +4802,7 @@ function cycleTarget() {
   cand.sort((a, b) => (b.tgt - a.tgt) || (a.d - b.d));
   const i = cand.findIndex(c => c.t === enemyLock.e), next = cand[i < 0 ? 0 : (i + 1) % cand.length];
   if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + BLANCO[next.t.kind].name + '  ·  ' + fmtDist(next.d)); }
+  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + (next.t.label || BLANCO[next.t.kind].name) + '  ·  ' + fmtDist(next.d)); }
 }
 
 /* ============================================================
@@ -4891,6 +4969,1007 @@ function allyFlame(e, mouth, dt) {
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _Am, _Al) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);
   byAlly = false;
 }
+
+/* ============================================================
+   6f. UNIDADES NUEVAS (v29): artillería, barcos navales, superdirigibles (con sus torretas), batallones de soldados (14g) y la sierpe
+   (con sus hechiceros y su escudo, 14f)
+   Lista de enemigos de Jorge (30-oct). Todas tienen la forma de los blancos (6d: kind, pos, vel, dead, tags) y comparten este sistema:
+   · UNITS: todas las de la partida, también las piezas montadas en otra unidad (torretas del superdirigible y hechiceros de la sierpe:
+     parent; al caer la unidad, caen ellas). Se fijan por separado (clic central) y cuentan por separado para las misiones.
+   · Impactos: cada unidad tiene cápsulas en el mundo (u.caps: { a, b, r }) que usan los proyectiles, la llamarada, el rayo, la asistencia
+     de puntería y los choques (unitSegHit, unitRayHit, unitPointHit, unitsFlame, unitsLaser). Los batallones, además, matan soldados uno a
+     uno (u.hurt, 14g) y la sierpe con escudo no recibe daño (14f).
+   · Daño y muerte: damageUnit → killUnit (puntos, misión, rayo) → u.onKill (restos, hundimiento, explosión…).
+   · Stats: pestañas «Artillería», «Batallón», «Barco naval», «Superdirigible» y «Sierpe» del Excel (19c). Se leen al usarlas (STATS.x.y),
+     así que un cambio en el Excel o en el panel de pruebas se nota al momento; el tamaño (largo), en applyUnitStats.
+   · Colocación: receta «units» (M1) → planUnits, en cada partida desde resetRun. Formaciones: línea, columna, cuña y rejilla.
+   · Movimiento: de momento quietas (la galería las quiere así); la velocidad ya está en el Excel para cuando vayan en misiones.
+   · Modelos (preparados en Blender: herramientas/blender/enemigos/): 1 m de largo y el frente hacia -Z; el juego los escala con «largo».
+   ============================================================ */
+const UNITS = [];
+const unitState = { kills: 0 };
+const unitRes = {};                                         // modelo → [{ geo, mat }] cuando ha cargado
+const UNIT_GLB = {                                          // modelo: [id incrustado en sky_apex.html, archivo]
+  balista: ['balista-glb', '../modelos/artilleria_balista.glb'], catapulta: ['catapulta-glb', '../modelos/artilleria_catapulta.glb'],
+  canon: ['canon-glb', '../modelos/artilleria_canon.glb'], barco: ['barco-glb', '../modelos/barco_naval.glb'],
+  superdirigible: ['superdirigible-glb', '../modelos/superdirigible.glb'], sierpe: ['sierpe-glb', '../modelos/sierpe.glb'],
+  soldado: ['soldado-glb', '../modelos/soldado.glb']        // (dos mallas: «soldado» y «hechicero»)
+};
+const UNIT_G = 9.8;                                         // gravedad de los proyectiles con parábola (artillería, flechas) (m/s²)
+const ART_NAME = { balista: 'Balista', catapulta: 'Catapulta', canon: 'Cañón' };
+const BARCO_DRAFT = 0.05;                                   // calado del barco naval (fracción del largo, desde la quilla)
+const SUPER_MOUNTS = [-0.3, -0.21, -0.12, -0.03, 0.06, 0.15];   // torretas del superdirigible: a lo largo (fracción del largo, + = hacia proa; medido en Blender, 04_sondear.py)
+const SUPER_DECK = { x: 0.058, y: 0.016 };                  // borde de la cubierta donde van (fracción del largo)
+const _Ua = new THREE.Vector3(), _Ub = new THREE.Vector3(), _Uc = new THREE.Vector3(), _Ud = new THREE.Vector3(), _Uf = new THREE.Vector3(), _Us = new THREE.Vector3();
+const _Uq = new THREE.Quaternion(), _Uq2 = new THREE.Quaternion(), _Uhit = new THREE.Vector3(), _Ux = new THREE.Vector3(1, 0, 0), _Uz = new THREE.Vector3(0, 0, 1);
+const holdFire = () => !!(mission.dev && typeof DEV !== 'undefined' && !DEV.fire);   // panel de pruebas: «Los enemigos disparan» desactivado
+
+/* ---------- Modelos ---------- */
+function srgbColors(geo) {                                  // color por vértice lineal (glTF) → sRGB en coma flotante (el juego pinta sin corrección de gamma)
+  const col = geo.attributes.color; if (!col) return;
+  const max = !col.normalized ? 1 : col.array instanceof Uint8Array ? 255 : 65535, out = new Float32Array(col.count * 3);
+  for (let i = 0; i < col.count; i++) { out[i * 3] = Math.pow(col.getX(i) / max, 1 / 2.2); out[i * 3 + 1] = Math.pow(col.getY(i) / max, 1 / 2.2); out[i * 3 + 2] = Math.pow(col.getZ(i) / max, 1 / 2.2); }
+  geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
+}
+function loadUnits() {
+  return Promise.all(Object.entries(UNIT_GLB).map(([key, [id, url]]) => loadGLB(id, url).then(g => {
+    g.scene.updateMatrixWorld(true);
+    g.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const geo = o.geometry.clone(), src = o.material; geo.applyMatrix4(o.matrixWorld); geo.computeBoundingSphere();
+      if (geo.attributes.color_1) { geo.setAttribute('color', geo.attributes.color_1); geo.deleteAttribute('color_1'); }   // (el soldado trae un COLOR_0 blanco y el bueno en COLOR_1)
+      if (src.map) geo.deleteAttribute('color'); else srgbColors(geo);   // (con textura, el color por vértice que traiga no se usa)
+      const mat = new THREE.MeshLambertMaterial({ map: src.map || null, vertexColors: !!geo.attributes.color, side: THREE.DoubleSide });
+      if (mat.map) mat.map.encoding = THREE.LinearEncoding; else if (!geo.attributes.color) mat.color.copy(src.color);
+      let n = key; for (let p = o; p; p = p.parent) if (/hechicero/i.test(p.name)) n = 'hechicero';
+      (unitRes[n] = unitRes[n] || []).push({ geo, mat });
+    });
+    if (key === 'sierpe' && typeof serpentPrepare === 'function') serpentPrepare();
+  }).catch(err => console.error('No se pudo cargar el modelo «' + key + '»:', err))));
+}
+/* Copia del modelo para una unidad: comparte la geometría; materiales propios (el destello de los impactos y los restos quemados). */
+function unitModel(key) {
+  const g = new THREE.Group(), mats = [];
+  for (const p of unitRes[key]) { const m = p.mat.clone(); mats.push(m); g.add(new THREE.Mesh(p.geo, m)); }
+  return { g, mats };
+}
+function attachModel(u) {
+  const M = unitModel(u.modelKey); u.model = M.g; u.mats = M.mats;
+  u.model.scale.setScalar(u.size); u.model.position.copy(u.pos); u.model.quaternion.copy(u.q);
+  scene.add(u.model);
+  if (u.dead && u.charred) charUnit(u, 1);
+}
+function removeUnitMesh(u) {
+  if (u.model) { scene.remove(u.model); for (const m of u.mats) m.dispose(); u.model = null; u.mats = null; }
+  if (u.cleanup) u.cleanup(u);
+}
+function flashUnit(u, dt) {                                 // destello de los impactos (emisivo)
+  u.hitFlash = Math.max(0, u.hitFlash - dt * 3.5);
+  if (u.mats && !u.dead) for (const m of u.mats) m.emissive.setRGB(1, 0.55, 0.2).multiplyScalar(u.hitFlash * 0.5);
+}
+function charUnit(u, k) {                                   // restos quemados: oscuros (k = 1, del todo)
+  u.charred = true;
+  if (u.mats) for (const m of u.mats) { m.color.setScalar(lerp(1, 0.16, k)); m.emissive.setRGB(0, 0, 0); }
+}
+
+/* ---------- Creación y cápsulas de impacto ---------- */
+function newUnit(kind, o) {
+  const u = Object.assign({
+    kind, id: kind + '#' + UNITS.length, tags: [], label: kind, pos: new THREE.Vector3(), vel: ZERO, q: new THREE.Quaternion(), heading: 0,
+    hp: 1, hpMax: 1, score: 0, dead: false, gone: false, dying: 0, parent: null, kids: [], caps: [], capDef: null,
+    bc: new THREE.Vector3(), br: 0, half: 10, size: 1, modelKey: null, model: null, mats: null, hitFlash: 0, sndT: -9, cool: rnd(1, 4),
+    smokeT: 0, wreckT: 0, ph: Math.random() * 6.283, markR: 4000, radar: 'sq', noCrash: false
+  }, o);
+  UNITS.push(u);
+  return u;
+}
+/* capDef: [[ax, ay, az, bx, by, bz, r], …] en ejes de la unidad (m, ya escalados) → u.caps en el mundo, y la esfera que las envuelve. */
+function unitCaps(u) {
+  const D = u.capDef;
+  while (u.caps.length < D.length) u.caps.push({ a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 });
+  u.caps.length = D.length;
+  D.forEach((d, i) => { const c = u.caps[i]; c.a.set(d[0], d[1], d[2]).applyQuaternion(u.q).add(u.pos); c.b.set(d[3], d[4], d[5]).applyQuaternion(u.q).add(u.pos); c.r = d[6]; });
+  capsBound(u);
+}
+function capsBound(u) {
+  const C = u.caps; u.bc.set(0, 0, 0);
+  for (const c of C) u.bc.add(c.a).add(c.b);
+  u.bc.multiplyScalar(1 / Math.max(1, 2 * C.length)); u.br = 0;
+  for (const c of C) u.br = Math.max(u.br, u.bc.distanceTo(c.a) + c.r, u.bc.distanceTo(c.b) + c.r);
+}
+function segPointDist2(p, q, c) {                           // distancia² del punto c al segmento p→q
+  _Ud.subVectors(q, p); const l2 = _Ud.lengthSq(), t = l2 > 1e-9 ? clamp(_Uc.subVectors(c, p).dot(_Ud) / l2, 0, 1) : 0;
+  return _Uc.copy(p).addScaledVector(_Ud, t).distanceToSquared(c);
+}
+/* Segmento p→q (proyectil, llamarada, rayo) contra las unidades: la primera que toca (con pad m de margen), o null; el punto del segmento
+   más cercano a ella queda en _Uhit. */
+function unitSegHit(p, q, pad) {
+  let best = null, bestD = Infinity;
+  for (const u of UNITS) {
+    if (u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
+    if (u.boxHit) {                                         // (batallones: una caja baja, no una cápsula)
+      const t = u.boxHit(u, p, q, pad);
+      if (t >= 0) { _Ua.subVectors(q, p).multiplyScalar(t).add(p); const d2 = _Ua.distanceToSquared(p); if (d2 < bestD) { bestD = d2; best = u; _Uhit.copy(_Ua); } }
+      continue;
+    }
+    for (const c of u.caps) {
+      if (segSegDist2(p, q, c.a, c.b) < (c.r + pad) ** 2) {
+        const t = _sdc.distanceToSquared(p);
+        if (t < bestD) { bestD = t; best = u; _Uhit.copy(_sdc); }
+        break;
+      }
+    }
+  }
+  return best;
+}
+/* Rayo o→d: distancia a la primera unidad (asistencia de puntería: la mira se para en ella), o Infinity. */
+function unitRayHit(o, d, maxT) {
+  _Ua.copy(o).addScaledVector(d, maxT);
+  const u = unitSegHit(o, _Ua, 2);
+  if (!u) return Infinity;
+  const t = _Uhit.distanceTo(o);
+  return t > 25 ? t : Infinity;
+}
+/* Punto contra las cápsulas (choques del jugador): la unidad en la que está metido (k = fracción del radio), o null. */
+function unitPointHit(p, k) {
+  for (const u of UNITS) {
+    if (u.dead || u.noCrash || !u.caps.length || u.bc.distanceToSquared(p) > u.br * u.br) continue;
+    for (const c of u.caps) if (segPointDist2(c.a, c.b, p) < (c.r * k) ** 2) return u;
+  }
+  return null;
+}
+
+/* ---------- Daño y destrucción ---------- */
+/* n = daño (el del arma del dragón elegido, o del aliado); soft = continuo (llamarada, rayo); at = punto; how = 'gun' | 'msl' | 'flame' | 'laser'. */
+function damageUnit(u, n, soft, at, how) {
+  if (u.dead) return;
+  if (u.hurt && u.hurt(u, n, soft, at, how) === false) return;   // (batallones: matan soldados; sierpe con escudo: lo para)
+  u.hp -= n; u.hitFlash = Math.max(u.hitFlash, soft ? 0.55 : 1);
+  if (soft) sparks(at.x, at.y, at.z, 2, 0, 0, 0);
+  else {
+    const k = clamp(n / 25, 0.3, 2);
+    emit(fxAdd, at.x, at.y, at.z, 0, 0, 0, 0.18, 10 * k, 26 * k, 1, 0.85, 0.5, 1, 0, 0);
+    for (let i = 0; i < Math.round(20 * k); i++) {
+      const a = Math.random() * 6.283, c = rnd(-1, 1), s = Math.sqrt(1 - c * c), sp = rnd(14, 46);
+      emit(fxAdd, at.x, at.y, at.z, Math.cos(a) * s * sp, c * sp, Math.sin(a) * s * sp, rnd(0.3, 0.8), rnd(2.2, 3.6), 0.4, 1, rnd(0.55, 0.9), 0.25, 1, 0.6, -6);
+    }
+    emit(fxSmoke, at.x, at.y, at.z, rnd(-3, 3), rnd(0, 4), rnd(-3, 3), rnd(1.5, 2.5), 5 * k, 16 * k, 0.2, 0.17, 0.13, 0.6, 0.8, 0);
+  }
+  if (!(gameTime - u.sndT < (soft ? 0.22 : 0.07))) { u.sndT = gameTime; sfx.hit(); }
+  if (u.hp <= 0) killUnit(u);
+}
+/* silent: cae con la unidad que la lleva (sin puntos ni aviso). */
+function killUnit(u, silent) {
+  if (u.dead) return;
+  u.hp = 0; u.dead = true; u.dying = u.dieT || 0; u.hitFlash = 0;
+  releaseLock(u);
+  if (!silent) {
+    if (!byAlly) ultGain(ULT_PER_KILL);
+    towerState.score += u.score; unitState.kills++; missionKill(u);
+    toast((byAlly ? allyName() + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
+    if (byAlly) allySay('kill');
+  }
+  for (const k of u.kids) killUnit(k, true);
+  if (u.onKill) u.onKill(u, silent);
+}
+/* La llamarada (desde attackFlame): cono de S en la dirección D hasta lim m (radio 2 m + un 11 % de la distancia, como con los demás
+   blancos); amt = daño de este fotograma. */
+function unitsFlame(S, D, lim, amt, dt) {
+  _Ub.copy(S).addScaledVector(D, lim);
+  for (const u of UNITS) {
+    if (u.dead || !u.caps.length || segPointDist2(S, _Ub, u.bc) > (u.br + 12 + lim * 0.11) ** 2) continue;
+    if (u.flame) { u.flame(u, S, D, lim, amt, dt); continue; }   // (batallones: soldado a soldado)
+    for (const c of u.caps) if (segSegDist2(S, _Ub, c.a, c.b) < (c.r + 12) ** 2) { const at = _sdc.clone(); damageUnit(u, amt, true, at, 'flame'); flameHit(at, dt); break; }
+  }
+}
+/* El rayo (desde laserFx): segmento S→E. */
+function unitsLaser(S, E, amt) {
+  for (const u of UNITS) {
+    if (u.dead || !u.caps.length || segPointDist2(S, E, u.bc) > (u.br + LASER_R) ** 2) continue;
+    if (u.laserHit) { u.laserHit(u, S, E, amt); continue; }   // (batallones: soldado a soldado)
+    for (const c of u.caps) if (segSegDist2(S, E, c.a, c.b) < (c.r + LASER_R) ** 2) { damageUnit(u, amt, true, _sdc.clone(), 'laser'); break; }
+  }
+}
+
+/* ---------- Proyectiles de las unidades ----------
+   Van con los demás (fireballs, 13) con kind 'ushot': su daño, su color, su aspecto y gravedad si la tienen (artillería). look: 'piedra'
+   (catapulta: piedra ardiendo), 'verde' (cañón: bola de energía verde), 'virote' (balista y torretas de balista: trazadora dorada) o
+   'arcano' (torretas de cañón del superdirigible y barcos: como los dirigibles). */
+const SHOT_LOOK = {
+  piedra: { c: [1, 0.55, 0.2], r: [6, 18], fast: false }, verde: { c: [0.5, 1, 0.3], r: [5, 16], fast: false },
+  virote: { c: [1, 0.8, 0.45], r: [2.6, 8], fast: true }, arcano: { c: ARC_COLOR, r: [3.4, 11], fast: true }
+};
+function spawnUnitShot(from, vel, o) {
+  const L = SHOT_LOOK[o.look] || SHOT_LOOK.piedra, c = new THREE.Color(L.c[0], L.c[1], L.c[2]);
+  const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: c.clone().lerp(_white, 0.55), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  core.scale.setScalar(L.r[0]); core.renderOrder = 7; core.position.copy(from); scene.add(core);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: c, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.55 }));
+  halo.scale.setScalar(L.r[1]); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
+  const f = { pos: from.clone(), vel: vel.clone(), speed: vel.length(), life: o.life || 14, core, halo, r0: L.r[0], r1: L.r[1], enemy: true, kind: 'ushot',
+    dmg: o.dmg, grav: o.grav || 0, msg: o.msg, fastLook: L.fast, c: L.c, target: null, lost: false, ally: false };
+  fireballs.push(f);
+  if (L.fast) sfx.arcShot(o.vol); else sfx.fire(o.vol);
+  return f;
+}
+/* Tiro parabólico desde F a la velocidad v hacia el jugador (con adelanto): escribe la velocidad inicial en out (el tiro bajo); false si no
+   llega. err = dispersión (rad). */
+function ballisticAim(F, v, err, out) {
+  const P = dragon.position;
+  let t = P.distanceTo(F) / v;
+  for (let it = 0; it < 3; it++) {
+    _Ua.copy(P).addScaledVector(dragonVel, t);
+    const dx = Math.hypot(_Ua.x - F.x, _Ua.z - F.z), dy = _Ua.y - F.y, v2 = v * v, disc = v2 * v2 - UNIT_G * (UNIT_G * dx * dx + 2 * dy * v2);
+    if (disc < 0 || dx < 1) return false;
+    const th = Math.atan((v2 - Math.sqrt(disc)) / (UNIT_G * dx)), hx = (_Ua.x - F.x) / dx, hz = (_Ua.z - F.z) / dx;
+    out.set(hx * Math.cos(th), Math.sin(th), hz * Math.cos(th));
+    t = dx / (v * Math.cos(th));
+  }
+  out.x += rnd(-1, 1) * err; out.y += rnd(-1, 1) * err; out.z += rnd(-1, 1) * err;
+  out.normalize().multiplyScalar(v);
+  return true;
+}
+const unitVol = d => clamp(1.1 - d / 2500, 0.12, 0.6);
+
+/* ---------- Artillería: balistas, catapultas y cañones ----------
+   Defensa terrestre móvil (los «tanques» de Ace Combat): de vez en cuando disparan un proyectil con parábola al jugador, con poco daño;
+   en las misiones atacarán sobre todo a las unidades de tierra aliadas. Las tres son iguales salvo el aspecto (y el proyectil). Al
+   destruirlas quedan los restos quemados, humeando. */
+function addArtilleria(variant, x, z, heading, tags) {
+  const S = STATS.artilleria, ang = heading * Math.PI / 180;
+  const u = newUnit('artilleria', { variant, tags: tags || [], label: ART_NAME[variant], killText: ART_NAME[variant] + (variant === 'canon' ? ' destruido' : ' destruida'),
+    hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: variant, markR: 3500, radar: 'sq', crashText: 'una pieza de artillería', upd: updArtilleria, onKill: wreckUnit });
+  u.pos.set(x, groundAt(x, z), z); u.q.setFromAxisAngle(UP, -ang);
+  unitResize(u);
+  return u;
+}
+function unitResize(u) {                                    // tamaño (stat «largo») → escala del modelo, cápsulas y recuadro del fijado
+  const L = u.kind === 'artilleria' ? STATS.artilleria.largo : u.kind === 'barco' ? STATS.barco_naval.largo : u.kind === 'superdirigible' ? STATS.superdirigible.largo
+    : u.kind === 'torreta' ? STATS.superdirigible.torreta_largo : u.size;
+  u.size = L; u.half = L * 0.5;
+  if (u.model) u.model.scale.setScalar(L);
+  if (u.kind === 'artilleria') u.capDef = [[0, 0.28 * L, 0.38 * L, 0, 0.28 * L, -0.38 * L, 0.3 * L]];
+  else if (u.kind === 'barco') u.capDef = [[0, 0.11 * L, 0.4 * L, 0, 0.11 * L, -0.4 * L, 0.085 * L], [0, 0.22 * L, 0.15 * L, 0, 0.22 * L, -0.25 * L, 0.06 * L]];
+  else if (u.kind === 'superdirigible') { u.capDef = [[0, 0, 0.42 * L, 0, 0, -0.42 * L, 0.07 * L]]; u.half = L * 0.35; }
+  else if (u.kind === 'torreta') u.capDef = [[0, 0.3 * L, 0.25 * L, 0, 0.3 * L, -0.25 * L, 0.38 * L]];
+  if (u.capDef) unitCaps(u);
+}
+function updArtilleria(u, dt, P, d) {
+  if (u.model) u.model.visible = d < 7000;
+  if (u.dead) { wreckSmoke(u, dt, d); return; }
+  flashUnit(u, dt); dmgSmoke(u, dt, d, 0.4);
+  const S = STATS.artilleria;
+  if (state !== 'playing' || holdFire() || d > S.alcance) return;
+  u.cool -= dt; if (u.cool > 0) return;
+  const L = u.size; _Uf.set(0, 0, -1).applyQuaternion(u.q);
+  _Us.copy(u.pos).addScaledVector(_Uf, 0.42 * L); _Us.y += 0.45 * L;            // boca, delante y arriba
+  if (!losClear(_Us.x, _Us.y, _Us.z, P.x, P.y, P.z) || !ballisticAim(_Us, Math.max(30, S.vel), deg(S.dispersion), _Ub)) { u.cool = 1; return; }
+  const look = u.variant === 'catapulta' ? 'piedra' : u.variant === 'canon' ? 'verde' : 'virote';
+  spawnUnitShot(_Us, _Ub, { look, dmg: S.dano, grav: UNIT_G, msg: 'La artillería enemiga te derribó', vol: unitVol(d) });
+  const c = SHOT_LOOK[look].c;                                                   // fogonazo y polvo
+  emit(fxAdd, _Us.x, _Us.y, _Us.z, 0, 0, 0, 0.2, 4, 12, c[0], c[1], c[2], 1, 0, 0);
+  for (let i = 0; i < 8; i++) emit(fxSmoke, _Us.x, _Us.y, _Us.z, _Ub.x * 0.04 + rnd(-3, 3), _Ub.y * 0.04 + rnd(0, 3), _Ub.z * 0.04 + rnd(-3, 3), rnd(1.2, 2.4), 2, 7, 0.5, 0.46, 0.4, 0.5, 1, -1);
+  u.cool = rnd(S.pausa_min, Math.max(S.pausa_min, S.pausa_max));
+}
+/* Restos: explosión, el modelo se queda oscuro y un poco hundido e inclinado, y humea un rato. silent: cae con su unidad (sin explosión). */
+function wreckUnit(u, silent) {
+  const p = u.bc, k = clamp(u.size / 12, 0.6, 2.5);
+  if (!silent) { explode(p.x, p.y + 1, p.z, 1.1 * k); debris(p.x, p.y, p.z); }
+  charUnit(u, 1); u.wreckT = 45;
+  if (u.model) { u.model.quaternion.copy(u.q).multiply(_Uq.setFromAxisAngle(_Ux, rnd(-0.12, 0.12))).multiply(_Uq2.setFromAxisAngle(_Uz, rnd(-0.18, 0.18))); u.model.position.y -= u.size * 0.06; }
+}
+function wreckSmoke(u, dt, d) {
+  if (u.wreckT <= 0 || d > 2500) return;
+  u.wreckT -= dt; u.smokeT -= dt;
+  if (u.smokeT > 0) return;
+  u.smokeT = 0.25; const p = u.bc, s = clamp(u.size / 12, 0.5, 3), f = clamp(u.wreckT / 45, 0.2, 1);
+  emit(fxSmoke, p.x + rnd(-2, 2) * s, p.y + 2 * s, p.z + rnd(-2, 2) * s, rnd(-1, 1), rnd(5, 9), rnd(-1, 1), rnd(3.5, 5), 4 * s, 16 * s * f, 0.12, 0.11, 0.11, 0.5, 0.3, -0.5);
+  if (u.wreckT > 20) emit(fxAdd, p.x + rnd(-2, 2) * s, p.y + s, p.z + rnd(-2, 2) * s, 0, rnd(3, 6), 0, 0.6, 3 * s, s, 1, 0.45, 0.1, 0.7, 0.5, 0);
+}
+function dmgSmoke(u, dt, d, y) {                            // tocado: humo, más cuanto menos vida le queda
+  if (u.hp >= u.hpMax || d > 3000) return;
+  u.smokeT -= dt * (1.5 - u.hp / u.hpMax);
+  if (u.smokeT > 0) return;
+  u.smokeT = 0.14; const s = clamp(u.size / 12, 0.5, 6);
+  _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random());
+  emit(fxSmoke, _Ua.x + rnd(-1, 1) * s, _Ua.y + y * u.size, _Ua.z + rnd(-1, 1) * s, rnd(-1, 1), rnd(3, 6), rnd(-1, 1), rnd(2, 3.5), 2 * s, 8 * s, 0.16, 0.14, 0.15, 0.5, 0.4, -1);
+}
+
+/* ---------- Barco naval ----------
+   Como un dirigible, pero en el mar: muere de un proyectil guiado y dispara por los costados (los mismos ángulos muertos a proa, a popa
+   y en la vertical). Se mece con las olas. Al hundirse escora, se llena de humo y fuego y se va al fondo. */
+function addBarco(x, z, heading, tags) {
+  const S = STATS.barco_naval, ang = heading * Math.PI / 180;
+  const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco hundido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+    modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
+  u.base = new THREE.Vector3(x, WL, z); u.pos.copy(u.base); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
+  unitResize(u);
+  return u;
+}
+function updBarco(u, dt, P, d) {
+  const L = u.size, t = gameTime + u.ph;
+  if (u.dead) {                                             // hundimiento: escora, cabecea y baja; humo, fuego y espuma
+    u.dying -= dt; const k = 1 - u.dying / u.dieT0;
+    u.pos.copy(u.base); u.pos.y = WL - BARCO_DRAFT * L - k * k * 0.45 * L;
+    u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, k * 0.45)).multiply(_Uq2.setFromAxisAngle(_Ux, k * 0.12));
+    if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); charUnit(u, Math.min(1, k * 2)); }
+    if (d < 4000 && Math.random() < 0.7) {
+      _Ua.set(rnd(-0.08, 0.08) * L, 0.15 * L, rnd(-0.4, 0.4) * L).applyQuaternion(u.q).add(u.pos);
+      emit(fxSmoke, _Ua.x, Math.max(_Ua.y, WL + 2), _Ua.z, rnd(-2, 2), rnd(6, 12), rnd(-2, 2), rnd(3, 5), 8, 30, 0.12, 0.11, 0.11, 0.55, 0.3, -0.5);
+      if (k < 0.7) emit(fxAdd, _Ua.x, Math.max(_Ua.y, WL + 1), _Ua.z, 0, rnd(4, 9), 0, 0.7, 6, 2, 1, 0.5, 0.12, 0.8, 0.5, 0);
+      if (Math.random() < 0.15) splash(u.base.x + rnd(-0.3, 0.3) * L, u.base.z + rnd(-0.3, 0.3) * L, 1.5);
+    }
+    if (u.dying <= 0) { removeUnitMesh(u); u.gone = true; }
+    return;
+  }
+  u.pos.copy(u.base); u.pos.y = WL - BARCO_DRAFT * L + Math.sin(t * 0.7) * 0.4;   // olas: sube y baja, se balancea y cabecea un poco
+  u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, Math.sin(t * 0.55) * 0.025)).multiply(_Uq2.setFromAxisAngle(_Ux, Math.sin(t * 0.42 + 1) * 0.012));
+  if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); u.model.visible = d < 9000; }
+  unitCaps(u); flashUnit(u, dt); dmgSmoke(u, dt, d, 0.25);
+  const S = STATS.barco_naval;
+  broadside(u, dt, P, d, S, 0.09 * L, 0.17 * L, [-0.25, -0.12, 0, 0.12, 0.25].map(z => z * L), 'Los cañones de un barco te derribaron');
+}
+/* Andanada por el costado que mira al jugador (como los dirigibles): nunca a proa, a popa ni en la vertical. px, py, pz = troneras. */
+function broadside(u, dt, P, d, S, px, py, pzs, msg) {
+  if (state !== 'playing' || holdFire() || d > S.alcance) return;
+  u.cool -= dt; if (u.cool > 0) return;
+  _Ud.subVectors(P, u.pos).divideScalar(d || 1);
+  _Uf.set(0, 0, -1).applyQuaternion(u.q); _Us.set(1, 0, 0).applyQuaternion(u.q);
+  if (Math.abs(_Ud.dot(_Uf)) > Math.cos(deg(S.muerto_proa)) || Math.abs(_Ud.y) > Math.sin(deg(S.muerto_vertical))) { u.cool = 0.15; return; }
+  const side = _Ud.dot(_Us) >= 0 ? 1 : -1, pz = pzs[u.port++ % pzs.length];
+  _Ua.set(side * px, py, pz).applyQuaternion(u.q).add(u.pos);
+  if (!losClear(_Ua.x, _Ua.y, _Ua.z, P.x, P.y, P.z)) { u.cool = 0.6; return; }
+  const v = Math.max(50, S.vel);
+  _Ub.copy(P).addScaledVector(dragonVel, _Ua.distanceTo(P) / v).sub(_Ua).normalize();
+  const sp = deg(S.dispersion); _Ub.x += rnd(-1, 1) * sp; _Ub.y += rnd(-1, 1) * sp; _Ub.z += rnd(-1, 1) * sp; _Ub.normalize().multiplyScalar(v);
+  spawnUnitShot(_Ua, _Ub, { look: 'arcano', dmg: S.dano, msg, vol: unitVol(d), life: S.alcance * 1.12 / v });
+  for (let i = 0; i < 6; i++) emit(fxAdd, _Ua.x, _Ua.y, _Ua.z, _Us.x * side * rnd(10, 30) + rnd(-6, 6), rnd(-6, 6), _Us.z * side * rnd(10, 30) + rnd(-6, 6), rnd(0.15, 0.3), rnd(4, 7), 1, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 1, 2, 0);
+  u.cool = Math.max(0.02, S.cadencia) * rnd(0.85, 1.15);
+}
+
+/* ---------- Superdirigible ----------
+   Megaestructura del cielo (500 m de largo como mínimo, a 1500 m de altura como mínimo) con 6 torretas por costado (cañones y balistas
+   alternos) que se destruyen y se fijan una a una; el núcleo (el casco) también se fija y se daña aparte. Las torretas disparan como los
+   cañones de los dirigibles (mismos ángulos muertos), cada una por su costado, y giran hacia el jugador. Al caer el núcleo caen todas. */
+function addSuper(x, z, height, heading, tags) {
+  const S = STATS.superdirigible, ang = heading * Math.PI / 180;
+  const u = newUnit('superdirigible', { tags: tags || [], label: 'Superdirigible', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: 'superdirigible',
+    markR: 14000, lockRange: 12000, radar: 'super', crashText: 'un superdirigible', upd: updSuper, onKill: superDie, dieT: 3.5 });
+  u.base = Math.max(groundAt(x, z) + Math.max(height || 0, S.altura_min), WL + S.altura_min);
+  u.pos.set(x, u.base, z); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
+  unitResize(u);
+  const n = clamp(Math.round(S.torretas), 0, SUPER_MOUNTS.length);
+  for (const side of [-1, 1]) for (let i = 0; i < n; i++) {
+    const variant = i % 2 ? 'balista' : 'canon';
+    const t = newUnit('torreta', { tags: tags || [], label: 'Torreta (' + (variant === 'canon' ? 'cañón' : 'balista') + ')', killText: 'Torreta destruida',
+      killTail: t => '  ·  quedan ' + t.parent.kids.filter(k => !k.dead).length, hp: S.torreta_vida, hpMax: S.torreta_vida, score: S.torreta_puntos,
+      variant, modelKey: variant, parent: u, side, markR: 3500, lockRange: 12000, radar: '', crashText: 'una torreta del superdirigible', onKill: wreckUnit, cool: rnd(0.5, 3) });
+    t.local = new THREE.Vector3(side * SUPER_DECK.x, SUPER_DECK.y, -SUPER_MOUNTS[i]);   // (fracción del largo; -: proa hacia -Z)
+    t.yaw0 = -side * Math.PI / 2; t.yaw = t.yaw0;
+    u.kids.push(t);
+    superPlace(u, t); unitResize(t);
+  }
+  return u;
+}
+function superPlace(u, t) {                                 // la torreta, en su sitio del casco y girada (yaw) en el plano de la cubierta
+  t.pos.copy(t.local).multiplyScalar(u.size).applyQuaternion(u.q).add(u.pos);
+  t.q.copy(u.q).multiply(_Uq.setFromAxisAngle(UP, t.yaw));
+}
+function updSuper(u, dt, P, d) {
+  const t = gameTime * 0.25 + u.ph;
+  if (u.dead) {                                             // agonía: explosiones por todo el casco y, al final, la explosión de energía
+    u.dying -= dt;
+    if (Math.random() < dt * 9) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); _Ua.x += rnd(-20, 20); _Ua.y += rnd(-15, 15); explode(_Ua.x, _Ua.y, _Ua.z, rnd(1.5, 3)); }
+    if (u.mats) charUnit(u, 1 - u.dying / u.dieT);
+    u.pos.y -= dt * 6 * (1 - u.dying / u.dieT);
+    if (u.model) u.model.position.copy(u.pos);
+    if (u.dying <= 0) {
+      for (const k of [-0.3, 0, 0.3]) { _Ua.set(0, 0, k * u.size).applyQuaternion(u.q).add(u.pos); airshipBlast({ pos: _Ua.clone() }); }
+      for (const k of u.kids) { removeUnitMesh(k); k.gone = true; }
+      removeUnitMesh(u); u.gone = true;
+    }
+    return;
+  }
+  u.pos.y = u.base + Math.sin(t) * 4;                       // vaivén muy lento
+  u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, Math.sin(t * 0.8) * 0.01));
+  if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
+  unitCaps(u); flashUnit(u, dt); dmgSmoke(u, dt, d, 0.02);
+  const S = STATS.superdirigible, playing = state === 'playing' && !holdFire();
+  _Uf.set(0, 0, -1).applyQuaternion(u.q); _Us.set(1, 0, 0).applyQuaternion(u.q);
+  for (const k of u.kids) {
+    // giro hacia el jugador (solo en su costado, ±75° de su posición de reposo)
+    _Ud.subVectors(P, k.pos); const dk = _Ud.length(); _Ud.divideScalar(dk || 1);
+    let want = k.yaw0;
+    if (dk < S.alcance * 1.3 && _Ud.dot(_Us) * k.side > 0) {
+      const lx = _Ud.dot(_Us), lz = -_Ud.dot(_Uf);          // (ejes del casco: x a estribor, z hacia popa)
+      want = k.yaw0 + clamp(wrapAng(Math.atan2(-lx, -lz) - k.yaw0), -1.3, 1.3);
+    }
+    if (!k.dead) k.yaw += clamp(wrapAng(want - k.yaw), -0.8 * dt, 0.8 * dt);
+    superPlace(u, k);
+    if (k.model) { k.model.position.copy(k.pos); k.model.quaternion.copy(k.q); }
+    unitCaps(k);
+    if (k.dead) { wreckSmoke(k, dt, dk); continue; }
+    flashUnit(k, dt);
+    if (!playing || dk > S.alcance) continue;
+    k.cool -= dt; if (k.cool > 0) continue;
+    if (Math.abs(_Ud.dot(_Uf)) > Math.cos(deg(S.muerto_proa)) || Math.abs(_Ud.y) > Math.sin(deg(S.muerto_vertical)) || _Ud.dot(_Us) * k.side <= 0) { k.cool = 0.25; continue; }
+    const L = k.size; _Ua.set(0, 0, -1).applyQuaternion(k.q);
+    _Ub.copy(k.pos).addScaledVector(_Ua, 0.45 * L); _Ub.y += 0.35 * L;
+    const v = Math.max(50, S.vel);
+    _Uc.copy(P).addScaledVector(dragonVel, _Ub.distanceTo(P) / v).sub(_Ub).normalize();
+    const sp = deg(S.dispersion); _Uc.x += rnd(-1, 1) * sp; _Uc.y += rnd(-1, 1) * sp; _Uc.z += rnd(-1, 1) * sp; _Uc.normalize().multiplyScalar(v);
+    spawnUnitShot(_Ub, _Uc, { look: k.variant === 'canon' ? 'arcano' : 'virote', dmg: S.dano, msg: 'Las torretas de un superdirigible te derribaron', vol: unitVol(dk), life: S.alcance * 1.12 / v });
+    emit(fxAdd, _Ub.x, _Ub.y, _Ub.z, 0, 0, 0, 0.15, 6, 16, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 1, 0, 0);
+    k.cool = Math.max(0.05, S.torreta_cadencia) * rnd(0.8, 1.2);
+  }
+}
+function superDie(u) { toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2); }
+
+/* ---------- Colocación (receta «units», en cada partida desde resetRun) ----------
+   RUN.units = [{ type, variant, x, z, heading, height, n, formation, gap, tag, … }] (formato en M1). Cada entrada pone n unidades del
+   tipo en formación alrededor de (x, z), mirando al rumbo heading (°). Los dragones quietos de la galería (type 'dragon') salen después,
+   en unitsStart (spawnEnemies los reinicia todos). */
+const UNIT_GAP = { artilleria: 40, barco: 260, superdirigible: 900, batallon: 90, sierpe: 1500, dragon: 90 };
+function formationPts(f, n, gap) {                          // desplazamientos { r (a la derecha), b (hacia atrás) } en m
+  const pts = [];
+  for (let i = 0; i < n; i++) {
+    if (f === 'columna') pts.push({ r: 0, b: (i - (n - 1) / 2) * gap });
+    else if (f === 'cuna') { const row = Math.ceil(i / 2); pts.push({ r: (i % 2 ? 1 : -1) * row * gap * 0.7 * (i ? 1 : 0), b: row * gap * 0.7 }); }
+    else if (f === 'rejilla') { const c = Math.ceil(Math.sqrt(n)), cx = i % c, cz = Math.floor(i / c); pts.push({ r: (cx - (c - 1) / 2) * gap, b: (cz - (Math.ceil(n / c) - 1) / 2) * gap }); }
+    else pts.push({ r: (i - (n - 1) / 2) * gap, b: 0 });   // línea
+  }
+  return pts;
+}
+function unitGroupPts(g, fn) {
+  const n = g.n || 1, ang = (g.heading || 0) * Math.PI / 180, fx = Math.sin(ang), fz = -Math.cos(ang);
+  formationPts(g.formation, n, g.gap || UNIT_GAP[g.type] || 60).forEach((p, i) => fn(g.x - fz * p.r - fx * p.b, g.z + fx * p.r - fz * p.b, i));   // (derecha = (-fz, fx); atrás = -frente)
+}
+function planUnits() {
+  for (const u of UNITS) removeUnitMesh(u);
+  UNITS.length = 0; unitState.kills = 0;
+  if (typeof arrowsClear === 'function') arrowsClear();
+  const R = RUN.units || [];
+  R.forEach((g, gi) => {
+    const tags = g.tag ? [].concat(g.tag) : [], V = ['balista', 'catapulta', 'canon'];
+    if (g.type === 'dragon') return;                       // (unitsStart)
+    unitGroupPts(g, (x, z, i) => {
+      if (g.type === 'artilleria') addArtilleria(g.variant && g.variant !== 'mixta' ? g.variant : V[i % 3], x, z, g.heading || 0, tags);
+      else if (g.type === 'barco') addBarco(x, z, g.heading || 0, tags);
+      else if (g.type === 'superdirigible') addSuper(x, z, g.height, g.heading || 0, tags);
+      else if (g.type === 'batallon') addBatallon(x, z, g.heading || 0, tags, g.soldiers ? [].concat(g.soldiers)[i % [].concat(g.soldiers).length] : null, (SEED ^ (gi * 7919 + i * 104729)) >>> 0);
+      else if (g.type === 'sierpe') addSierpe(x, z, g.height, g.heading || 0, tags, g.mode || 'idle');
+      else console.warn('Unidad desconocida en la receta: ' + g.type);
+    });
+  });
+}
+/* Tras spawnEnemies: los dragones enemigos quietos (galería: flotan en el sitio con la animación de hover). */
+function unitsStart() {
+  (RUN.units || []).forEach(g => {
+    if (g.type !== 'dragon') return;
+    unitGroupPts(g, (x, z) => spawnStatue(x, groundAt(x, z) + (g.height || 150), z, g.heading || 0, g.tag ? [].concat(g.tag) : []));
+  });
+}
+/* Stats nuevas (Excel o panel de pruebas): tamaños y vidas máximas (la vida actual sube o baja en proporción). */
+function applyUnitStats() {
+  for (const u of UNITS) {
+    const S = u.kind === 'artilleria' ? STATS.artilleria : u.kind === 'barco' ? STATS.barco_naval : u.kind === 'superdirigible' ? STATS.superdirigible : null;
+    let max = S ? S.vida : u.kind === 'torreta' ? STATS.superdirigible.torreta_vida : u.kind === 'sierpe' ? STATS.sierpe.vida : u.kind === 'hechicero' ? STATS.sierpe.hechicero_vida : u.hpMax;
+    if (!u.dead && max !== u.hpMax && u.kind !== 'batallon') { u.hp = u.hp / u.hpMax * max; u.hpMax = max; }
+    if (u.kind !== 'batallon' && u.kind !== 'sierpe' && u.kind !== 'hechicero') unitResize(u);
+  }
+  if (typeof serpentResize === 'function') serpentResize();
+}
+
+/* ---------- Cada fotograma ---------- */
+function updateUnits(dt) {
+  const P = dragon.position;
+  for (const u of UNITS) {
+    if (u.gone) continue;
+    if (!u.model && u.modelKey && unitRes[u.modelKey]) attachModel(u);
+    if (!u.parent) u.upd(u, dt, P, u.pos.distanceTo(P));    // (las montadas las mueve su unidad)
+  }
+  if (typeof updateArrows === 'function') updateArrows(dt);
+}
+
+/* ============================================================
+   6h. LA SIERPE (v29): dragón serpiente gigante, el primer minijefe (estilo Ace Combat)
+   Modelo: «Kang Jin Long» de Black Myth: Wukong (estático, recto; dragones raw/), preparado en Blender (enemigos/02_preparar.py: 60 000
+   triángulos, 1 m de largo, cabeza hacia -Z). El juego lo escala a «largo» (500 m) y lo hace serpentear sin esqueleto: cada vértice va
+   pegado a su punto de una columna de SPINE_N puntos (posición y orientación) que se calcula cada fotograma y se pasa al shader
+   (serpentMaterial). Así el cuerpo sigue exactamente el camino de la cabeza.
+   · Modos: 'idle' (galería: flota en el sitio y una onda le recorre el cuerpo de la cabeza a la cola) y 'circle' (vuela en círculo de
+     radio_circulo a velocidad, a su altura, con el cuerpo detrás por el mismo círculo).
+   · Ataques: llamarada sostenida, mucho mayor que la del jugador, si te pones delante de la cabeza (llamas_*), y bolas de fuego como las
+     de los dragones enemigos (bola_*). Sin guiadas ni rayo.
+   · Escudo: los hechiceros de su lomo (hechiceros, 3) lo protegen de todo daño; hay que abatirlos primero (se fijan aparte). Al caer el
+     último, el escudo se rompe y la sierpe ya recibe daño.
+   ============================================================ */
+const SPINE_N = 40;                                         // puntos de la columna (el shader interpola entre ellos)
+const SERPENT_AXIS_Y = 0.016;                               // altura del eje del cuerpo en el modelo (fracción del largo; medido en 04_sondear.py)
+const SERPENT_WAVE = { len: 0.33, amp: 0.035, w: 1.1, up: 0.45 };   // onda: longitud y amplitud (fracción del largo), rad/s, parte vertical
+const SORC_AT = [0.2, 0.33, 0.5], SORC_TOP = 0.0145, SORC_SCALE = 5;   // hechiceros: dónde van (fracción desde la cabeza), altura sobre el eje (fracción del largo), tamaño
+const _Sp = new THREE.Vector3(), _St = new THREE.Vector3(), _Su = new THREE.Vector3(), _Sr = new THREE.Vector3(), _Sm = new THREE.Matrix4(), _Sq = new THREE.Quaternion();
+const _Sa = new THREE.Vector3(), _Sb = new THREE.Vector3(), _Sv = new THREE.Vector3();
+const SERPENT_GLSL = `
+  uniform vec3 uSpP[${SPINE_N}]; uniform vec4 uSpQ[${SPINE_N}]; uniform float uLen; uniform float uInfl;
+  vec3 spRot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }`;
+/* Del vértice del modelo (1 m de largo, eje en z) a su sitio en la columna: frame (Q) en beginnormal, posición en begin_vertex. */
+const SERPENT_FRAME = `
+  float spS = clamp(position.z + 0.5, 0.0, 1.0) * ${SPINE_N - 1}.0;
+  int spI = int(min(floor(spS), ${SPINE_N - 2}.0)); float spT = spS - float(spI);
+  vec4 spQ = normalize(mix(uSpQ[spI], uSpQ[spI + 1], spT));
+  vec3 spP = mix(uSpP[spI], uSpP[spI + 1], spT);`;
+function serpentUniforms() {
+  return { uSpP: { value: Array.from({ length: SPINE_N }, () => new THREE.Vector3()) }, uSpQ: { value: Array.from({ length: SPINE_N }, () => new THREE.Vector4(0, 0, 0, 1)) },
+    uLen: { value: 500 }, uInfl: { value: 0 } };
+}
+function serpentMaterial(src, U) {
+  const m = src.clone();
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, U);
+    sh.vertexShader = SERPENT_GLSL + '\n' + sh.vertexShader
+      .replace('#include <beginnormal_vertex>', SERPENT_FRAME + '\n  vec3 objectNormal = spRot(spQ, vec3(normal));')
+      .replace('#include <begin_vertex>', 'vec3 transformed = spP + spRot(spQ, vec3(position.x, position.y - ' + SERPENT_AXIS_Y + ', 0.0) * uLen);');
+  };
+  return m;
+}
+/* Escudo: la misma malla un poco hinchada (uInfl m por la normal), aditiva, con brillo en los bordes y un dibujo que se mueve. */
+function shieldMaterial(U) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.FrontSide,
+    uniforms: Object.assign({ uA: { value: 1 }, uHit: { value: 0 }, uTime: soldierTime, uC: { value: new THREE.Color(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]) } }, U),
+    vertexShader: SERPENT_GLSL + `
+      varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main(){` + SERPENT_FRAME + `
+        vec3 n = spRot(spQ, normal);
+        vec3 w = spP + spRot(spQ, vec3(position.x, position.y - ${SERPENT_AXIS_Y}, 0.0) * uLen) + n * uInfl;
+        vW = w; vN = n; vec4 mv = viewMatrix * vec4(w, 1.0); vV = normalize(-mv.xyz); vN = normalize(mat3(viewMatrix) * n);
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uA; uniform float uHit; uniform float uTime; uniform vec3 uC; varying vec3 vN; varying vec3 vV; varying vec3 vW;
+      void main(){
+        float f = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+        float bands = 0.5 + 0.5 * sin(vW.x * 0.09 + vW.y * 0.13 + vW.z * 0.07 - uTime * 3.0);
+        float hexa = smoothstep(0.82, 1.0, abs(sin(vW.x * 0.21 + uTime)) * abs(sin(vW.z * 0.21 - uTime * 0.7)));
+        float a = (0.03 + 0.75 * pow(f, 2.6) + 0.12 * bands * f + 0.12 * hexa) * uA * (1.0 + 2.5 * uHit);
+        gl_FragColor = vec4(uC * a, 1.0); }`
+  });
+}
+function serpentPrepare() { for (const u of UNITS) if (u.kind === 'sierpe' && !u.model) serpentModel(u); }
+function serpentModel(u) {
+  if (!unitRes.sierpe) return;
+  const g = new THREE.Group(), mats = [];
+  for (const p of unitRes.sierpe) { const m = serpentMaterial(p.mat, u.U); mats.push(m); const me = new THREE.Mesh(p.geo, m); me.frustumCulled = false; g.add(me); }
+  u.shieldMat = shieldMaterial(u.U);
+  for (const p of unitRes.sierpe) { const me = new THREE.Mesh(p.geo, u.shieldMat); me.frustumCulled = false; me.renderOrder = 6; g.add(me); u.shieldMeshes.push(me); }
+  u.model = g; u.mats = mats; scene.add(g);
+}
+
+/* mode: 'idle' (quieta, ondulando) o 'circle' (vuela en círculo alrededor de donde nace). */
+function addSierpe(x, z, height, heading, tags, mode) {
+  const S = STATS.sierpe, ang = heading * Math.PI / 180;
+  const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: '¡Sierpe abatida!', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+    markR: 16000, lockRange: 14000, radar: 'serpent', crashText: 'la sierpe', mode: mode || 'idle', U: serpentUniforms(), shieldMeshes: [], shield: true, shieldA: 1, shieldHitT: 0, hint: false,
+    breath: 0, breathCool: 2, fireCool: 2, theta: 0, t: Math.random() * 10, dieT: 4.5, upd: updSierpe, hurt: serpentHurt, onKill: serpentDie, cleanup: u => { if (u.shieldMat) u.shieldMat.dispose(); } });
+  u.size = S.largo; u.half = 40;
+  u.home = new THREE.Vector3(x, Math.max(groundAt(x, z) + (height || S.altura), WL + 300), z);
+  u.pos.copy(u.home); u.center = u.home.clone();           // (en 'circle' desde la receta: da vueltas alrededor de donde nace)
+  u.spP =Array.from({ length: SPINE_N }, () => new THREE.Vector3()); u.spT = Array.from({ length: SPINE_N }, () => new THREE.Vector3());
+  u.capDef = null;
+  serpentSpine(u, 0);
+  if (unitRes.sierpe) serpentModel(u);
+  const n = clamp(Math.round(S.hechiceros), 0, SORC_AT.length);
+  for (let i = 0; i < n; i++) {
+    const k = newUnit('hechicero', { tags: tags || [], label: 'Hechicero', killText: 'Hechicero abatido', hp: S.hechicero_vida, hpMax: S.hechicero_vida, score: S.hechicero_puntos,
+      parent: u, at: SORC_AT[i], modelKey: 'hechicero', size: SORC_SCALE, half: 7, markR: 6000, lockRange: 14000, radar: '', noCrash: true,
+      capDef: [[0, 0.3 * SORC_SCALE, 0, 0, 2.1 * SORC_SCALE, 0, 0.65 * SORC_SCALE]], onKill: sorcererDie,
+      killTail: k => { const left = k.parent.kids.filter(x => !x.dead).length; return left ? '  ·  quedan ' + left : '  ·  ¡el escudo cae!'; } });
+    u.kids.push(k); sorcererPlace(u, k);
+  }
+  if (!n) u.shield = false;
+  return u;
+}
+function serpentResize() { for (const u of UNITS) if (u.kind === 'sierpe') u.size = STATS.sierpe.largo; }
+/* Cambio de modo (panel de pruebas): el círculo empieza donde está la cabeza y con su rumbo; al volver a 'idle', se queda donde está. */
+function serpentMode(u, mode) {
+  if (u.mode === mode) return;
+  const R = Math.max(u.size * 0.6, STATS.sierpe.radio_circulo), h = u.spP[0], t = u.spT[0], fx = t.x, fz = t.z, l = Math.hypot(fx, fz) || 1;
+  if (mode === 'circle') {                                  // tangente del círculo en θ: (-sen θ, cos θ) = rumbo de la cabeza
+    u.theta = Math.atan2(-fx / l, fz / l);
+    u.center = new THREE.Vector3(h.x - Math.cos(u.theta) * R, u.home.y, h.z - Math.sin(u.theta) * R);
+  } else { u.home.set(h.x, u.home.y, h.z); u.heading = Math.atan2(fx / l, -fz / l); }
+  u.mode = mode;
+}
+/* Columna: SPINE_N puntos desde la cabeza (0) hasta la cola, con la onda encima; luego la orientación de cada uno (adelante = hacia la
+   cabeza, arriba = el cielo, algo inclinado hacia dentro en el círculo) → uniformes del shader, cápsulas de impacto y u.pos (la cabeza). */
+function serpentSpine(u, dt) {
+  const S = STATS.sierpe, L = u.size, W = SERPENT_WAVE;
+  u.t += dt;
+  let bank = 0;
+  if (u.mode === 'circle' && !u.dead) {
+    const R = Math.max(L * 0.6, S.radio_circulo); u.theta += (S.velocidad / 3.6) / R * dt; bank = 0.25;
+  }
+  const R = Math.max(L * 0.6, S.radio_circulo), fx = Math.sin(u.heading), fz = -Math.cos(u.heading), k = 2 * Math.PI / (W.len * L);
+  for (let i = 0; i < SPINE_N; i++) {
+    const s = i / (SPINE_N - 1), dist = s * L, p = u.spP[i];
+    if (u.mode === 'circle') {                             // centro del círculo en center; la cabeza va por delante (θ), el cuerpo detrás
+      const th = u.theta - dist / R;
+      p.set(u.center.x + Math.cos(th) * R, u.home.y, u.center.z + Math.sin(th) * R);
+      _Sr.set(Math.cos(th), 0, Math.sin(th));               // (hacia fuera del círculo: la «derecha» de la onda)
+    } else {
+      p.set(u.home.x - fx * dist, u.home.y + Math.sin(u.t * 0.35) * 6, u.home.z - fz * dist);
+      _Sr.set(-fz, 0, fx);
+    }
+    const a = L * W.amp * smooth(0, 0.18, s) * (u.dead ? 0.3 : 1), ph = k * dist - W.w * u.t;
+    p.addScaledVector(_Sr, Math.sin(ph) * a); p.y += Math.sin(ph * 0.7 + 1.3) * a * W.up;
+    if (u.dead) p.y -= u.fall * (0.6 + 0.8 * Math.sin(s * 3.1));   // al morir cae (la cabeza y la cola, menos)
+  }
+  const Q = u.U.uSpQ.value, P = u.U.uSpP.value;
+  let prev = null;
+  for (let i = 0; i < SPINE_N; i++) {
+    const a = u.spP[Math.max(0, i - 1)], b = u.spP[Math.min(SPINE_N - 1, i + 1)];
+    _St.subVectors(a, b).normalize();                       // adelante: hacia la cabeza
+    if (i === 0) _St.subVectors(u.spP[0], u.spP[1]).normalize();
+    u.spT[i].copy(_St);
+    _Su.set(0, 1, 0);
+    if (bank) { _Sv.set(u.center.x - u.spP[i].x, 0, u.center.z - u.spP[i].z).normalize(); _Su.addScaledVector(_Sv, Math.tan(bank)).normalize(); }
+    // ejes del modelo: x → derecha (= adelante × arriba), y → arriba (perpendicular), z → atrás (el frente del modelo es -z)
+    _Sr.crossVectors(_St, _Su).normalize(); _Sb.copy(_St).negate(); _Su.crossVectors(_Sb, _Sr);
+    _Sm.makeBasis(_Sr, _Su, _Sb); _Sq.setFromRotationMatrix(_Sm);
+    if (prev && prev.dot(_Sq) < 0) _Sq.set(-_Sq.x, -_Sq.y, -_Sq.z, -_Sq.w);
+    Q[i].set(_Sq.x, _Sq.y, _Sq.z, _Sq.w); P[i].copy(u.spP[i]); prev = Q[i];
+  }
+  u.U.uLen.value = L;
+  u.pos.copy(u.spP[0]);
+  // cápsulas: cabeza más gruesa; el cuerpo, una cada 3 puntos
+  const D = [];
+  for (let i = 0; i < SPINE_N - 1; i += 3) {
+    const j = Math.min(SPINE_N - 1, i + 3), s = i / (SPINE_N - 1), r = (s < 0.08 ? 0.032 : s > 0.85 ? 0.022 : 0.02) * L;
+    D.push([u.spP[i], u.spP[j], r]);
+  }
+  while (u.caps.length < D.length) u.caps.push({ a: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 });
+  u.caps.length = D.length;
+  D.forEach((d, i) => { u.caps[i].a.copy(d[0]); u.caps[i].b.copy(d[1]); u.caps[i].r = d[2]; });
+  capsBound(u);
+}
+/* Frame de la columna en la fracción s (desde la cabeza): posición en out, orientación en q. */
+function spineAt(u, s, out, q) {
+  const f = clamp(s, 0, 1) * (SPINE_N - 1), i = Math.min(SPINE_N - 2, Math.floor(f)), t = f - i, Q = u.U.uSpQ.value;
+  out.lerpVectors(u.spP[i], u.spP[i + 1], t);
+  q.set(lerp(Q[i].x, Q[i + 1].x, t), lerp(Q[i].y, Q[i + 1].y, t), lerp(Q[i].z, Q[i + 1].z, t), lerp(Q[i].w, Q[i + 1].w, t)).normalize();
+}
+function sorcererPlace(u, k) {
+  spineAt(u, k.at, k.pos, k.q);
+  k.pos.add(_Sa.set(0, SORC_TOP * u.size, 0).applyQuaternion(k.q));
+  if (k.model) { k.model.position.copy(k.pos); k.model.quaternion.copy(k.q); k.model.scale.setScalar(SORC_SCALE); }
+  unitCaps(k);
+}
+function serpentMouth(u, out) { return out.copy(u.spP[0]).addScaledVector(u.spT[0], 0.012 * u.size).addScaledVector(_Sa.set(0, -1, 0), 0.004 * u.size); }
+
+/* ---------- Escudo y daño ---------- */
+function serpentHurt(u, n, soft, at) {
+  if (!u.shield) return true;
+  u.shieldHitT = Math.max(u.shieldHitT, soft ? 0.4 : 1);
+  const c = ARC_COLOR;
+  for (let i = 0; i < (soft ? 2 : 14); i++) emit(fxAdd, at.x, at.y, at.z, rnd(-30, 30), rnd(-30, 30), rnd(-30, 30), rnd(0.2, 0.5), rnd(2, 4), 0.5, c[0], c[1], c[2], 1, 1.5, 0);
+  if (!(gameTime - u.sndT < (soft ? 0.25 : 0.1))) { u.sndT = gameTime; sfx.shieldHit(); }
+  if (!u.hint && !byAlly) { u.hint = true; toast('La sierpe está protegida por un escudo: abate primero a los hechiceros de su lomo'); }
+  return false;
+}
+function sorcererDie(k, silent) {
+  const u = k.parent, c = ARC_COLOR, p = k.bc;
+  for (let i = 0; i < (silent ? 10 : 50); i++) { const a = Math.random() * 6.283, v = rnd(-1, 1), s = Math.sqrt(1 - v * v), sp = rnd(10, 60); emit(fxAdd, p.x, p.y, p.z, Math.cos(a) * s * sp, v * sp, Math.sin(a) * s * sp, rnd(0.4, 1), rnd(3, 6), 0.5, c[0], c[1], c[2], 1, 1, 0); }
+  if (!silent) explode(p.x, p.y, p.z, 0.9);
+  removeUnitMesh(k); k.gone = true;
+  if (!silent && u.shield && u.kids.every(x => x.dead)) {
+    u.shield = false; u.shieldBreak = 1; camShake = Math.max(camShake, 0.6); sfx.energyBlast(0.6);
+    toast('¡El escudo de la sierpe ha caído!  Ya puedes dañarla');
+  }
+}
+function serpentDie(u) { u.fall = 0; u.fallV = 0; camShake = Math.max(camShake, 1); sfx.energyCharge(0.8); }
+
+/* ---------- Cada fotograma ---------- */
+function updSierpe(u, dt, P, d) {
+  if (!u.model && unitRes.sierpe) serpentModel(u);
+  if (u.dead) {
+    u.dying -= dt; u.fallV += 25 * dt; u.fall += u.fallV * dt;   // cae cada vez más deprisa
+    serpentSpine(u, dt);
+    if (Math.random() < dt * 10) { const s = Math.random(); spineAt(u, s, _Sa, _Sq); explode(_Sa.x, _Sa.y, _Sa.z, rnd(1.4, 2.8)); }
+    if (u.mats) charUnit(u, 1 - u.dying / u.dieT);
+    if (u.dying <= 0) {
+      for (const s of [0.05, 0.4, 0.8]) { spineAt(u, s, _Sa, _Sq); airshipBlast({ pos: _Sa.clone() }); }
+      removeUnitMesh(u); u.gone = true;
+    }
+    for (const m of u.shieldMeshes) m.visible = false;
+    return;
+  }
+  serpentSpine(u, dt);
+  // escudo: se ve mientras haya hechiceros; al romperse, destello y se apaga
+  u.shieldHitT = Math.max(0, u.shieldHitT - dt * 3);
+  if (u.shieldMat) {
+    u.shieldA = u.shield ? Math.min(1, u.shieldA + dt) : Math.max(0, u.shieldA - dt * 0.8);
+    u.shieldBreak = Math.max(0, (u.shieldBreak || 0) - dt * 1.5);
+    u.shieldMat.uniforms.uA.value = u.shieldA * (1 + 3 * (u.shieldBreak || 0));
+    u.shieldMat.uniforms.uHit.value = u.shieldHitT;
+    u.U.uInfl.value = 0.006 * u.size * (1 + 1.5 * (u.shieldBreak || 0));
+    for (const m of u.shieldMeshes) m.visible = u.shieldA > 0.01;
+  }
+  if (u.mats) for (const m of u.mats) m.emissive.setRGB(1, 0.55, 0.2).multiplyScalar(u.hitFlash * 0.4);
+  u.hitFlash = Math.max(0, u.hitFlash - dt * 3);
+  // hechiceros: sobre el lomo; su orbe echa chispas arcanas
+  for (const k of u.kids) {
+    if (k.gone) continue;
+    sorcererPlace(u, k);
+    if (k.mats) for (const m of k.mats) m.emissive.setRGB(ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2]).multiplyScalar(0.25 + k.hitFlash * 0.8);
+    k.hitFlash = Math.max(0, k.hitFlash - dt * 3.5);
+    if (d < 6000 && Math.random() < 0.6) {
+      _Sa.set(0.36, 2.42, -0.38).multiplyScalar(SORC_SCALE).applyQuaternion(k.q).add(k.pos);
+      emit(fxAdd, _Sa.x, _Sa.y, _Sa.z, rnd(-3, 3), rnd(4, 12), rnd(-3, 3), rnd(0.4, 0.9), rnd(3, 5), 0.5, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 0.9, 0.5, -3);
+    }
+  }
+  if (state !== 'playing' || holdFire()) { u.breath = 0; return; }
+  const S = STATS.sierpe, mouth = serpentMouth(u, _Sb), dist = mouth.distanceTo(P);
+  _Sv.subVectors(P, mouth).divideScalar(dist || 1);
+  const ahead = _Sv.dot(u.spT[0]);
+  // llamarada: si el jugador se pone delante de la cabeza (dentro de llamas_angulo y del alcance), la sostiene llamas_duracion s
+  u.breathCool -= dt;
+  if (u.breath <= 0 && u.breathCool <= 0 && dist < S.llamas_alcance && ahead > Math.cos(deg(S.llamas_angulo))) { u.breath = S.llamas_duracion; sfx.roar(0.8); }
+  if (u.breath > 0) {
+    u.breath -= dt; if (u.breath <= 0) u.breathCool = S.llamas_pausa;
+    serpentBreath(u, mouth, dt, S, P, dist);
+  }
+  // bolas de fuego, como los dragones enemigos (con la cabeza no del todo de espaldas)
+  u.fireCool -= dt;
+  if (u.fireCool <= 0 && dist < S.bola_alcance && ahead > -0.2 && u.breath <= 0) {
+    if (losClear(mouth.x, mouth.y, mouth.z, P.x, P.y, P.z)) {
+      _Sa.copy(P).addScaledVector(dragonVel, dist / FIREBALL_SPEED).sub(mouth).normalize();
+      _Sa.x += rnd(-1, 1) * 0.02; _Sa.y += rnd(-1, 1) * 0.02; _Sa.z += rnd(-1, 1) * 0.02; _Sa.normalize();
+      const f = spawnFireball(mouth, _Sa, true, clamp(1.1 - dist / S.bola_alcance, 0.2, 0.8));
+      f.dmg = S.bola_dano; f.msg = 'Una bola de fuego de la sierpe te derribó'; f.r0 *= 2; f.r1 *= 2;
+      emit(fxAdd, mouth.x, mouth.y, mouth.z, 0, 0, 0, 0.25, 20, 50, 1, 0.7, 0.3, 1, 0, 0);
+    }
+    u.fireCool = rnd(S.bola_pausa_min, Math.max(S.bola_pausa_min, S.bola_pausa_max));
+  }
+}
+/* Llamarada de la sierpe: chorro enorme desde la boca hacia delante, girado a medias hacia el jugador; daño continuo si está dentro del
+   cono (y no lleva el escudo puesto). */
+function serpentBreath(u, mouth, dt, S, P, dist) {
+  _Sa.copy(u.spT[0]).lerp(_Sv, 0.6).normalize();           // dirección del chorro
+  const range = S.llamas_alcance, sp = 260, n = Math.round(260 * dt + Math.random());
+  for (let i = 0; i < n; i++) {
+    const o = rnd(0, dt), j = 0.08;
+    const vx = (_Sa.x + rnd(-j, j)) * sp * rnd(0.9, 1.1), vy = (_Sa.y + rnd(-j, j)) * sp * rnd(0.9, 1.1), vz = (_Sa.z + rnd(-j, j)) * sp * rnd(0.9, 1.1), life = range / sp * rnd(0.75, 1.05), hot = Math.random() < 0.25;
+    emit(fxAdd, mouth.x + vx * o, mouth.y + vy * o, mouth.z + vz * o, vx, vy, vz, life, hot ? 6 : rnd(10, 16), hot ? 25 : rnd(55, 90), hot ? 1 : 1, hot ? 0.95 : rnd(0.4, 0.62), hot ? 0.7 : 0.12, hot ? 0.7 : 0.42, 0, -6);
+  }
+  if (Math.random() < 0.5) emit(fxSmoke, mouth.x + _Sa.x * range * 0.6, mouth.y + _Sa.y * range * 0.6, mouth.z + _Sa.z * range * 0.6, rnd(-8, 8), rnd(4, 12), rnd(-8, 8), rnd(2, 3.5), 40, 110, 0.14, 0.12, 0.11, 0.35, 0.5, -1);
+  fbLight.position.copy(mouth).addScaledVector(_Sa, 60); fbLight.intensity = 6; fbLight.color.set(0xff8a3a);
+  // daño: cono que se abre (12 m + un 18 % de la distancia)
+  _Sb.subVectors(P, mouth); const along = _Sb.dot(_Sa), r = 12 + clamp(along, 0, range) * 0.18;
+  if (along > 0 && along < range && _Sb.lengthSq() - along * along < r * r) {
+    if (shieldOn()) { if (Math.random() < dt * 8) shieldHit(_Sb.copy(P).addScaledVector(_Sa, -SHIELD_R), 0.5); }
+    else hurtDragon(S.llamas_dano * dt, 'La llamarada de la sierpe te calcinó', true);
+  }
+}
+
+/* ============================================================
+   6g. BATALLONES DE SOLDADOS (v29)
+   Formaciones rectangulares de entre soldados_min y soldados_max soldados (al azar en cada bloque; pestaña «Batallón» del Excel), todos
+   con el mismo modelo low-poly (soldado.glb, 172 triángulos) y cada batallón en una InstancedMesh: una llamada de dibujo por bloque.
+   Son el objetivo principal de la llamarada a ras de tierra.
+   · Cada soldado tiene su vida (vida): la llamarada los quema uno a uno dentro de su cono; un proyectil, una bola guiada o el rayo matan a
+     los que pillan en su radio (radio_basico, radio_guiado, radio_rayo). Al morir arden un momento, caen y quedan carbonizados.
+   · Como blanco (fijar, misiones, HUD) cuenta el batallón entero: su «vida» son los soldados en pie, y cae cuando no queda ninguno.
+   · Flechas: con el jugador a menos de flechas_alcance, cada cierto tiempo el batallón lanza una andanada (líneas finas con parábola).
+     Casi no hacen daño (flechas_dano): son sobre todo un efecto.
+   · Quietos, con un leve balanceo (cuerpo y lanza) en el shader; la marcha llegará con las misiones.
+   ============================================================ */
+const SOLDIER_T = { burn: 1.3, fall: 0.5 };                // s ardiendo antes de quedar carbonizado; s que tarda en caer
+const _Bm = new THREE.Matrix4(), _Bq = new THREE.Quaternion(), _Bq2 = new THREE.Quaternion(), _Bp = new THREE.Vector3(), _Bs = new THREE.Vector3(1, 1, 1);
+const _Bc = new THREE.Color(), _Bv = new THREE.Vector3(), _Bw = new THREE.Vector3();
+const soldierTime = { value: 0 };
+let soldierMat = null;
+/* Material compartido: el del modelo (color por vértice) con el balanceo en el vértice. uv.x = pieza (03_soldado.py): 1 = brazo de la lanza.
+   Los muertos (color de la instancia oscuro) no se mueven. */
+function soldierMaterial() {
+  if (soldierMat) return soldierMat;
+  soldierMat = unitRes.soldado[0].mat.clone();
+  soldierMat.onBeforeCompile = sh => {
+    sh.uniforms.uTime = soldierTime;
+    sh.vertexShader = 'uniform float uTime;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      #ifdef USE_INSTANCING_COLOR
+        float alive = step(0.3, instanceColor.g);
+      #else
+        float alive = 1.0;
+      #endif
+      float ph = fract(dot(instanceMatrix[3].xz, vec2(0.0713, 0.0397))) * 6.2832;
+      float hy = max(transformed.y, 0.0);
+      transformed.x += sin(uTime * 0.9 + ph) * 0.012 * hy * alive;
+      transformed.z += sin(uTime * 0.7 + ph * 1.7) * 0.01 * hy * alive;
+      if (abs(uv.x - 1.0) < 0.1) transformed.z += sin(uTime * 1.6 + ph) * 0.035 * hy * alive;`);
+  };
+  return soldierMat;
+}
+
+/* n: soldados (sin él, al azar entre soldados_min y soldados_max con la semilla seed). Rumbo: hacia donde miran. */
+function addBatallon(x, z, heading, tags, n, seed) {
+  const S = STATS.batallon, rand = seededRandom(seed || 1), ang = heading * Math.PI / 180;
+  n = Math.round(n || lerp(S.soldados_min, Math.max(S.soldados_min, S.soldados_max), rand()));
+  n = clamp(n, 1, 2000);
+  const gap = Math.max(0.8, S.separacion), cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols);
+  const w = (cols - 1) * gap, dpt = (rows - 1) * gap, fx = Math.sin(ang), fz = -Math.cos(ang), rx = -fz, rz = fx;
+  const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón aniquilado', hp: n, hpMax: n, score: S.puntos, heading: ang,
+    n, alive: n, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
+    upd: updBatallon, hurt: battHurt, flame: battFlame, laserHit: battLaser, boxHit: battBox, cleanup: battCleanup, onKill: () => {} });
+  u.pos.set(x, groundAt(x, z) + 1, z); u.q.setFromAxisAngle(UP, -ang);
+  // soldados: rejilla con un poco de desorden; posiciones en el mundo, rumbo propio, vida y estado (0 en pie, 1 ardiendo, 2 muerto)
+  u.wx = new Float32Array(n); u.wy = new Float32Array(n); u.wz = new Float32Array(n); u.yaw = new Float32Array(n);
+  u.shp = new Float32Array(n).fill(S.vida); u.st = new Uint8Array(n); u.tDie = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const c = i % cols, r = Math.floor(i / cols);
+    const lr = (c - (cols - 1) / 2) * gap + (rand() - 0.5) * 0.35 * gap, lb = (r - (rows - 1) / 2) * gap + (rand() - 0.5) * 0.35 * gap;
+    u.wx[i] = x + rx * lr - fx * lb; u.wz[i] = z + rz * lr - fz * lb; u.wy[i] = groundAt(u.wx[i], u.wz[i]);
+    u.yaw[i] = -ang + (rand() - 0.5) * 0.3;
+  }
+  u.capDef = [[-w / 2 - 1, 0.5, 0, w / 2 + 1, 0.5, 0, dpt / 2 + 1.5]];   // (solo para el descarte rápido: el impacto de verdad es la caja, battBox)
+  unitCaps(u);
+  return u;
+}
+function battMesh(u) {
+  const geo = unitRes.soldado[0].geo, m = new THREE.InstancedMesh(geo, soldierMaterial(), u.n);
+  u.mesh = m;
+  for (let i = 0; i < u.n; i++) { soldierMatrix(u, i); m.setColorAt(i, _Bc.setRGB(1, 1, 1)); }
+  m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true;
+  m.frustumCulled = false;                                 // (la esfera de la geometría es la de un soldado, no la del bloque)
+  scene.add(m);
+}
+function battCleanup(u) { if (u.mesh) { scene.remove(u.mesh); u.mesh.dispose(); u.mesh = null; } }
+/* Matriz de un soldado: en pie, cayendo de espaldas o tumbado. */
+function soldierMatrix(u, i) {
+  _Bp.set(u.wx[i], u.wy[i], u.wz[i]); _Bq.setFromAxisAngle(UP, u.yaw[i]);
+  if (u.st[i]) {
+    const k = clamp((gameTime - u.tDie[i]) / SOLDIER_T.fall, 0, 1);
+    _Bq.multiply(_Bq2.setFromAxisAngle(_Ux, -k * k * 1.45)); _Bp.y -= k * 0.05;
+  }
+  u.mesh.setMatrixAt(i, _Bm.compose(_Bp, _Bq, _Bs));
+}
+/* Caja del bloque (en sus ejes, de 0 a 3 m de alto) contra el segmento p→q: fracción del segmento donde entra, o -1. */
+function battBox(u, p, q, pad) {
+  _Bq.copy(u.q).invert();
+  _Bv.subVectors(p, u.pos).applyQuaternion(_Bq); _Bw.subVectors(q, u.pos).applyQuaternion(_Bq);
+  let t0 = 0, t1 = 1;
+  const lo = [-u.w / 2 - pad, -1 - pad, -u.d / 2 - pad], hi = [u.w / 2 + pad, 2.2 + pad, u.d / 2 + pad], a = [_Bv.x, _Bv.y, _Bv.z], b = [_Bw.x, _Bw.y, _Bw.z];
+  for (let k = 0; k < 3; k++) {
+    const dd = b[k] - a[k];
+    if (Math.abs(dd) < 1e-9) { if (a[k] < lo[k] || a[k] > hi[k]) return -1; continue; }
+    let e0 = (lo[k] - a[k]) / dd, e1 = (hi[k] - a[k]) / dd; if (e0 > e1) { const t = e0; e0 = e1; e1 = t; }
+    t0 = Math.max(t0, e0); t1 = Math.min(t1, e1); if (t0 > t1) return -1;
+  }
+  return t0;
+}
+/* Daño de un soldado (n puntos); si muere, arde, cae y suma sus puntos. */
+function hitSoldier(u, i, n) {
+  if (u.st[i]) return;
+  u.shp[i] -= n;
+  if (u.shp[i] > 0) return;
+  u.st[i] = 1; u.tDie[i] = gameTime; u.alive--; u.hp = u.alive;
+  if (!byAlly) towerState.score += STATS.batallon.puntos_soldado;
+  stats.soldiers = (stats.soldiers || 0) + (byAlly ? 0 : 1);
+  if (u.alive <= 0) killUnit(u);
+}
+/* Proyectiles y bolas guiadas: los soldados a menos del radio del arma del punto del impacto (en planta, y a poca altura). */
+function battHurt(u, n, soft, at, how) {
+  const S = STATS.batallon, r = how === 'msl' ? S.radio_guiado : how === 'laser' ? S.radio_rayo : S.radio_basico, r2 = r * r;
+  for (let i = 0; i < u.n; i++) {
+    if (u.st[i]) continue;
+    const dx = u.wx[i] - at.x, dz = u.wz[i] - at.z;
+    if (dx * dx + dz * dz < r2 && Math.abs(u.wy[i] + 1 - at.y) < r + 2) hitSoldier(u, i, n);
+  }
+  if (!soft) { sparks(at.x, at.y, at.z, 8, 0, 6, 0); emit(fxSmoke, at.x, at.y, at.z, rnd(-2, 2), rnd(3, 6), rnd(-2, 2), rnd(1.5, 2.5), 3, 10, 0.4, 0.35, 0.3, 0.5, 0.8, 0); }
+  if (!(gameTime - u.sndT < 0.07)) { u.sndT = gameTime; sfx.hit(); }
+  return false;
+}
+/* Llamarada: cono desde S en la dirección D hasta lim m (el de los demás blancos, 2 m + un 11 % de la distancia, más radio_llamas). */
+function battFlame(u, S, D, lim, amt, dt) {
+  const extra = STATS.batallon.radio_llamas;
+  let hits = 0;
+  for (let i = 0; i < u.n; i++) {
+    if (u.st[i]) continue;
+    const mx = u.wx[i] - S.x, my = u.wy[i] + 1 - S.y, mz = u.wz[i] - S.z, along = mx * D.x + my * D.y + mz * D.z;
+    if (along < 0 || along > lim + 3) continue;
+    const r = 2 + along * 0.11 + extra;
+    if (mx * mx + my * my + mz * mz - along * along < r * r) { hitSoldier(u, i, amt); hits++; }
+  }
+  if (hits) { _Bv.copy(S).addScaledVector(D, lim); flameHit(_Bv, dt); }
+}
+function battLaser(u, S, E, amt) {
+  const r = STATS.batallon.radio_rayo, r2 = r * r;
+  for (let i = 0; i < u.n; i++) {
+    if (u.st[i]) continue;
+    _Bv.set(u.wx[i], u.wy[i] + 1, u.wz[i]);
+    if (segPointDist2(S, E, _Bv) < r2) hitSoldier(u, i, amt);
+  }
+}
+
+/* ---------- Cada fotograma ---------- */
+function updBatallon(u, dt, P, d) {
+  soldierTime.value = gameTime;
+  if (!u.mesh && unitRes.soldado) battMesh(u);
+  if (!u.mesh) return;
+  u.mesh.visible = d < 6000;
+  // los que arden o caen: matriz y color (naranja que parpadea → carbonizados); llamas pequeñas y humo de cerca
+  let dirty = false;
+  for (let i = 0; i < u.n; i++) {
+    if (u.st[i] !== 1) continue;
+    const t = gameTime - u.tDie[i]; dirty = true;
+    soldierMatrix(u, i);
+    if (t < SOLDIER_T.burn) {
+      const f = 0.75 + 0.25 * Math.sin(gameTime * 40 + i);
+      u.mesh.setColorAt(i, _Bc.setRGB(lerp(1.9, 0.25, t / SOLDIER_T.burn) * f, lerp(0.9, 0.2, t / SOLDIER_T.burn) * f, lerp(0.35, 0.18, t / SOLDIER_T.burn)));
+      if (d < 1500 && Math.random() < 0.35) emit(fxAdd, u.wx[i] + rnd(-0.4, 0.4), u.wy[i] + rnd(0.3, 1.6), u.wz[i] + rnd(-0.4, 0.4), rnd(-1, 1), rnd(2, 5), rnd(-1, 1), rnd(0.3, 0.6), rnd(1.2, 2.2), 0.4, 1, rnd(0.45, 0.7), 0.15, 0.85, 0.5, -2);
+    } else {
+      u.st[i] = 2; u.mesh.setColorAt(i, _Bc.setRGB(0.13, 0.12, 0.12));
+      if (d < 1500) emit(fxSmoke, u.wx[i], u.wy[i] + 0.5, u.wz[i], rnd(-0.5, 0.5), rnd(1.5, 3), rnd(-0.5, 0.5), rnd(1.5, 2.5), 1.2, 4, 0.12, 0.11, 0.1, 0.5, 0.3, -0.5);
+    }
+  }
+  if (dirty) { u.mesh.instanceMatrix.needsUpdate = true; u.mesh.instanceColor.needsUpdate = true; }
+  if (u.dead) return;
+  // flechas: andanadas hacia el jugador
+  const S = STATS.batallon;
+  if (state !== 'playing' || holdFire() || d > S.flechas_alcance) return;
+  u.volleyT -= dt; if (u.volleyT > 0) return;
+  const pause = Math.max(0.3, S.flechas_pausa); u.volleyT = pause * rnd(0.8, 1.2);
+  const k = Math.round(S.flechas_andanada * Math.sqrt(u.alive / u.n));
+  for (let j = 0; j < k; j++) {
+    let i = Math.floor(Math.random() * u.n); for (let g = 0; g < 8 && u.st[i]; g++) i = Math.floor(Math.random() * u.n);
+    if (u.st[i]) continue;
+    _Bv.set(u.wx[i], u.wy[i] + 1.7, u.wz[i]);
+    if (!ballisticAim(_Bv, Math.max(20, S.flechas_vel), deg(S.flechas_dispersion), _Bw)) {   // fuera de su alcance: al aire hacia él igualmente
+      _Bw.subVectors(P, _Bv); _Bw.y = 0; _Bw.normalize(); _Bw.y = 1.4; _Bw.normalize().multiplyScalar(S.flechas_vel);
+      _Bw.x += rnd(-4, 4); _Bw.z += rnd(-4, 4);
+    }
+    spawnArrow(_Bv, _Bw);
+  }
+}
+
+/* ---------- Flechas: líneas finas con gravedad (un solo LineSegments para todas) ---------- */
+const ARROW_CAP = 900, ARROW_LEN = 2.2;
+const arrows = { n: 0, pos: new Float32Array(ARROW_CAP * 3), vel: new Float32Array(ARROW_CAP * 3), life: new Float32Array(ARROW_CAP) };
+const arrowGeo = new THREE.BufferGeometry(), arrowBuf = new Float32Array(ARROW_CAP * 6);
+arrowGeo.setAttribute('position', new THREE.BufferAttribute(arrowBuf, 3).setUsage(THREE.DynamicDrawUsage));
+const arrowMesh = new THREE.LineSegments(arrowGeo, new THREE.LineBasicMaterial({ color: 0x3d3128 }));
+arrowMesh.frustumCulled = false; arrowMesh.renderOrder = 3; scene.add(arrowMesh);
+function spawnArrow(p, v) {
+  if (arrows.n >= ARROW_CAP) return;
+  const i = arrows.n++;
+  arrows.pos[i * 3] = p.x; arrows.pos[i * 3 + 1] = p.y; arrows.pos[i * 3 + 2] = p.z;
+  arrows.vel[i * 3] = v.x; arrows.vel[i * 3 + 1] = v.y; arrows.vel[i * 3 + 2] = v.z; arrows.life[i] = 9;
+}
+function arrowsClear() { arrows.n = 0; arrowGeo.setDrawRange(0, 0); }
+function updateArrows(dt) {
+  const A = arrows, P = dragon.position, shOn = shieldOn(), dmg = STATS.batallon.flechas_dano;
+  if (shOn) shieldCenter(_shC);
+  for (let i = A.n - 1; i >= 0; i--) {
+    const o = i * 3;
+    A.vel[o + 1] -= UNIT_G * dt;
+    A.pos[o] += A.vel[o] * dt; A.pos[o + 1] += A.vel[o + 1] * dt; A.pos[o + 2] += A.vel[o + 2] * dt;
+    A.life[i] -= dt;
+    const x = A.pos[o], y = A.pos[o + 1], z = A.pos[o + 2];
+    let dead = A.life[i] <= 0 || y < groundAt(x, z);
+    if (!dead && state === 'playing') {
+      _Bv.set(x, y, z);
+      if (shOn && _Bv.distanceTo(_shC) < SHIELD_R) { shieldHit(_Bv, 0.15); dead = true; }
+      else if (_Bv.distanceToSquared(P) < PLAYER_HIT_R * PLAYER_HIT_R) { hurtDragon(dmg, 'Las flechas de un batallón te derribaron', true); dead = true; }
+    }
+    if (dead) {                                            // (la última pasa a su hueco)
+      const j = --A.n;
+      if (i !== j) { for (let k = 0; k < 3; k++) { A.pos[o + k] = A.pos[j * 3 + k]; A.vel[o + k] = A.vel[j * 3 + k]; } A.life[i] = A.life[j]; }
+    }
+  }
+  for (let i = 0; i < A.n; i++) {                           // cada flecha: de la punta hacia atrás, en la dirección en que vuela
+    const o = i * 3, vx = A.vel[o], vy = A.vel[o + 1], vz = A.vel[o + 2], k = ARROW_LEN / (Math.hypot(vx, vy, vz) || 1);
+    arrowBuf[i * 6] = A.pos[o]; arrowBuf[i * 6 + 1] = A.pos[o + 1]; arrowBuf[i * 6 + 2] = A.pos[o + 2];
+    arrowBuf[i * 6 + 3] = A.pos[o] - vx * k; arrowBuf[i * 6 + 4] = A.pos[o + 1] - vy * k; arrowBuf[i * 6 + 5] = A.pos[o + 2] - vz * k;
+  }
+  arrowGeo.attributes.position.needsUpdate = true; arrowGeo.setDrawRange(0, A.n * 2);
+}
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
@@ -5039,6 +6118,7 @@ const START = { pos: new THREE.Vector3(), q: new THREE.Quaternion(), dir: new TH
 const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: TOWER_ISL.slice(), center: [0, 0], random: true, sites: [], tags: [] },
   dragons: { total: ENEMY_TOTAL, atOnce: ENEMY_COUNT, tags: [] },
   airships: { total: 0, zone: AIRSHIP_ZONE.slice(), alt: AIRSHIP_ALT.slice(), center: [0, 0], random: true, sites: [], tags: [] },   // v21: dirigibles (6c)
+  units: [],                                               // v29: unidades nuevas de la receta (6f)
   world: null };                                           // v19: semilla, bioma y punto de partida de la misión (missionSetup)
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
@@ -5053,6 +6133,7 @@ function showResult(win, why) {
     RUN.towers.total ? ['Torres destruidas', towerState.kills + ' / ' + RUN.towers.total] : null,
     dragonsTotal() ? ['Dragones derribados', enemyState.kills + ' / ' + dragonsTotal()] : null,
     airships.length ? ['Dirigibles destruidos', airshipState.kills + ' / ' + airships.length] : null,
+    UNITS.length ? ['Otras unidades destruidas', unitState.kills + ' / ' + UNITS.length + (stats.soldiers ? '  ·  ' + stats.soldiers + ' soldados' : '')] : null,   // (v29)
     ['Caídas', stats.deaths], ['Precisión del fuego rápido', pct(stats.shotHits, stats.shots) + '  (' + stats.shotHits + ' de ' + stats.shots + ')'],
     ['Bolas guiadas', stats.mslHits + ' aciertos de ' + stats.msl], ['Rayos de fuego', stats.lasers],
     ['Escudos', stats.shields + ' usados · ' + stats.blocked + ' proyectiles parados'], ['Daño recibido', Math.round(stats.dmgTaken)],
@@ -5074,6 +6155,7 @@ function resetRun(pump) {
   for (const t of [...towers.values()]) dropTower(t);
   planTowers();                                            // v13: nuevo reparto de torres (entre 10 y 15 en islas)
   planAirships();                                          // v21: y los dirigibles de la misión
+  planUnits();                                             // v29: y las unidades nuevas (artillería, batallones, barcos, superdirigibles, la sierpe)
   for (let i = fireballs.length - 1; i >= 0; i--) killFireball(i);
   boltsClear();
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
@@ -5204,8 +6286,8 @@ const _mouth = new THREE.Vector3(), _dir = new THREE.Vector3(), _org = new THREE
 function aimPointFrom(origin, dir) {
   // marcha a lo largo del rayo del marcador: terreno o torres; si no hay impacto, un punto lejano
   let t = 25, last = 0;
-  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT);
-  const tI = Math.min(tIsl, tEn, tAir), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo o el dirigible (v21) más cercano en el rayo
+  const maxT = 3200, tIsl = islandRayHit(origin, dir, maxT), tEn = enemyRayHit(origin, dir, maxT), tAir = airshipRayHit(origin, dir, maxT), tUn = unitRayHit(origin, dir, maxT);
+  const tI = Math.min(tIsl, tEn, tAir, tUn), limit = Math.min(maxT, tI);   // la isla, el dragón enemigo, el dirigible (v21) o la unidad (v29) más cercana en el rayo
   while (t < limit) {
     _hit.copy(origin).addScaledVector(dir, t);
     const gy = Math.max(heightAt(_hit.x, _hit.z), WL);
@@ -5571,6 +6653,7 @@ function flameFx(dt, reach) {
   _bF.copy(_bS).addScaledVector(_bD, lim);
   for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) { damageTower(t, amt, true, _sdc); flameHit(_sdc, dt); }   // _sdc: punto de la llamarada más cercano a la torre
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) { damageAirship(a, amt, true, _sdc); flameHit(_sdc, dt); }      // v21: dirigibles
+  unitsFlame(_bS, _bD, lim, amt, dt);                                                                                                           // v29: unidades nuevas (6f; los batallones, soldado a soldado)
   fbLight.position.copy(_bS).addScaledVector(_bD, Math.min(40, len * 0.5)); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
 }
 /* Llamarada corta sin sonido ni temblor (impacto del rayo contra el terreno). */
@@ -5616,6 +6699,7 @@ function laserFx(dt) {
   for (const e of enemies) if (!e.dead && segHitsSphere(_bS, _bE, e.pos, ENEMY_HIT_R + LASER_R)) damageEnemy(e, amt, _fc, true);   // _fc: punto del rayo más cercano
   for (const tw of towers.values()) if (!tw.dead && towerSegDist2(tw, _bS, _bE) < (TOWER_R + LASER_R) ** 2) damageTower(tw, amt, true, _sdc);
   for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bE) < (a.r + LASER_R) ** 2) damageAirship(a, amt, true, _sdc);
+  unitsLaser(_bS, _bE, amt);                                                                                     // v29: unidades nuevas (6f)
   // 5. impacto: llamaradas y humo donde choca
   if (blocked) { W.burstT = (W.burstT || 0) - dt; if (W.burstT <= 0) { W.burstT = 0.09; burstFx(_bE.x, _bE.y + 2, _bE.z, c); } }
   // 6. espiral de energía alrededor del primer tramo (dos hebras que giran) y destello en la boca
@@ -5850,6 +6934,7 @@ function updateFlight(dt, auto) {
   if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
     if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
   }
+  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crash('Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
     for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);
@@ -6032,6 +7117,7 @@ function drawEnemyMarkers() {
     if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
   }
+  if (drawUnitMarkers(a, lock)) lockShown = true;          // v29: unidades nuevas (6f)
   for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
     if (t.dead) continue;
     const locked = t === lock, tgt = isTgt(t);
@@ -6047,6 +7133,38 @@ function drawEnemyMarkers() {
   hctx.globalAlpha = 1;
   if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
   drawAllyMarker(a);
+}
+/* v29: unidades nuevas (6f). Artillería y torretas: cuadrado hueco; batallones: rectángulo con los soldados que quedan; barcos: rombo
+   (como los dirigibles); superdirigible y sierpe: rombo doble con su nombre (la sierpe, «ESCUDO» mientras lo tiene); hechiceros: círculo.
+   Se ven hasta u.markR (las TGT y la fijada, siempre); el texto, de cerca, si es TGT o si está fijada. Devuelve si dibujó el recuadro del
+   blanco fijado. */
+function drawUnitMarkers(a, lock) {
+  let shown = false;
+  for (const u of UNITS) {
+    if (u.dead) continue;
+    const d = u.pos.distanceTo(_camP), locked = u === lock, tgt = isTgt(u);
+    if ((d > u.markR && !locked && !tgt) || d > 16000 || !proj(u.bc.x, u.bc.y, u.bc.z, a)) continue;
+    const onScreen = onScreenAt(a);
+    if (!onScreen && !nearScreen(a)) continue;
+    let half = 0;
+    if (locked && onScreen) { shown = true; half = drawLockBox(u, a, d); }
+    const big = u.kind === 'superdirigible' || u.kind === 'sierpe', r = (big ? 9 : 5) + 3 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : big ? 34 : 18);
+    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = u.kind === 'hechicero' ? C_TGT : C_DANGER; hctx.lineWidth = 2;
+    hctx.beginPath();
+    if (u.kind === 'artilleria' || u.kind === 'torreta') hctx.rect(a.x - r, y - r, 2 * r, 2 * r);
+    else if (u.kind === 'batallon') hctx.rect(a.x - r * 1.8, y - r * 0.8, 3.6 * r, 1.6 * r);
+    else if (u.kind === 'hechicero') hctx.arc(a.x, y, r, 0, 6.283);
+    else { hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); }
+    hctx.stroke();
+    if (big) { hctx.beginPath(); hctx.moveTo(a.x, y - r * 0.5); hctx.lineTo(a.x + r * 0.75, y); hctx.lineTo(a.x, y + r * 0.5); hctx.lineTo(a.x - r * 0.75, y); hctx.closePath(); hctx.stroke(); }
+    if (d < (big ? 15000 : u.kind === 'batallon' ? 2500 : 1000) || locked || tgt) {   // (la artillería va en grupos: de lejos, solo el símbolo)
+      const name = big ? u.label.toUpperCase() + (u.kind === 'sierpe' && u.shield ? ' · ESCUDO' : '') + '  ' : u.kind === 'batallon' ? u.alive + '  ·  ' : '';
+      hudText((tgt ? 'TGT  ' : '') + name + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    }
+    if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
+  }
+  hctx.globalAlpha = 1;
+  return shown;
 }
 /* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
 const C_ALLY = '#5ab4ff';
@@ -6144,6 +7262,20 @@ function drawRadar(heading, fwd) {
     _Eef.set(0, 0, -1).applyQuaternion(s.q);
     hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
     hctx.strokeStyle = col(tgt, q.d > range, false); hctx.lineWidth = 1.8;
+    hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
+    hctx.restore();
+  }
+  for (const u of UNITS) {                                 // v29: unidades nuevas (las montadas, no: va su unidad)
+    if (u.dead || !u.radar) continue;
+    const tgt = isTgt(u) || u.kids.some(k => !k.dead && isTgt(k)), q = at(u.pos.x, u.pos.z), far = q.d > range;
+    if (tgt) nearest = Math.min(nearest, q.d);
+    if (u.radar === 'sq') { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 2.5, q.y - 2.5, 5, 5); continue; }
+    if (u.radar === 'rect') { hctx.fillStyle = col(tgt, far, true); hctx.fillRect(q.x - 4, q.y - 2, 8, 4); continue; }
+    if (u.radar === 'serpent') { hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 2; hctx.beginPath(); hctx.arc(q.x, q.y, 6, 0, 6.283); hctx.stroke(); hctx.beginPath(); hctx.arc(q.x, q.y, 2.5, 0, 6.283); hctx.stroke(); continue; }
+    _Eef.set(0, 0, -1).applyQuaternion(u.q);                 // barcos y superdirigible: cápsula hueca a lo largo del casco (el superdirigible, más grande)
+    const k = u.radar === 'super' ? 1.6 : 1;
+    hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz)); hctx.scale(k, k);
+    hctx.strokeStyle = col(tgt, far, false); hctx.lineWidth = 1.8 / k;
     hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(2.8, -3); hctx.lineTo(2.8, 4.5); hctx.lineTo(-2.8, 4.5); hctx.lineTo(-2.8, -3); hctx.closePath(); hctx.stroke();
     hctx.restore();
   }
@@ -6417,7 +7549,7 @@ function updateWorld(dt) {
   islT -= dt; if (islT <= 0) { islT = 0.4; updateIslandStreaming(p.x, p.z); }
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
-  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
+  updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt); updateUnits(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado; v29: unidades nuevas, 6f)
   updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateScorch(); devDebug();   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
@@ -6935,7 +8067,8 @@ function updateIntro(now) {
        seed: número entero; la misma semilla da siempre el mismo terreno, las mismas islas y los mismos árboles. null = la del arranque
        (al azar cada vez que se abre el juego, o la de ?semilla=N). Si es otra que la del mundo cargado, al empezar se genera el nuevo
        (pantalla de carga de unos segundos). La tecla º (modo diseño) muestra la semilla del mundo en el que se vuela.
-       biome: de momento solo 'valle' (BIOMES, en M3; los demás llegarán en la Fase 3).
+       biome: 'valle' o, desde la v29, 'pruebas' (mundo llano con suelo de blockout, sin islas ni árboles; BIOMES, en M3; los demás
+       llegarán en la Fase 3). lakes (v29, solo en 'pruebas'): lagos rectangulares [{ x0, z0, x1, z1 }] (m) para los barcos navales.
    · start (v19): punto de partida. { x, z, heading, height } en metros: heading = rumbo en grados como en la brújula (0 = norte, 90 = este;
      null = hacia donde más relieve hay), height = metros sobre el suelo (o el agua). Con y, la altitud absoluta en lugar de height (nunca
      a menos de 40 m del suelo). Si cae dentro de una isla, se sube por encima. Las coordenadas se leen en vuelo con el modo diseño (º).
@@ -6954,6 +8087,15 @@ function updateIntro(now) {
      dirigibles van en formación con ese rumbo, cada uno a una altitud de alt (sobre el agua, como la ALTITUD del HUD; sube solo si hay
      montaña o isla delante). escape: 'fail' = si uno sale del área,
      MISIÓN FALLIDA (el HUD muestra «BORDE» con lo que le falta al más adelantado).
+   · units (v29): unidades nuevas (ver 6f). Lista de grupos { type, x, z, heading (°: hacia donde miran), n (cuántas; 1 por defecto),
+     formation ('linea' | 'columna' | 'cuna' | 'rejilla'), gap (m entre una y otra), tag, … } con type:
+       'artilleria' (variant: 'balista' | 'catapulta' | 'canon' | 'mixta'), 'batallon' (soldiers: número o lista de números por bloque; sin él,
+       al azar entre los del Excel), 'barco' (naval: en el agua), 'superdirigible' (height: m sobre el suelo; nunca menos que su altura
+       mínima del Excel), 'sierpe' (height; mode: 'idle' quieta ondulando o 'circle' en círculo) y 'dragon' (dragones enemigos quietos en
+       hover, a height m: los de la galería). Las torretas del superdirigible y los hechiceros de la sierpe salen solos con ellos.
+     Para objetivos y eventos, sus tipos son 'artilleria', 'batallon', 'barco', 'superdirigible', 'torreta', 'sierpe' y 'hechicero'.
+   · static (v29): true = las unidades no se mueven (de momento ninguna se mueve; la galería).
+   · gallery (v29): galería de enemigos (panel de pruebas: «Restaurar galería»).
    · callsign (v23): nombre en clave del jugador (lo usan los textos de la radio).
    · ally (v23): compañero de escuadrón (ver 6e). { id (el de radio, con su nombre y color), lines: { start, engage, protect, kill,
      regroup } (un texto o una lista: dice uno al azar) }. Va en formación hasta que hay enemigos a 2 km; no recibe daño.
@@ -7114,6 +8256,40 @@ const MISSIONS = {
     radio: {},
     events: []
   },
+  /* v29: galería de enemigos (petición de Jorge, 30-oct): campo de pruebas totalmente llano (suelo de blockout) con todos los tipos de
+     enemigos en varias formaciones, quietos (solo su animación de reposo), para ver cómo se ven y probar a dispararles. Con los trucos y el
+     panel del modo Dev Test (Tab), donde además se puede parar su fuego, poner a volar a la sierpe y restaurar la galería. Delante del
+     inicio (hacia el norte): artillería, batallones, torres y dragones quietos; detrás, los dirigibles, el superdirigible y la sierpe; a la
+     derecha, un lago con barcos. */
+  galeria: {
+    name: 'Galería de enemigos', place: 'Campo de pruebas', free: true, dev: true, gallery: true, static: true,
+    world: { seed: 29, biome: 'pruebas', lakes: [{ x0: 1300, z0: -3600, x1: 4300, z1: 400 }] },
+    start: { x: 0, z: 700, heading: 0, height: 90 },
+    intro: 0,
+    area: null,
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 0, sites: [{ x: -700, z: -1900 }, { x: 0, z: -2000 }, { x: 700, z: -1900 }] },
+    dragons: { total: 0, atOnce: 0 },
+    airships: { total: 3, alt: [600, 600], sites: [{ x: -900, z: -3000, height: 600, heading: 90 }, { x: 0, z: -3100, height: 650, heading: 90 }, { x: 900, z: -3000, height: 600, heading: 90 }] },
+    units: [
+      { type: 'artilleria', variant: 'balista', n: 5, formation: 'linea', x: -600, z: -500, heading: 180 },
+      { type: 'artilleria', variant: 'catapulta', n: 5, formation: 'columna', x: -300, z: -550, heading: 180 },
+      { type: 'artilleria', variant: 'canon', n: 5, formation: 'cuna', x: 0, z: -560, heading: 180 },
+      { type: 'artilleria', variant: 'mixta', n: 9, formation: 'rejilla', x: 320, z: -560, heading: 180 },
+      { type: 'batallon', n: 4, soldiers: [80, 150, 220, 300], formation: 'linea', gap: 300, x: 0, z: -1150, heading: 180 },
+      { type: 'dragon', n: 5, formation: 'cuna', gap: 110, x: 0, z: -2500, height: 160, heading: 180 },
+      { type: 'dragon', n: 3, formation: 'linea', gap: 120, x: -1400, z: -1300, height: 90, heading: 90 },
+      { type: 'barco', n: 3, formation: 'columna', x: 2800, z: -1700, heading: 270 },
+      { type: 'barco', n: 2, formation: 'linea', gap: 300, x: 2600, z: -200, heading: 180 },
+      { type: 'superdirigible', x: -400, z: -4200, height: 1500, heading: 90 },
+      { type: 'sierpe', x: 900, z: -6000, height: 2000, heading: 270, mode: 'idle' }
+    ],
+    objectives: [],
+    radio: {},
+    events: []
+  },
   /* Combate libre: la partida de la v14 tal cual (sin límites, reapareciendo al caer; mundo al azar al abrir el juego y torres nuevas en
      cada partida). */
   libre: {
@@ -7175,6 +8351,7 @@ function missionSetup(id) {
   RUN.dragons = { total: D.total || 0, atOnce: Math.min(D.atOnce || 0, D.total || 0), tags: tagList(D.tag), escort: !!D.escort };   // (v23: escort = con la flota)
   RUN.airships = { total: A.total || 0, zone: (A.zone || AIRSHIP_ZONE).slice(), alt: (A.alt || AIRSHIP_ALT).slice(),   // v21: dirigibles (6c)
     center: center.slice(), random: !!A.random, sites: (A.sites || []).slice(), tags: tagList(A.tag), fleet: A.fleet ? Object.assign({}, A.fleet) : null };   // (v23: fleet = en movimiento)
+  RUN.units = (mission.units || []).map(g => Object.assign({}, g));   // v29: unidades nuevas (6f)
 }
 /* v23: flota que escapa (airships.escape: 'fail'): si un dirigible sale del área, MISIÓN FALLIDA. airshipEdgeDist = cuánto le falta al
    que está más cerca del borde (HUD «BORDE» y condición airshipEdge de los eventos). */
@@ -7187,6 +8364,7 @@ function airshipEdgeDist() {
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
   MS.kills = {}; MS.planned = {};
+  unitsStart();                                            // v29: dragones quietos de la galería (tras spawnEnemies)
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
   for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
   missionHideHUD();
@@ -7194,7 +8372,7 @@ function missionStart() {
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const intro = mission.intro != null ? mission.intro : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
-  else toast(mission.free ? 'Objetivo: ' + goal : mission.name);
+  else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
@@ -7217,6 +8395,8 @@ function plannedCount(sel) {
   let n = 0;
   for (const s of TOWER_SITES) if (matchSel(sel, s)) n++;
   for (const a of airships) if (matchSel(sel, a)) n++;
+  for (const u of UNITS) if (matchSel(sel, u)) n++;        // v29: unidades nuevas (también torretas y hechiceros, cada uno)
+  for (const e of enemies) if (e.statue && matchSel(sel, e)) n++;
   if (matchSel(sel, { kind: 'dragon', tags: RUN.dragons.tags })) n += RUN.dragons.total;
   const Q = mission.squads || {};
   for (const id in Q) if (matchSel(sel, { kind: 'dragon', tags: squadTags(id, Q[id]) })) n += Q[id].n || 1;
@@ -7344,21 +8524,31 @@ function updateRadio(dt) {
    · placeStart(inicio): coloca al dragón en el punto de partida y lo guarda en START.
    · Modo diseño (tecla º): coordenadas, altitud, rumbo, semilla y marcas de puntos (Intro), para diseñar misiones.
    ============================================================ */
-const BIOMES = { valle: { name: 'Valle templado' } };     // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma); de momento, solo el valle
+const BIOMES = {                                          // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma)
+  valle: { name: 'Valle templado' },
+  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 }  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+};
 const START_DEFAULT = { x: 0, z: 0, heading: null, height: 260, y: null };
-const WORLD = { seed: SEED_BOOT, biome: 'valle', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
+const WORLD = { seed: SEED_BOOT, biome: 'valle', shape: 'valle[]', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
 const WG = { total: 1, phase: 0 };                          // carga: chunks pendientes al empezar; fase 0 = terreno, 1 = islas
 const wgEl = document.getElementById('worldgen'), wgBar = document.getElementById('wgBar');
 
 function missionWorld(m) {
   const w = m.world || {}, s = Object.assign({}, START_DEFAULT, m.start || {});
   let biome = w.biome || 'valle';
-  if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle»)'); biome = 'valle'; }
-  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s };
+  if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle» y «pruebas»)'); biome = 'valle'; }
+  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)) };
 }
 const startKey = s => [s.x, s.z, s.heading, s.height, s.y].join(',');
+const shapeKey = w => w.biome + JSON.stringify(w.lakes || []);   // v29: bioma y lagos (el relieve del mundo llano)
 function worldNeedsGen() {
-  const w = RUN.world; return !!w && (w.seed !== WORLD.seed || startKey(w.start) !== WORLD.startKey);
+  const w = RUN.world; return !!w && (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape || startKey(w.start) !== WORLD.startKey);
+}
+/* v29: el bioma cambia el relieve: con «pruebas», mundo llano (FLAT, en 1) y suelo de blockout (uGrid, en 2). */
+function setBiome(w) {
+  const B = BIOMES[w.biome];
+  FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
+  terrainUniforms.uGrid.value = FLAT ? 1 : 0;
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {
@@ -7396,8 +8586,8 @@ function placeStart(s) {
 /* Desde startGame: otra semilla → se borra el mundo; en cualquier caso, nuevo punto de partida y carga del terreno de allí. */
 function beginWorldGen() {
   const w = RUN.world;
-  if (w.seed !== WORLD.seed) { clearWorld(); setSeed(w.seed); }
-  WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.startKey = startKey(w.start);
+  if (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape) { clearWorld(); setSeed(w.seed); setBiome(w); }   // (v29: o con otro bioma)
+  WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.shape = shapeKey(w); WORLD.startKey = startKey(w.start);
   placeStart(w.start);
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
@@ -7537,7 +8727,7 @@ const STATS_SCHEMA = {
     ['rayo_duracion', 'Duración rayo láser', 's', 5, 'Segundos desde que lo lanzas.'],
     ['rayo_alcance', 'Distancia rayo láser', 'km', 8, 'Largo máximo del rayo (se corta al chocar con el terreno o una isla).'],
     ['rayo_recarga', 'Recarga rayo láser', '%/s', 0.5, 'Carga con el tiempo (con 0,5 %/s, de 0 a 100 % en 200 s).'],
-    ['rayo_por_derribo', 'Recarga por enemigo destruido', '%', 5, 'Por cada dragón, torre o dirigible que destruyes tú (no Lance).'],
+    ['rayo_por_derribo', 'Recarga por enemigo destruido', '%', 5, 'Por cada dragón, torre, dirigible u otra unidad enemiga que destruyes tú (no Lance; los soldados sueltos no cuentan, el batallón entero sí).'],
     { sec: 'Vuelo' },
     ['vel_max', 'Velocidad máxima', 'km/h', 600, 'A todo gas y en vuelo nivelado, sin boost (en picado se puede pasar).'],
     ['vel_boost', 'Velocidad boost', 'km/h', 1000, 'Con boost. También es el tope absoluto, picados incluidos.'],
@@ -7606,6 +8796,105 @@ const STATS_SCHEMA = {
     ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Medido desde el eje del barco: ahí no pueden apuntarte.'],
     ['muerto_vertical', 'Elevación máxima de los cañones', '°', 70, 'Más arriba o más abajo no pueden apuntarte.']
   ],
+  /* v29: unidades nuevas (6f; lista de Jorge del 30-oct). Valores provisionales, para ajustar en la galería de enemigos. */
+  artilleria: [
+    { sec: 'Vida' },
+    ['vida', 'Puntos de vida', 'puntos', 40, 'Balista, catapulta y cañón son iguales: solo cambia el aspecto (y el aspecto del proyectil).'],
+    ['puntos', 'Puntos al destruirla', 'puntos', 80, ''],
+    { sec: 'Tamaño y movimiento' },
+    ['largo', 'Largo', 'm', 11, 'Tamaño en el juego: los tres modelos se escalan a este largo.'],
+    ['velocidad', 'Velocidad', 'km/h', 20, 'Unidad de tierra lenta. Aún sin uso: en la galería están quietas (llegará con las misiones).'],
+    { sec: 'Disparo (muy de vez en cuando)' },
+    ['dano', 'Daño por proyectil', 'puntos', 3, 'Anecdótico: en las misiones su papel será atacar a las unidades de tierra aliadas.'],
+    ['alcance', 'Alcance', 'm', 1500, ''],
+    ['pausa_min', 'Pausa entre disparos (mínima)', 's', 6, ''],
+    ['pausa_max', 'Pausa entre disparos (máxima)', 's', 10, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 200, 'Con parábola: la gravedad lo hace caer (apuntan con adelanto).'],
+    ['dispersion', 'Dispersión', '°', 2.5, '']
+  ],
+  batallon: [
+    { sec: 'Soldados' },
+    ['soldados_min', 'Soldados por batallón (mínimo)', 'soldados', 80, 'Cada bloque sale con un número al azar entre el mínimo y el máximo (la receta puede fijarlo).'],
+    ['soldados_max', 'Soldados por batallón (máximo)', 'soldados', 300, ''],
+    ['separacion', 'Separación entre soldados', 'm', 1.6, 'En la formación rectangular. Se nota al empezar otra partida o al restaurar la galería.'],
+    ['vida', 'Vida de cada soldado', 'puntos', 2, 'Con la llamarada (15/s) arden casi al instante.'],
+    ['puntos_soldado', 'Puntos por soldado', 'puntos', 2, ''],
+    ['puntos', 'Puntos al aniquilar el batallón', 'puntos', 150, 'Además de los de cada soldado.'],
+    ['velocidad', 'Velocidad de marcha', 'km/h', 5, 'Aún sin uso: en la galería están quietos.', 1],
+    { sec: 'Daño que reciben' },
+    ['radio_llamas', 'Radio extra de la llamarada', 'm', 3, 'Se suma al cono de la llamarada (2 m + un 11 % de la distancia).'],
+    ['radio_basico', 'Radio del disparo básico', 'm', 2.5, 'Mueren los soldados a menos de esto del impacto.'],
+    ['radio_guiado', 'Radio del disparo guiado', 'm', 12, ''],
+    ['radio_rayo', 'Radio del rayo láser', 'm', 5, ''],
+    { sec: 'Flechas (sobre todo un efecto)' },
+    ['flechas_alcance', 'Alcance', 'm', 400, 'Disparan cuando pasas a menos de esto.'],
+    ['flechas_andanada', 'Flechas por andanada', 'flechas', 40, 'Con el batallón entero (con menos soldados, menos flechas).'],
+    ['flechas_pausa', 'Pausa entre andanadas', 's', 2.5, ''],
+    ['flechas_vel', 'Velocidad de las flechas', 'm/s', 75, 'Con parábola.'],
+    ['flechas_dispersion', 'Dispersión', '°', 4, ''],
+    ['flechas_dano', 'Daño por flecha', 'puntos', 0.1, 'Despreciable, a propósito (en hover justo encima, ~1 punto por segundo).']
+  ],
+  barco_naval: [
+    { sec: 'Vida' },
+    ['vida', 'Puntos de vida', 'puntos', 50, 'Como los dirigibles: un disparo guiado (60) lo hunde.'],
+    ['puntos', 'Puntos al hundirlo', 'puntos', 200, ''],
+    { sec: 'Tamaño y movimiento' },
+    ['largo', 'Eslora', 'm', 110, ''],
+    ['velocidad', 'Velocidad', 'km/h', 30, 'Aún sin uso: en la galería están quietos.'],
+    { sec: 'Cañones (solo por los costados, como los dirigibles)' },
+    ['dano', 'Daño por proyectil', 'puntos', 2, ''],
+    ['alcance', 'Alcance', 'm', 2000, ''],
+    ['cadencia', 'Pausa entre disparos', 's', 0.3, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
+    ['dispersion', 'Dispersión', '°', 1.72, ''],
+    ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Medido desde el eje del barco: ahí no pueden apuntarte.'],
+    ['muerto_vertical', 'Elevación máxima de los cañones', '°', 70, '']
+  ],
+  superdirigible: [
+    { sec: 'Núcleo (el casco)' },
+    ['vida', 'Puntos de vida del núcleo', 'puntos', 1500, 'Se puede dañar aunque queden torretas; al caer, caen todas.'],
+    ['puntos', 'Puntos al destruirlo', 'puntos', 2000, ''],
+    ['largo', 'Eslora', 'm', 500, 'Jorge: 500 m como mínimo.'],
+    ['altura_min', 'Altura mínima de vuelo', 'm', 1500, 'Sobre el suelo. La receta puede ponerlo más alto, nunca más bajo.'],
+    ['velocidad', 'Velocidad', 'km/h', 60, 'Aún sin uso: en la galería está quieto.'],
+    { sec: 'Torretas (cañones y balistas sobre la cubierta)' },
+    ['torretas', 'Torretas por costado', 'torretas', 6, 'Alternan cañón y balista; se fijan y se destruyen una a una (como mucho 6).'],
+    ['torreta_vida', 'Vida de cada torreta', 'puntos', 50, ''],
+    ['torreta_puntos', 'Puntos por torreta', 'puntos', 100, ''],
+    ['torreta_largo', 'Tamaño de cada torreta', 'm', 24, ''],
+    ['torreta_cadencia', 'Pausa entre disparos de cada torreta', 's', 1.5, 'Cada torreta dispara por su cuenta, solo hacia su costado.'],
+    ['dano', 'Daño por proyectil', 'puntos', 2, 'Como los cañones de los dirigibles.'],
+    ['alcance', 'Alcance', 'm', 2000, ''],
+    ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
+    ['dispersion', 'Dispersión', '°', 1.72, ''],
+    ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Como los dirigibles: medido desde el eje del casco.'],
+    ['muerto_vertical', 'Elevación máxima', '°', 70, '']
+  ],
+  sierpe: [
+    { sec: 'Vida y tamaño' },
+    ['vida', 'Puntos de vida', 'puntos', 3000, 'Solo recibe daño cuando cae su escudo.'],
+    ['puntos', 'Puntos al abatirla', 'puntos', 5000, ''],
+    ['largo', 'Largo', 'm', 500, ''],
+    { sec: 'Vuelo' },
+    ['altura', 'Altura de vuelo', 'm', 2000, 'Sobre el suelo, si la receta no dice otra.'],
+    ['radio_circulo', 'Radio del círculo', 'm', 2500, 'En vuelo circular (en la galería, con el panel de pruebas).'],
+    ['velocidad', 'Velocidad', 'km/h', 150, 'En vuelo circular.'],
+    { sec: 'Llamarada (si te pones delante de la cabeza)' },
+    ['llamas_dano', 'Daño', 'puntos/s', 40, ''],
+    ['llamas_alcance', 'Alcance', 'm', 900, ''],
+    ['llamas_angulo', 'Ángulo para empezarla', '°', 25, 'Te tiene que tener delante de la cabeza, a menos de este ángulo.'],
+    ['llamas_duracion', 'Duración', 's', 4, ''],
+    ['llamas_pausa', 'Pausa entre llamaradas', 's', 6, ''],
+    { sec: 'Bolas de fuego (como los dragones enemigos)' },
+    ['bola_dano', 'Daño', 'puntos', 15, ''],
+    ['bola_alcance', 'Alcance', 'm', 1500, ''],
+    ['bola_pausa_min', 'Pausa entre bolas (mínima)', 's', 1.2, ''],
+    ['bola_pausa_max', 'Pausa entre bolas (máxima)', 's', 2.4, ''],
+    { sec: 'Hechiceros y escudo' },
+    ['hechiceros', 'Hechiceros en el lomo', 'hechiceros', 3, 'Mientras quede alguno, el escudo la protege de todo daño (como mucho 3).'],
+    ['hechicero_vida', 'Vida de cada hechicero', 'puntos', 60, ''],
+    ['hechicero_puntos', 'Puntos por hechicero', 'puntos', 300, '']
+  ],
   lance: [
     { sec: 'Armas (solo disparo básico y lanzallamas)' },
     ['basico_dano', 'Daño disparo básico', 'puntos', 5, ''],
@@ -7631,7 +8920,14 @@ const STATS_TABS = [
   { tab: 'Alientormenta', unit: 'tyrant', kind: 'dragon' }, { tab: 'Abrasanubes', unit: 'rojo', kind: 'dragon' },
   { tab: 'Ventoscuro', unit: 'drogon', kind: 'dragon' }, { tab: 'Fulgor', unit: 'fulgor', kind: 'dragon' },
   { tab: 'Dragón enemigo', unit: 'enemigo', kind: 'enemigo' }, { tab: 'Torre', unit: 'torre', kind: 'torre' },
-  { tab: 'Dirigible', unit: 'dirigible', kind: 'dirigible' }, { tab: 'Lance (aliado)', unit: 'lance', kind: 'lance' }
+  { tab: 'Dirigible', unit: 'dirigible', kind: 'dirigible' },
+  // v29: unidades nuevas (6f); note = subtítulo de su pestaña en el Excel
+  { tab: 'Artillería', unit: 'artilleria', kind: 'artilleria', note: 'Nueva (v29): balistas, catapultas y cañones, la defensa terrestre móvil. Valores provisionales.' },
+  { tab: 'Batallón', unit: 'batallon', kind: 'batallon', note: 'Nueva (v29): bloques de soldados, el objetivo de la llamarada a ras de tierra. Valores provisionales.' },
+  { tab: 'Barco naval', unit: 'barco_naval', kind: 'barco_naval', note: 'Nueva (v29): barcos en el mar, como los dirigibles. Valores provisionales.' },
+  { tab: 'Superdirigible', unit: 'superdirigible', kind: 'superdirigible', note: 'Nueva (v29): megaestructura del cielo con torretas que se destruyen aparte. Valores provisionales.' },
+  { tab: 'Sierpe', unit: 'sierpe', kind: 'sierpe', note: 'Nueva (v29): dragón serpiente gigante (minijefe) con hechiceros que la escudan. Valores provisionales.' },
+  { tab: 'Lance (aliado)', unit: 'lance', kind: 'lance' }
 ];
 const statsNorm = s => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -7722,7 +9018,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":1500,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":80,"soldados_max":300,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":500,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"sierpe":{"vida":3000,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":2500,"velocidad":150,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
@@ -7787,6 +9083,7 @@ function applyStats(vals, src) {
   ALLY_FLAME_DPS = L.llamas_dano; ALLY_FLAME_RANGE = L.llamas_alcance; ALLY_VMAX = L.vel_max / 3.6; ALLY_ENGAGE = L.combate_distancia;
   ALLY_PROTECT = L.proteger_dist; ALLY_PROTECT_P = L.proteger_prob / 100; ALLY_URGENT = L.proteger_urgente; ALLY_PICK[0] = L.blanco_min; ALLY_PICK[1] = Math.max(L.blanco_min, L.blanco_max);
   if (ally.e) ally.e.vmax = ALLY_VMAX;
+  if (typeof applyUnitStats === 'function') applyUnitStats();   // v29: tamaños y vidas de las unidades nuevas (6f; el resto lo leen al usarlo)
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();
   if (src !== 'panel de pruebas' && typeof devStatsSnap === 'function') devStatsSnap();   // v27: referencia del panel de pruebas (19d)
@@ -7852,8 +9149,11 @@ function statText(s) {
    · Vuelo y cámara: sensación de vuelo, cámaras (1ª, 3ª, apuntado, objetivo) y campo de visión. «Copiar ajustes» deja los valores con el
      nombre de su constante, para fijarlos después en el código.
    · Depuración: FPS, hitboxes (dragones, Lance, el jugador y las torres), duración de las quemaduras, entrada de cine y reaparecer.
+   · v29: Enemigos (en todos los modos con panel): si disparan o no; en la galería de enemigos, además, la sierpe en vuelo circular,
+     «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
-const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '' };
+const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
+  fire: true, serpentFly: false };                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
@@ -7935,6 +9235,17 @@ function devBuild() {
   devCheck(t, 'Escudos infinitos', 'shield');
   devCheck(t, 'Sin sobrecalentamiento', 'heat');
   devCheck(t, 'Rayo siempre listo', 'ult');
+  // v29: enemigos y galería
+  const en = devSection('Enemigos', !!mission.gallery);
+  devCheck(en, 'Los enemigos disparan', 'fire');
+  if (mission.gallery) {
+    devCheck(en, 'Sierpe: vuelo circular (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
+    const eb = devEl$('div', 'd-btns', null, en);
+    devButton(eb, 'Restaurar galería', galleryRestore);
+    devEl$('div', 'd-sub', 'Ir a…', en);
+    const go = devEl$('div', 'd-btns', null, en);
+    for (const [label, fn] of GALLERY_SPOTS) devButton(go, label, () => galleryGo(fn));
+  }
   // Stats en vivo
   devStats.sec = devSection('Stats en vivo', false);
   devBuildStats();
@@ -7947,7 +9258,7 @@ function devBuild() {
   // Depuración
   const g = devSection('Depuración', false);
   devCheck(g, 'Mostrar FPS', 'fps');
-  devCheck(g, 'Hitboxes (dragones, Lance, tú y las torres)', 'hitbox');
+  devCheck(g, 'Hitboxes (dragones, Lance, tú, las torres y las unidades nuevas)', 'hitbox');
   devEl$('div', 'd-sub', 'Quemaduras de la llamarada', g);
   devSlider(g, { label: 'Duración (s)', get: () => SCORCH.life, set: x => SCORCH.life = Math.max(1, x), min: 5, max: 300, step: 1, base: 60 });
   devSlider(g, { label: 'Desvanecido final (s)', get: () => SCORCH.fade, set: x => SCORCH.fade = Math.max(0.5, x), min: 1, max: 120, step: 1, base: 20 });
@@ -8018,6 +9329,7 @@ const devFeelBase = {}; for (const d of devFeel) if (typeof d !== 'string') devF
 
 /* ---------- Depuración: hitboxes y FPS ---------- */
 const devHit = { pool: [], geo: new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 14, 10)), cyl: new THREE.WireframeGeometry(new THREE.CylinderGeometry(1, 1, 1, 14, 1, true)) };
+const _devAx = new THREE.Vector3();
 function devHitBox(i, cyl, color) {
   let m = devHit.pool[i];
   if (!m || m.userData.cyl !== cyl) {
@@ -8025,7 +9337,7 @@ function devHitBox(i, cyl, color) {
     m = devHit.pool[i] = new THREE.LineSegments(cyl ? devHit.cyl : devHit.geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7, depthTest: false }));
     m.userData.cyl = cyl; m.renderOrder = 9; m.frustumCulled = false; scene.add(m);
   }
-  m.material.color.set(color); m.visible = true;
+  m.material.color.set(color); m.visible = true; m.quaternion.identity();
   return m;
 }
 /* Cada fotograma (updateWorld). */
@@ -8037,8 +9349,51 @@ function devDebug() {
     if (ally.e && ally.on) { const p = ally.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }
     const P = dragon.position; put(false, 0xf2b84b, P.x, P.y, P.z, PLAYER_HIT_R, PLAYER_HIT_R);
     for (const t of towers.values()) if (!t.dead && Math.hypot(t.x - P.x, t.z - P.z) < 4000) put(true, 0xff7a2e, t.x, t.y + TOWER_TOP / 2, t.z, TOWER_R, TOWER_TOP);
+    for (const u of UNITS) {                                 // v29: cápsulas de las unidades nuevas (cilindro a lo largo y una esfera en cada punta)
+      if (u.dead || u.bc.distanceTo(P) > 9000 || n > 400) continue;
+      const col = u.kind === 'hechicero' || u.kind === 'torreta' ? 0xffe07a : 0xff4ad0;
+      for (const c of u.caps) {
+        const m = devHitBox(n++, true, col), l = c.a.distanceTo(c.b);
+        m.position.lerpVectors(c.a, c.b, 0.5); m.scale.set(c.r, Math.max(0.01, l), c.r);
+        m.quaternion.setFromUnitVectors(UP, _devAx.subVectors(c.b, c.a).normalize());
+        put(false, col, c.a.x, c.a.y, c.a.z, c.r, c.r); put(false, col, c.b.x, c.b.y, c.b.z, c.r, c.r);
+      }
+    }
   }
   for (let i = n; i < devHit.pool.length; i++) devHit.pool[i].visible = false;
+}
+
+/* ---------- v29: galería de enemigos ----------
+   Restaurar: todo vuelve a estar en pie donde dice la receta (torres, dirigibles, unidades nuevas y dragones quietos), sin tocar al
+   jugador. Ir a…: te deja delante de cada grupo, mirándolo. */
+function galleryRestore() {
+  if (!mission.gallery || !devInGame()) return;
+  towerState.destroyed.clear(); towerState.kills = 0;
+  for (const t of [...towers.values()]) dropTower(t);
+  planTowers(); planAirships(); planUnits();
+  for (const e of enemies) if (e.statue) { e.dead = true; e.off = true; showEnemy(e, false); e.glow.visible = false; }
+  unitsStart(); enemyLock.e = null;
+  for (const u of UNITS) if (u.kind === 'sierpe') serpentMode(u, DEV.serpentFly ? 'circle' : 'idle');
+  const P = dragon.position; updateTowerStreaming(P.x, P.z);
+  toast('Galería restaurada');
+}
+const GALLERY_SPOTS = [                                    // [botón, función que da { x, y, z, mira: [x, y, z] }]
+  ['Artillería', () => ({ x: 0, y: 70, z: -150, at: [0, 0, -560] })],
+  ['Batallones', () => ({ x: 0, y: 45, z: -900, at: [0, 0, -1150] })],
+  ['Dragones', () => ({ x: 0, y: 200, z: -2100, at: [0, 160, -2500] })],
+  ['Barcos', () => ({ x: 2000, y: 60, z: -900, at: [2800, 0, -1700] })],
+  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + 150, z: u.pos.z + 1100, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
+  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); return u ? { x: u.pos.x - 300, y: u.pos.y + 250, z: u.pos.z + 1300, at: [u.bc.x, u.bc.y, u.bc.z] } : null; }]
+];
+function galleryGo(fn) {
+  const s = fn(); if (!s || state !== 'playing') return;
+  dragon.position.set(s.x, s.y, s.z);
+  _devAx.set(s.at[0] - s.x, s.at[1] - s.y, s.at[2] - s.z).normalize();
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _devAx, UP));
+  F.aimWorld.copy(_devAx); F.aimPt.copy(_devAx).multiplyScalar(1400).add(dragon.position); F.steer.set(0, 0, -1);
+  F.speed = 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null;
+  const P = dragon.position; refreshTerrainSelection(P.x, P.y, P.z, true); updateTowerStreaming(P.x, P.z);
+  devPanel(false);
 }
 /* ---------- Bucle ---------- */
 let lastT = performance.now(), loadTotal = 1;
@@ -8085,9 +9440,11 @@ function frame(now) {
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
   document.getElementById('mDev').addEventListener('click', () => chooseMission('devtest'));           // v27: modo Dev Test (19d)
-  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
+  document.getElementById('mGal').addEventListener('click', () => chooseMission('galeria'));           // v29: galería de enemigos
+  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); loadUnits(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible; v29: las unidades nuevas
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally,   // (v21; v23: ally)
+    UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)
     get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
   requestAnimationFrame(frame);
 })();

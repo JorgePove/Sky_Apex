@@ -47,6 +47,10 @@ if (!soloFuente) {
     '--extra', 'brazos-glb=../modelos/brazos_jinete.glb', '--extra', 'caballero-glb=../modelos/caballero.glb',
     '--extra', 'logo-sky-png=../imagenes/logo_sky.png', '--extra', 'logo-apex-png=../imagenes/logo_apex.png',
     '--extra', 'rojo-glb=../modelos/dragon_rojo.glb', '--extra', 'drogon-glb=../modelos/drogon_web.glb', '--extra', 'fulgor-glb=../modelos/syrax_web.glb',
-    '--extra', 'dirigible-glb=../modelos/dirigible.glb', '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible)
+    '--extra', 'dirigible-glb=../modelos/dirigible.glb',
+    '--extra', 'balista-glb=../modelos/artilleria_balista.glb', '--extra', 'catapulta-glb=../modelos/artilleria_catapulta.glb',
+    '--extra', 'canon-glb=../modelos/artilleria_canon.glb', '--extra', 'barco-glb=../modelos/barco_naval.glb',
+    '--extra', 'superdirigible-glb=../modelos/superdirigible.glb', '--extra', 'sierpe-glb=../modelos/sierpe.glb', '--extra', 'soldado-glb=../modelos/soldado.glb',
+    '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible; v29: las unidades nuevas)
   process.stdout.write(execFileSync(process.execPath, args, { cwd: HERR }));
 }
