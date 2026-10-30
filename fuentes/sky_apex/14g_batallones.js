@@ -14,7 +14,7 @@
 const SOLDIER_T = { burn: 1.3, fall: 0.5 };                // s ardiendo antes de quedar carbonizado; s que tarda en caer
 const _Bm = new THREE.Matrix4(), _Bq = new THREE.Quaternion(), _Bq2 = new THREE.Quaternion(), _Bp = new THREE.Vector3(), _Bs = new THREE.Vector3(1, 1, 1);
 const _Bc = new THREE.Color(), _Bv = new THREE.Vector3(), _Bw = new THREE.Vector3();
-const soldierTime = { value: 0 };
+const soldierTime = unitTime;                              // (v30: el tiempo común de los shaders de las unidades, 6f)
 let soldierMat = null;
 /* Material compartido: el del modelo (color por vértice) con el balanceo en el vértice. uv.x = pieza (03_soldado.py): 1 = brazo de la lanza.
    Los muertos (color de la instancia oscuro) no se mueven. */
@@ -46,7 +46,7 @@ function addBatallon(x, z, heading, tags, n, seed) {
   const gap = Math.max(0.8, S.separacion), cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols);
   const w = (cols - 1) * gap, dpt = (rows - 1) * gap, fx = Math.sin(ang), fz = -Math.cos(ang), rx = -fz, rz = fx;
   const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón aniquilado', hp: n, hpMax: n, score: S.puntos, heading: ang,
-    n, alive: n, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
+    n, alive: n, ground: true, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
     upd: updBatallon, hurt: battHurt, flame: battFlame, laserHit: battLaser, boxHit: battBox, cleanup: battCleanup, onKill: () => {} });
   u.pos.set(x, groundAt(x, z) + 1, z); u.q.setFromAxisAngle(UP, -ang);
   // soldados: rejilla con un poco de desorden; posiciones en el mundo, rumbo propio, vida y estado (0 en pie, 1 ardiendo, 2 muerto)
@@ -140,7 +140,6 @@ function battLaser(u, S, E, amt) {
 
 /* ---------- Cada fotograma ---------- */
 function updBatallon(u, dt, P, d) {
-  soldierTime.value = gameTime;
   if (!u.mesh && unitRes.soldado) battMesh(u);
   if (!u.mesh) return;
   u.mesh.visible = d < 6000;

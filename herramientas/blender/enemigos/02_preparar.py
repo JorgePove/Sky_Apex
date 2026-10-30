@@ -19,8 +19,40 @@ MODELOS = {
     'canon': ('modelos/canon guay.glb', 180, 9000, 'suelo', 1024, ('lightning',), 'artilleria_canon.glb'),
     'barco': ('modelos/barco guay.glb', -90, 26000, 'suelo', 1024, (), 'barco_naval.glb'),
     'superdirigible': ('modelos/barco guay 02.glb', -90, 40000, 'centro', 0, (), 'superdirigible.glb'),
-    'sierpe': ('dragones raw/black_myth_wukong_-_kang_jin_long_static.glb', 180, 60000, 'centro', 1024, ('invisible', 'dither'), 'sierpe.glb'),
+    # v30: la sierpe sale del FBX original del zip (el GLB de Sketchfab traía las patas delanteras estiradas desde un «anillo»); sus texturas
+    # van aparte en el zip y se asignan por el nombre del material (Dither_Inst = las aletas, textura «qi», recortada por su alfa)
+    'sierpe': ('dragones raw/black-myth-wukong-kang-jin-long-static.zip', 180, 48000, 'centro', 1024, ('invisible',), 'sierpe.glb'),
 }
+SIERPE_TEX = {'tou': 'tou', 'shenti': 'shenti', 'eye': 'eye', 'weiba': 'weiba', 'dither': 'qi'}   # material → T_LYS_KangJinLong_<x>_D.png
+# v30: huesos de las patas (Biped): sus vértices van rígidos con el hombro o la cadera de su pata (segundo canal UV: x = punto de la columna del
+# hombro, y = peso de la pata); si no, la onda del cuerpo las retorcía
+import re
+PATA = re.compile(r'(clavicle|upperarm|uparm|forearm|foretwist|lowerarm|hand|finger|thumb|index|middle|ring|pinky|thigh|calf|horselink|foot|toe|ball)', re.I)
+
+
+def anclas_patas(o, arm):
+    """Por vértice: peso total de los huesos de pata y la Y (mundo, con la pose) media del hombro o cadera de sus patas → capa UV «ancla»."""
+    raiz_y = {}
+    for b in arm.pose.bones:
+        if not PATA.search(b.name): continue
+        r = b
+        while r.parent and PATA.search(r.parent.name): r = r.parent
+        raiz_y[b.name] = (arm.matrix_world @ r.head).y
+    grupos = {g.index: g.name for g in o.vertex_groups}
+    por_vertice = []
+    for v in o.data.vertices:
+        tot = sum(g.weight for g in v.groups) or 1.0
+        w = sy = 0.0
+        for g in v.groups:
+            n = grupos.get(g.group)
+            if n in raiz_y: w += g.weight; sy += g.weight * raiz_y[n]
+        por_vertice.append((sy / w if w > 0 else 0.0, w / tot))
+    uv = o.data.uv_layers.new(name='ancla')
+    for poly in o.data.polygons:
+        for li in poly.loop_indices:
+            y, w = por_vertice[o.data.loops[li].vertex_index]; uv.data[li].uv = (y, w)
+    o.data.uv_layers.active_index = 0
+    C.info('anclas de las patas: %d vértices con peso de pata' % sum(1 for y, w in por_vertice if w > 0.05))
 args = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 out_dir = C.carpeta(C.SALIDA, 'enemigos')
 info = {}
@@ -48,8 +80,10 @@ def imagen_base(mat):
 
 
 def simplificar_material(mat, tex):
-    """Deja el material con un Principled y, si la había, la textura del color base reducida a tex px (sin normales ni rugosidad)."""
+    """Deja el material con un Principled y, si la había, la textura del color base reducida a tex px (sin normales ni rugosidad).
+    Con mat['recorte'] (aletas de la sierpe), el alfa de la textura recorta (se exporta como MASK y la textura en PNG)."""
     img = imagen_base(mat)
+    recorte = bool(mat.get('recorte'))
     col = color_de(mat)
     nt = mat.node_tree
     for n in list(nt.nodes): nt.nodes.remove(n)
@@ -58,30 +92,65 @@ def simplificar_material(mat, tex):
     nt.links.new(bsdf.outputs[0], outn.inputs['Surface'])
     bsdf.inputs['Roughness'].default_value = 0.8; bsdf.inputs['Metallic'].default_value = 0.0
     if img is not None:
+        if recorte: tex = min(tex, 512)                      # (va en PNG por el alfa: más pequeña)
         if max(img.size) > tex:
             k = tex / max(img.size); img.scale(max(1, int(img.size[0] * k)), max(1, int(img.size[1] * k)))
         tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = img
         nt.links.new(tn.outputs['Color'], bsdf.inputs['Base Color'])
+        if recorte:                                          # alfa → redondeo → alfa del BSDF: el exportador lo entiende como recorte (MASK)
+            rd = nt.nodes.new('ShaderNodeMath'); rd.operation = 'ROUND'
+            nt.links.new(tn.outputs['Alpha'], rd.inputs[0]); nt.links.new(rd.outputs[0], bsdf.inputs['Alpha'])
     else:
         bsdf.inputs['Base Color'].default_value = col
-    mat.blend_method = 'OPAQUE' if hasattr(mat, 'blend_method') else None
     return img
+
+
+def importar(rel):
+    """GLB, o un zip con un FBX dentro (se extrae en salida/; las texturas del zip se asignan por el nombre del material)."""
+    ruta = os.path.join(C.RAIZ, rel)
+    if not rel.endswith('.zip'):
+        bpy.ops.import_scene.gltf(filepath=ruta); return
+    import zipfile
+    dest = C.carpeta(C.SALIDA, 'zip_' + os.path.splitext(os.path.basename(rel))[0])
+    with zipfile.ZipFile(ruta) as z:
+        for n in z.namelist():
+            if n.endswith('/') or os.path.exists(os.path.join(dest, n)): continue
+            z.extract(n, dest)
+    fbx = next(os.path.join(r, f) for r, _, fs in os.walk(dest) for f in fs if f.lower().endswith('.fbx'))
+    bpy.ops.import_scene.fbx(filepath=fbx)
+    texdir = next((r for r, _, fs in os.walk(dest) if any(f.lower().endswith('.png') for f in fs)), dest)
+    for m in bpy.data.materials:
+        clave = next((v for k, v in SIERPE_TEX.items() if k in m.name.lower()), None)
+        f = os.path.join(texdir, 'T_LYS_KangJinLong_%s_D.png' % clave) if clave else None
+        if not f or not os.path.exists(f): continue
+        m.use_nodes = True; nt = m.node_tree
+        bsdf = next((n for n in nt.nodes if n.type == 'BSDF_PRINCIPLED'), None) or nt.nodes.new('ShaderNodeBsdfPrincipled')
+        for l in list(bsdf.inputs['Base Color'].links): nt.links.remove(l)
+        tn = nt.nodes.new('ShaderNodeTexImage'); tn.image = bpy.data.images.load(f, check_existing=True)
+        nt.links.new(tn.outputs['Color'], bsdf.inputs['Base Color'])
+        if clave == 'qi': m['recorte'] = 1
 
 
 def preparar(nombre):
     rel, giro, tris, apoyo, tex, quitar, salida = MODELOS[nombre]
     C.vacia()
-    bpy.ops.import_scene.gltf(filepath=os.path.join(C.RAIZ, rel))
+    importar(rel)
     esc = bpy.context.scene
     bpy.ops.object.select_all(action='SELECT')
     bpy.ops.object.make_single_user(object=True, obdata=True)
     ms = C.mallas(esc.objects)
-    # fuera las piezas con materiales que no se ven (planos de rayos, invisibles…)
+    # fuera las caras con materiales que no se ven (planos de rayos, invisibles…); la pieza que se queda sin caras, fuera
     for o in list(ms):
-        nombres = ' '.join((m.name if m else '') for m in o.data.materials).lower()
-        if any(q in nombres for q in quitar):
-            bpy.data.objects.remove(o); ms.remove(o)
+        malos = {i for i, m in enumerate(o.data.materials) if m and any(q in m.name.lower() for q in quitar)}
+        if not malos: continue
+        bm = bmesh.new(); bm.from_mesh(o.data)
+        bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.material_index in malos], context='FACES')
+        bm.to_mesh(o.data); bm.free()
+        if not o.data.polygons: bpy.data.objects.remove(o); ms.remove(o)
     antes = C.triangulos(ms)
+    arm = next((o for o in esc.objects if o.type == 'ARMATURE'), None)
+    if nombre == 'sierpe' and arm:
+        for o in ms: anclas_patas(o, arm)
     # esqueleto y transformaciones aplicados: cada malla queda en el mundo con su pose (convert aplica los modificadores)
     for o in esc.objects: o.select_set(False)
     for o in ms: o.select_set(True)
@@ -124,6 +193,11 @@ def preparar(nombre):
     mn, mx = C.caja([obj]); c = (mn + mx) / 2
     obj.data.transform(Matrix.Translation(Vector((-c.x, -c.y, -mn.z if apoyo == 'suelo' else -c.z))))
     obj.data.update()
+    if 'ancla' in obj.data.uv_layers:                        # v30: la Y del hombro → su punto de la columna (0 = cabeza), con el mismo giro, escala y centrado
+        uv = obj.data.uv_layers['ancla']; k = 1 if giro % 360 == 0 else -1
+        for d in uv.data:
+            y = k * d.uv[0] / largo - c.y
+            d.uv = (0.5 - y if d.uv[1] > 0 else 0.0, d.uv[1])
     mn, mx = C.caja([obj])
     # materiales
     if sin_tex:

@@ -331,7 +331,9 @@ function aimPointFrom(origin, dir) {
     }
     last = t; t += Math.max(12, t * 0.05);
   }
-  if (tI < maxT) return tEn <= tIsl && tEn <= tAir ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, Math.min(tIsl, tAir));
+  // v30: el más cercano de verdad (antes, si lo primero era una unidad nueva, esta comparación daba el punto de interceptación del último
+  // dragón apuntado —viejo, o el origen del mundo— y la mira, la cabeza y la cámara saltaban a otro lado)
+  if (tI < maxT) return tEn === tI ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, tI);
   return _hit.copy(origin).addScaledVector(dir, 1400);
 }
 
@@ -405,11 +407,12 @@ const _Wl = { x: 0, y: 0, r: 0, d: 0, in: false }, _Wv = new THREE.Vector3(), _W
 function lockCircle(out) {
   const e = enemyLock.e; out.in = false;
   if (!e || e.dead) return 'sin';
-  out.d = e.pos.distanceTo(dragon.position);
+  const ec = targetCenter(e);                              // (v30: el centro de las unidades nuevas, no su base)
+  out.d = ec.distanceTo(dragon.position);
   if (out.d > MSL_RANGE) return 'rango';
   const sw = window.innerWidth, sh = window.innerHeight;
   camera.getWorldPosition(_Wc);
-  _Wv.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
+  _Wv.copy(ec).applyMatrix4(camera.matrixWorldInverse);
   if (_Wv.z > -1) return 'fuera';
   _Wv.applyMatrix4(camera.projectionMatrix);
   if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';

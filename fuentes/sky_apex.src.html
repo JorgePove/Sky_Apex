@@ -3260,12 +3260,17 @@ function steerEnemyMissile(f, dt) {
 }
 /* Bola guiada: acelera y gira (con un límite) hacia el punto de interceptación de su blanco; muy cerca gira el triple para no fallar. */
 const _mq = new THREE.Quaternion(), _mq0 = new THREE.Quaternion(), _mt = new THREE.Vector3(), _mv = new THREE.Vector3();
+const MSL_LOFT = [0.3, 150];                               // v30: parábola contra tierra y mar: altura extra del punto al que apunta (fracción de la distancia en planta, máx. m)
 function steerMissile(f, dt) {
   f.speed = Math.min(MSL_SPEED[1], f.speed + MSL_ACCEL * dt);
   _mv.copy(f.vel).normalize();
   const e = f.target;
   if (e && !e.dead) {
-    if (interceptPoint(e, f.pos, _mt, f.speed, 30) < 0) _mt.copy(e.pos);
+    if (interceptPoint(e, f.pos, _mt, f.speed, 30) < 0) _mt.copy(targetCenter(e));
+    if (e.ground) {                                        // v30: contra tierra y mar, sube un poco y cae sobre el blanco (parábola: apunta por encima y baja al acercarse)
+      const hd = Math.hypot(_mt.x - f.pos.x, _mt.z - f.pos.z);
+      _mt.y += Math.min(MSL_LOFT[1], hd * MSL_LOFT[0]) * smooth(60, 380, hd);
+    }
     _mt.sub(f.pos); const d = _mt.length(); _mt.divideScalar(d || 1);
     const ang = Math.acos(clamp(_mv.dot(_mt), -1, 1)), max = MSL_TURN * dt * (d < 200 ? 3 : 1);
     if (ang > 1e-5) { _mq.setFromUnitVectors(_mv, _mt); _mq0.identity().slerp(_mq, Math.min(1, max / ang)); _mv.applyQuaternion(_mq0); }
@@ -3301,6 +3306,7 @@ function updateFireballs(dt) {
         if (heightAt(f.pos.x, f.pos.z) < WL) { splash(f.pos.x, f.pos.z, fast ? 0.45 : msl ? 2 : 1.3); if (!fast) sfx.hit(); }
         else if (fast) sparks(f.pos.x, gy + 0.5, f.pos.z, 6, 0, 8, 0);
         else explode(f.pos.x, gy + 1, f.pos.z, msl ? 1.3 : 0.75);
+        if (msl && mslNearMiss(f)) { onTarget = true; if (heightAt(f.pos.x, f.pos.z) < WL) explode(f.pos.x, WL + 3, f.pos.z, 1.3); }   // v30: al lado de un barco o de una unidad de tierra, cuenta
       } else if (f.enemy) {
         // bola de fuego enemiga: solo daña al jugador (salvo con el escudo puesto); las guiadas, además, revientan contra las torres
         if (shOn && segHitsSphere(_fo, f.pos, _shC, SHIELD_R)) { hit = true; shieldHit(_fc, emsl ? 1.3 : 0.7); }
@@ -4328,12 +4334,13 @@ function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--)
    El dragón se extrapola en línea recta. Devuelve el tiempo de vuelo (s) y escribe el punto en `out`; -1 si no hay solución dentro del alcance. */
 function interceptPoint(e, from, out, spd, maxT) {
   spd = spd || GUN_SPEED;
-  const dx = e.pos.x - from.x, dy = e.pos.y - from.y, dz = e.pos.z - from.z, vx = e.vel.x, vy = e.vel.y, vz = e.vel.z;
+  const p = e.aimAt || e.pos;                              // (v30: en las unidades nuevas, su centro: targetCenter)
+  const dx = p.x - from.x, dy = p.y - from.y, dz = p.z - from.z, vx = e.vel.x, vy = e.vel.y, vz = e.vel.z;
   const a = vx * vx + vy * vy + vz * vz - spd * spd, b = 2 * (dx * vx + dy * vy + dz * vz), c = dx * dx + dy * dy + dz * dz;
   if (a >= 0) return -1;                                   // (los dragones son siempre más lentos que el proyectil)
   const t = (-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a);
   if (!(t > 0) || t > (maxT || GUN_LIFE)) return -1;
-  out.set(e.pos.x + vx * t, e.pos.y + vy * t, e.pos.z + vz * t); return t;
+  out.set(p.x + vx * t, p.y + vy * t, p.z + vz * t); return t;
 }
 /* Dragón enemigo más cercano al que apunta el rayo (asistencia ligera de puntería). El disparo converge al punto de
    interceptación del dragón —el mismo que marca el círculo gris del HUD—, no a su posición actual. Usa la boca del jugador (_mouth). */
@@ -4415,7 +4422,7 @@ function updateEnemies(dt) {
    el blanco fijado, sea del tipo que sea. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
 const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
 function enemyNdc(e, out) {                               // coordenadas normalizadas de pantalla; false si está detrás de la cámara
-  _Ev1.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
+  _Ev1.copy(e.aimAt || e.pos).applyMatrix4(camera.matrixWorldInverse);   // (v30: el centro de las unidades nuevas)
   if (_Ev1.z > -1) return false;
   const pm = camera.projectionMatrix.elements;
   out.x = _Ev1.x * pm[0] / -_Ev1.z; out.y = _Ev1.y * pm[5] / -_Ev1.z; return true;
@@ -5000,6 +5007,8 @@ const ART_NAME = { balista: 'Balista', catapulta: 'Catapulta', canon: 'Cañón' 
 const BARCO_DRAFT = 0.05;                                   // calado del barco naval (fracción del largo, desde la quilla)
 const SUPER_MOUNTS = [-0.3, -0.21, -0.12, -0.03, 0.06, 0.15];   // torretas del superdirigible: a lo largo (fracción del largo, + = hacia proa; medido en Blender, 04_sondear.py)
 const SUPER_DECK = { x: 0.058, y: 0.016 };                  // borde de la cubierta donde van (fracción del largo)
+const SUPER_JETS = { x: 0.051, y: -0.018, z: 0.445, r: 0.016, len: 0.15 };   // v30: motores arcanos: las dos turbinas de popa (medidas en Blender) y el largo del chorro
+const unitTime = { value: 0 };                              // gameTime para los shaders de las unidades (soldados, escudo de la sierpe, chorros)
 const _Ua = new THREE.Vector3(), _Ub = new THREE.Vector3(), _Uc = new THREE.Vector3(), _Ud = new THREE.Vector3(), _Uf = new THREE.Vector3(), _Us = new THREE.Vector3();
 const _Uq = new THREE.Quaternion(), _Uq2 = new THREE.Quaternion(), _Uhit = new THREE.Vector3(), _Ux = new THREE.Vector3(1, 0, 0), _Uz = new THREE.Vector3(0, 0, 1);
 const holdFire = () => !!(mission.dev && typeof DEV !== 'undefined' && !DEV.fire);   // panel de pruebas: «Los enemigos disparan» desactivado
@@ -5021,6 +5030,7 @@ function loadUnits() {
       if (src.map) geo.deleteAttribute('color'); else srgbColors(geo);   // (con textura, el color por vértice que traiga no se usa)
       const mat = new THREE.MeshLambertMaterial({ map: src.map || null, vertexColors: !!geo.attributes.color, side: THREE.DoubleSide });
       if (mat.map) mat.map.encoding = THREE.LinearEncoding; else if (!geo.attributes.color) mat.color.copy(src.color);
+      if (src.alphaTest > 0 || src.transparent) mat.alphaTest = Math.max(0.5, src.alphaTest);   // (v30: las aletas de la sierpe, recortadas por su alfa)
       let n = key; for (let p = o; p; p = p.parent) if (/hechicero/i.test(p.name)) n = 'hechicero';
       (unitRes[n] = unitRes[n] || []).push({ geo, mat });
     });
@@ -5076,36 +5086,55 @@ function capsBound(u) {
   for (const c of C) u.bc.add(c.a).add(c.b);
   u.bc.multiplyScalar(1 / Math.max(1, 2 * C.length)); u.br = 0;
   for (const c of C) u.br = Math.max(u.br, u.bc.distanceTo(c.a) + c.r, u.bc.distanceTo(c.b) + c.r);
+  if (!u.aimAt) u.aimAt = u.bc;                             // v30: a dónde se apunta (bola guiada, fijado, adelanto): su centro, no su base (targetCenter)
+}
+/* Punto al que se apunta en un blanco: el centro de las unidades nuevas (su pos es la base: en los barcos, bajo el agua), la pos en los demás. */
+const targetCenter = t => t.aimAt || t.pos;
+/* v30: bola guiada contra una unidad que da en el suelo o en el agua cerca de ella (a menos de MSL_NEAR m de sus cápsulas): cuenta como
+   impacto. Devuelve si lo fue. */
+const MSL_NEAR = 25;
+function mslNearMiss(f) {
+  const u = f.target;
+  if (!u || u.dead || !u.caps || !u.caps.length) return false;
+  let d = Infinity; for (const c of u.caps) d = Math.min(d, Math.sqrt(segPointDist2(c.a, c.b, f.pos)) - c.r);
+  if (d > MSL_NEAR) return false;
+  byAlly = f.ally; damageUnit(u, f.dmg, false, f.pos.clone(), 'msl'); byAlly = false;
+  return true;
 }
 function segPointDist2(p, q, c) {                           // distancia² del punto c al segmento p→q
   _Ud.subVectors(q, p); const l2 = _Ud.lengthSq(), t = l2 > 1e-9 ? clamp(_Uc.subVectors(c, p).dot(_Ud) / l2, 0, 1) : 0;
   return _Uc.copy(p).addScaledVector(_Ud, t).distanceToSquared(c);
 }
-/* Segmento p→q (proyectil, llamarada, rayo) contra las unidades: la primera que toca (con pad m de margen), o null; el punto del segmento
-   más cercano a ella queda en _Uhit. */
+/* Segmento p→q (proyectil, llamarada, rayo, mira) contra las unidades: la primera que toca (con pad m de margen), o null; el punto donde
+   entra en ella (en su superficie, no dentro) queda en _Uhit. v30: antes era el punto más cercano al eje (dentro del casco) y la caja de los
+   batallones pisaba el vector q. */
+const _Use = new THREE.Vector3(), _Upt = new THREE.Vector3(), _Uray = new THREE.Vector3();
 function unitSegHit(p, q, pad) {
-  let best = null, bestD = Infinity;
+  let best = null, bestT = Infinity;
+  _Use.subVectors(q, p); const len = _Use.length(); if (len < 1e-6) return null; _Use.divideScalar(len);
   for (const u of UNITS) {
     if (u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
     if (u.boxHit) {                                         // (batallones: una caja baja, no una cápsula)
-      const t = u.boxHit(u, p, q, pad);
-      if (t >= 0) { _Ua.subVectors(q, p).multiplyScalar(t).add(p); const d2 = _Ua.distanceToSquared(p); if (d2 < bestD) { bestD = d2; best = u; _Uhit.copy(_Ua); } }
+      const t = u.boxHit(u, p, q, pad) * len;
+      if (t >= 0 && t < bestT) { bestT = t; best = u; _Uhit.copy(p).addScaledVector(_Use, t); }
       continue;
     }
     for (const c of u.caps) {
-      if (segSegDist2(p, q, c.a, c.b) < (c.r + pad) ** 2) {
-        const t = _sdc.distanceToSquared(p);
-        if (t < bestD) { bestD = t; best = u; _Uhit.copy(_sdc); }
-        break;
-      }
+      const R2 = (c.r + pad) ** 2;
+      if (segSegDist2(p, q, c.a, c.b) >= R2) continue;
+      let lo = 0, hi = _sdc.distanceTo(p);                  // (el punto más cercano al eje está dentro: se busca hacia atrás el borde)
+      if (hi >= bestT) continue;
+      if (segPointDist2(c.a, c.b, p) < R2) hi = 0;
+      else for (let i = 0; i < 12; i++) { const m = (lo + hi) / 2; _Upt.copy(p).addScaledVector(_Use, m); if (segPointDist2(c.a, c.b, _Upt) < R2) hi = m; else lo = m; }
+      if (hi < bestT) { bestT = hi; best = u; _Uhit.copy(p).addScaledVector(_Use, hi); }
     }
   }
   return best;
 }
 /* Rayo o→d: distancia a la primera unidad (asistencia de puntería: la mira se para en ella), o Infinity. */
 function unitRayHit(o, d, maxT) {
-  _Ua.copy(o).addScaledVector(d, maxT);
-  const u = unitSegHit(o, _Ua, 2);
+  _Uray.copy(o).addScaledVector(d, maxT);
+  const u = unitSegHit(o, _Uray, 2);
   if (!u) return Infinity;
   const t = _Uhit.distanceTo(o);
   return t > 25 ? t : Infinity;
@@ -5217,7 +5246,7 @@ const unitVol = d => clamp(1.1 - d / 2500, 0.12, 0.6);
 function addArtilleria(variant, x, z, heading, tags) {
   const S = STATS.artilleria, ang = heading * Math.PI / 180;
   const u = newUnit('artilleria', { variant, tags: tags || [], label: ART_NAME[variant], killText: ART_NAME[variant] + (variant === 'canon' ? ' destruido' : ' destruida'),
-    hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: variant, markR: 3500, radar: 'sq', crashText: 'una pieza de artillería', upd: updArtilleria, onKill: wreckUnit });
+    hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: variant, markR: 3500, radar: 'sq', crashText: 'una pieza de artillería', ground: true, upd: updArtilleria, onKill: wreckUnit });
   u.pos.set(x, groundAt(x, z), z); u.q.setFromAxisAngle(UP, -ang);
   unitResize(u);
   return u;
@@ -5280,7 +5309,7 @@ function dmgSmoke(u, dt, d, y) {                            // tocado: humo, má
 function addBarco(x, z, heading, tags) {
   const S = STATS.barco_naval, ang = heading * Math.PI / 180;
   const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco hundido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
-    modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
+    modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', ground: true, upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
   u.base = new THREE.Vector3(x, WL, z); u.pos.copy(u.base); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
   unitResize(u);
   return u;
@@ -5356,6 +5385,8 @@ function superPlace(u, t) {                                 // la torreta, en su
 }
 function updSuper(u, dt, P, d) {
   const t = gameTime * 0.25 + u.ph;
+  if (!u.jets && u.model) superJets(u);
+  if (u.jets) superJetsUpdate(u, dt, d);
   if (u.dead) {                                             // agonía: explosiones por todo el casco y, al final, la explosión de energía
     u.dying -= dt;
     if (Math.random() < dt * 9) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); _Ua.x += rnd(-20, 20); _Ua.y += rnd(-15, 15); explode(_Ua.x, _Ua.y, _Ua.z, rnd(1.5, 3)); }
@@ -5403,6 +5434,54 @@ function updSuper(u, dt, P, d) {
   }
 }
 function superDie(u) { toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2); }
+/* v30: chorro de los motores arcanos (petición de Jorge): de cada turbina de popa sale un penacho morado con el núcleo casi blanco, que
+   parpadea y fluye hacia atrás (dos conos aditivos con un shader), un brillo en la tobera y unas chispas que salen despedidas. Aunque el
+   superdirigible esté quieto. */
+let jetRes = null;
+function jetResources() {
+  if (jetRes) return jetRes;
+  const geo = new THREE.CylinderGeometry(0.22, 1, 1, 18, 1, true); geo.rotateX(Math.PI / 2); geo.translate(0, 0, 0.5);   // de z = 0 (tobera, ancho) a z = 1
+  const mat = (c, k) => new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { uTime: unitTime, uC: { value: new THREE.Color(c[0], c[1], c[2]) }, uA: { value: 1 }, uK: { value: k } },
+    vertexShader: `varying float vT; varying vec3 vN; varying vec3 vV;
+      void main(){ vT = position.z; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uC; uniform float uA; uniform float uK; varying float vT; varying vec3 vN; varying vec3 vV;
+      void main(){
+        float face = abs(dot(normalize(vN), normalize(vV)));
+        float flow = 0.7 + 0.3 * sin(vT * 26.0 - uTime * 34.0) * sin(vT * 11.0 - uTime * 19.0 + 1.7);
+        float a = pow(1.0 - vT, 1.3) * (0.35 + 0.65 * face) * flow * uA * uK;
+        gl_FragColor = vec4(uC * a, 1.0); }`
+  });
+  jetRes = { geo, outer: mat([0.62, 0.32, 1], 1.8), inner: mat([0.85, 0.8, 1], 2.6) };
+  return jetRes;
+}
+function superJets(u) {
+  const R = jetResources(), J = SUPER_JETS;
+  u.jets = [];
+  for (const side of [-1, 1]) {
+    const g = new THREE.Group(), outer = new THREE.Mesh(R.geo, R.outer), inner = new THREE.Mesh(R.geo, R.inner);
+    outer.scale.set(J.r * 1.05, J.r * 1.05, J.len); inner.scale.set(J.r * 0.6, J.r * 0.6, J.len * 0.5);
+    outer.renderOrder = inner.renderOrder = 6; g.add(outer, inner);
+    g.position.set(side * J.x, J.y, J.z);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: 0xc9a2ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    glow.renderOrder = 7; glow.scale.setScalar(J.r * 3.2); g.add(glow);
+    u.model.add(g); u.jets.push({ g, glow, side });
+  }
+}
+function superJetsUpdate(u, dt, d) {
+  const J = SUPER_JETS, L = u.size, on = !u.dead, c = ARC_COLOR;
+  for (const j of u.jets) {
+    j.g.visible = on;
+    if (!on) continue;
+    j.glow.material.opacity = 0.75 + 0.25 * Math.sin(gameTime * 23 + j.side);
+    if (d > 9000 || Math.random() > 0.7) continue;          // chispas: pocas y solo de cerca (comparten las partículas con la llamarada)
+    _Ua.set(j.side * J.x + rnd(-0.5, 0.5) * J.r, J.y + rnd(-0.5, 0.5) * J.r, J.z).multiplyScalar(L).applyQuaternion(u.q).add(u.pos);
+    _Ub.set(0, 0, 1).applyQuaternion(u.q);
+    const v = rnd(60, 140);
+    emit(fxAdd, _Ua.x, _Ua.y, _Ua.z, _Ub.x * v + rnd(-6, 6), _Ub.y * v + rnd(-6, 6), _Ub.z * v + rnd(-6, 6), rnd(0.5, 0.9), J.r * L * rnd(0.6, 1), J.r * L * 2.2, lerp(c[0], 1, 0.3), lerp(c[1], 1, 0.3), 1, 0.7, 0.8, 0);
+  }
+}
 
 /* ---------- Colocación (receta «units», en cada partida desde resetRun) ----------
    RUN.units = [{ type, variant, x, z, heading, height, n, formation, gap, tag, … }] (formato en M1). Cada entrada pone n unidades del
@@ -5467,15 +5546,18 @@ function updateUnits(dt) {
     if (!u.model && u.modelKey && unitRes[u.modelKey]) attachModel(u);
     if (!u.parent) u.upd(u, dt, P, u.pos.distanceTo(P));    // (las montadas las mueve su unidad)
   }
+  unitTime.value = gameTime;
   if (typeof updateArrows === 'function') updateArrows(dt);
 }
 
 /* ============================================================
    6h. LA SIERPE (v29): dragón serpiente gigante, el primer minijefe (estilo Ace Combat)
-   Modelo: «Kang Jin Long» de Black Myth: Wukong (estático, recto; dragones raw/), preparado en Blender (enemigos/02_preparar.py: 60 000
-   triángulos, 1 m de largo, cabeza hacia -Z). El juego lo escala a «largo» (500 m) y lo hace serpentear sin esqueleto: cada vértice va
-   pegado a su punto de una columna de SPINE_N puntos (posición y orientación) que se calcula cada fotograma y se pasa al shader
-   (serpentMaterial). Así el cuerpo sigue exactamente el camino de la cabeza.
+   Modelo: «Kang Jin Long» de Black Myth: Wukong (estático, recto; v30: desde el FBX original del zip de dragones raw/, con sus aletas: el
+   GLB traía las patas delanteras estiradas), preparado en Blender (enemigos/02_preparar.py: 60 000 triángulos, 1 m de largo, cabeza hacia
+   -Z). El juego lo escala a «largo» (500 m) y lo hace serpentear sin esqueleto: cada vértice va pegado a su punto de una columna de SPINE_N
+   puntos (posición y orientación) que se calcula cada fotograma y se pasa al shader (serpentMaterial). Así el cuerpo sigue exactamente el
+   camino de la cabeza. Las patas van rígidas, pegadas al punto de su hombro o su cadera (atributo aS, serpentAnchors, con los pesos de los
+   huesos de cada pata que deja Blender en el segundo canal UV): si no, la onda las retorcía.
    · Modos: 'idle' (galería: flota en el sitio y una onda le recorre el cuerpo de la cabeza a la cola) y 'circle' (vuela en círculo de
      radio_circulo a velocidad, a su altura, con el cuerpo detrás por el mismo círculo).
    · Ataques: llamarada sostenida, mucho mayor que la del jugador, si te pones delante de la cabeza (llamas_*), y bolas de fuego como las
@@ -5484,17 +5566,19 @@ function updateUnits(dt) {
      último, el escudo se rompe y la sierpe ya recibe daño.
    ============================================================ */
 const SPINE_N = 40;                                         // puntos de la columna (el shader interpola entre ellos)
-const SERPENT_AXIS_Y = 0.016;                               // altura del eje del cuerpo en el modelo (fracción del largo; medido en 04_sondear.py)
+const SERPENT_AXIS_Y = -0.006;                              // altura del eje del cuerpo en el modelo (fracción del largo; medido en 04_sondear.py)
 const SERPENT_WAVE = { len: 0.33, amp: 0.035, w: 1.1, up: 0.45 };   // onda: longitud y amplitud (fracción del largo), rad/s, parte vertical
-const SORC_AT = [0.2, 0.33, 0.5], SORC_TOP = 0.0145, SORC_SCALE = 5;   // hechiceros: dónde van (fracción desde la cabeza), altura sobre el eje (fracción del largo), tamaño
+const SORC_AT = [0.2, 0.33, 0.46], SORC_TOP = 0.0145, SORC_SCALE = 5;   // hechiceros: dónde van (fracción desde la cabeza), altura sobre el eje (fracción del largo), tamaño
 const _Sp = new THREE.Vector3(), _St = new THREE.Vector3(), _Su = new THREE.Vector3(), _Sr = new THREE.Vector3(), _Sm = new THREE.Matrix4(), _Sq = new THREE.Quaternion();
 const _Sa = new THREE.Vector3(), _Sb = new THREE.Vector3(), _Sv = new THREE.Vector3();
 const SERPENT_GLSL = `
-  uniform vec3 uSpP[${SPINE_N}]; uniform vec4 uSpQ[${SPINE_N}]; uniform float uLen; uniform float uInfl;
+  uniform vec3 uSpP[${SPINE_N}]; uniform vec4 uSpQ[${SPINE_N}]; uniform float uLen; uniform float uInfl; attribute float aS;
   vec3 spRot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }`;
-/* Del vértice del modelo (1 m de largo, eje en z) a su sitio en la columna: frame (Q) en beginnormal, posición en begin_vertex. */
+/* Del vértice del modelo (1 m de largo, eje en z) a su sitio en la columna: frame (Q) en beginnormal, posición en begin_vertex. aS = su punto de
+   la columna (el suyo, z + 0,5; en las patas, el del hombro: lo que sobresale a lo largo, spLocal.z, va rígido con él). */
 const SERPENT_FRAME = `
-  float spS = clamp(position.z + 0.5, 0.0, 1.0) * ${SPINE_N - 1}.0;
+  float spS = clamp(aS, 0.0, 1.0) * ${SPINE_N - 1}.0;
+  vec3 spLocal = vec3(position.x, position.y - ${SERPENT_AXIS_Y}, position.z - (aS - 0.5));
   int spI = int(min(floor(spS), ${SPINE_N - 2}.0)); float spT = spS - float(spI);
   vec4 spQ = normalize(mix(uSpQ[spI], uSpQ[spI + 1], spT));
   vec3 spP = mix(uSpP[spI], uSpP[spI + 1], spT);`;
@@ -5508,7 +5592,7 @@ function serpentMaterial(src, U) {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = SERPENT_GLSL + '\n' + sh.vertexShader
       .replace('#include <beginnormal_vertex>', SERPENT_FRAME + '\n  vec3 objectNormal = spRot(spQ, vec3(normal));')
-      .replace('#include <begin_vertex>', 'vec3 transformed = spP + spRot(spQ, vec3(position.x, position.y - ' + SERPENT_AXIS_Y + ', 0.0) * uLen);');
+      .replace('#include <begin_vertex>', 'vec3 transformed = spP + spRot(spQ, spLocal * uLen);');
   };
   return m;
 }
@@ -5521,7 +5605,7 @@ function shieldMaterial(U) {
       varying vec3 vN; varying vec3 vV; varying vec3 vW;
       void main(){` + SERPENT_FRAME + `
         vec3 n = spRot(spQ, normal);
-        vec3 w = spP + spRot(spQ, vec3(position.x, position.y - ${SERPENT_AXIS_Y}, 0.0) * uLen) + n * uInfl;
+        vec3 w = spP + spRot(spQ, spLocal * uLen) + n * uInfl;
         vW = w; vN = n; vec4 mv = viewMatrix * vec4(w, 1.0); vV = normalize(-mv.xyz); vN = normalize(mat3(viewMatrix) * n);
         gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `uniform float uA; uniform float uHit; uniform float uTime; uniform vec3 uC; varying vec3 vN; varying vec3 vV; varying vec3 vW;
@@ -5533,13 +5617,28 @@ function shieldMaterial(U) {
         gl_FragColor = vec4(uC * a, 1.0); }`
   });
 }
-function serpentPrepare() { for (const u of UNITS) if (u.kind === 'sierpe' && !u.model) serpentModel(u); }
+function serpentPrepare() { serpentAnchors(); for (const u of UNITS) if (u.kind === 'sierpe' && !u.model) serpentModel(u); }
+/* v30: aS de cada vértice: su z + 0,5 en el cuerpo; en las patas, hacia el punto del hombro o la cadera de la suya según el peso de sus huesos
+   (uv2 = (ese punto, peso), de enemigos/02_preparar.py): el arranque de la pata se dobla con el cuerpo y el resto va rígido. */
+function serpentAnchors() {
+  for (const p of unitRes.sierpe) {
+    const P = p.geo.attributes.position, A = p.geo.attributes.uv2, a = new Float32Array(P.count);
+    for (let i = 0; i < P.count; i++) {
+      const w = A ? smooth(0.15, 0.85, 1 - A.getY(i)) : 0;   // (glTF guarda la V de las UV invertida: 1 - peso)
+      a[i] = lerp(P.getZ(i) + 0.5, A ? A.getX(i) : 0, w);
+    }
+    p.geo.setAttribute('aS', new THREE.BufferAttribute(a, 1));
+  }
+}
 function serpentModel(u) {
   if (!unitRes.sierpe) return;
   const g = new THREE.Group(), mats = [];
   for (const p of unitRes.sierpe) { const m = serpentMaterial(p.mat, u.U); mats.push(m); const me = new THREE.Mesh(p.geo, m); me.frustumCulled = false; g.add(me); }
   u.shieldMat = shieldMaterial(u.U);
-  for (const p of unitRes.sierpe) { const me = new THREE.Mesh(p.geo, u.shieldMat); me.frustumCulled = false; me.renderOrder = 6; g.add(me); u.shieldMeshes.push(me); }
+  for (const p of unitRes.sierpe) {                       // (las aletas, recortadas por su alfa, no: el escudo saldría con su rectángulo)
+    if (p.mat.alphaTest) continue;
+    const me = new THREE.Mesh(p.geo, u.shieldMat); me.frustumCulled = false; me.renderOrder = 6; g.add(me); u.shieldMeshes.push(me);
+  }
   u.model = g; u.mats = mats; scene.add(g);
 }
 
@@ -5553,7 +5652,7 @@ function addSierpe(x, z, height, heading, tags, mode) {
   u.home = new THREE.Vector3(x, Math.max(groundAt(x, z) + (height || S.altura), WL + 300), z);
   u.pos.copy(u.home); u.center = u.home.clone();           // (en 'circle' desde la receta: da vueltas alrededor de donde nace)
   u.spP =Array.from({ length: SPINE_N }, () => new THREE.Vector3()); u.spT = Array.from({ length: SPINE_N }, () => new THREE.Vector3());
-  u.capDef = null;
+  u.capDef = null; u.aimAt = new THREE.Vector3();          // (v30: la guiada y el fijado apuntan a su lomo, a un 30 % desde la cabeza: el centro de la caja puede caer fuera del cuerpo)
   serpentSpine(u, 0);
   if (unitRes.sierpe) serpentModel(u);
   const n = clamp(Math.round(S.hechiceros), 0, SORC_AT.length);
@@ -5618,7 +5717,7 @@ function serpentSpine(u, dt) {
     Q[i].set(_Sq.x, _Sq.y, _Sq.z, _Sq.w); P[i].copy(u.spP[i]); prev = Q[i];
   }
   u.U.uLen.value = L;
-  u.pos.copy(u.spP[0]);
+  u.pos.copy(u.spP[0]); u.aimAt.copy(u.spP[12]);
   // cápsulas: cabeza más gruesa; el cuerpo, una cada 3 puntos
   const D = [];
   for (let i = 0; i < SPINE_N - 1; i += 3) {
@@ -5764,7 +5863,7 @@ function serpentBreath(u, mouth, dt, S, P, dist) {
 const SOLDIER_T = { burn: 1.3, fall: 0.5 };                // s ardiendo antes de quedar carbonizado; s que tarda en caer
 const _Bm = new THREE.Matrix4(), _Bq = new THREE.Quaternion(), _Bq2 = new THREE.Quaternion(), _Bp = new THREE.Vector3(), _Bs = new THREE.Vector3(1, 1, 1);
 const _Bc = new THREE.Color(), _Bv = new THREE.Vector3(), _Bw = new THREE.Vector3();
-const soldierTime = { value: 0 };
+const soldierTime = unitTime;                              // (v30: el tiempo común de los shaders de las unidades, 6f)
 let soldierMat = null;
 /* Material compartido: el del modelo (color por vértice) con el balanceo en el vértice. uv.x = pieza (03_soldado.py): 1 = brazo de la lanza.
    Los muertos (color de la instancia oscuro) no se mueven. */
@@ -5796,7 +5895,7 @@ function addBatallon(x, z, heading, tags, n, seed) {
   const gap = Math.max(0.8, S.separacion), cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols);
   const w = (cols - 1) * gap, dpt = (rows - 1) * gap, fx = Math.sin(ang), fz = -Math.cos(ang), rx = -fz, rz = fx;
   const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón aniquilado', hp: n, hpMax: n, score: S.puntos, heading: ang,
-    n, alive: n, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
+    n, alive: n, ground: true, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
     upd: updBatallon, hurt: battHurt, flame: battFlame, laserHit: battLaser, boxHit: battBox, cleanup: battCleanup, onKill: () => {} });
   u.pos.set(x, groundAt(x, z) + 1, z); u.q.setFromAxisAngle(UP, -ang);
   // soldados: rejilla con un poco de desorden; posiciones en el mundo, rumbo propio, vida y estado (0 en pie, 1 ardiendo, 2 muerto)
@@ -5890,7 +5989,6 @@ function battLaser(u, S, E, amt) {
 
 /* ---------- Cada fotograma ---------- */
 function updBatallon(u, dt, P, d) {
-  soldierTime.value = gameTime;
   if (!u.mesh && unitRes.soldado) battMesh(u);
   if (!u.mesh) return;
   u.mesh.visible = d < 6000;
@@ -6303,7 +6401,9 @@ function aimPointFrom(origin, dir) {
     }
     last = t; t += Math.max(12, t * 0.05);
   }
-  if (tI < maxT) return tEn <= tIsl && tEn <= tAir ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, Math.min(tIsl, tAir));
+  // v30: el más cercano de verdad (antes, si lo primero era una unidad nueva, esta comparación daba el punto de interceptación del último
+  // dragón apuntado —viejo, o el origen del mundo— y la mira, la cabeza y la cámara saltaban a otro lado)
+  if (tI < maxT) return tEn === tI ? _hit.copy(enemyAimPt) : _hit.copy(origin).addScaledVector(dir, tI);
   return _hit.copy(origin).addScaledVector(dir, 1400);
 }
 
@@ -6377,11 +6477,12 @@ const _Wl = { x: 0, y: 0, r: 0, d: 0, in: false }, _Wv = new THREE.Vector3(), _W
 function lockCircle(out) {
   const e = enemyLock.e; out.in = false;
   if (!e || e.dead) return 'sin';
-  out.d = e.pos.distanceTo(dragon.position);
+  const ec = targetCenter(e);                              // (v30: el centro de las unidades nuevas, no su base)
+  out.d = ec.distanceTo(dragon.position);
   if (out.d > MSL_RANGE) return 'rango';
   const sw = window.innerWidth, sh = window.innerHeight;
   camera.getWorldPosition(_Wc);
-  _Wv.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
+  _Wv.copy(ec).applyMatrix4(camera.matrixWorldInverse);
   if (_Wv.z > -1) return 'fuera';
   _Wv.applyMatrix4(camera.projectionMatrix);
   if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';
@@ -8258,7 +8359,7 @@ const MISSIONS = {
   },
   /* v29: galería de enemigos (petición de Jorge, 30-oct): campo de pruebas totalmente llano (suelo de blockout) con todos los tipos de
      enemigos en varias formaciones, quietos (solo su animación de reposo), para ver cómo se ven y probar a dispararles. Con los trucos y el
-     panel del modo Dev Test (Tab), donde además se puede parar su fuego, poner a volar a la sierpe y restaurar la galería. Delante del
+     panel del modo Dev Test (Tab), donde además se puede parar su fuego, parar o soltar a la sierpe (v30: patrulla en círculo) y restaurar la galería. Delante del
      inicio (hacia el norte): artillería, batallones, torres y dragones quietos; detrás, los dirigibles, el superdirigible y la sierpe; a la
      derecha, un lago con barcos. */
   galeria: {
@@ -8283,8 +8384,8 @@ const MISSIONS = {
       { type: 'dragon', n: 3, formation: 'linea', gap: 120, x: -1400, z: -1300, height: 90, heading: 90 },
       { type: 'barco', n: 3, formation: 'columna', x: 2800, z: -1700, heading: 270 },
       { type: 'barco', n: 2, formation: 'linea', gap: 300, x: 2600, z: -200, heading: 180 },
-      { type: 'superdirigible', x: -400, z: -4200, height: 1500, heading: 90 },
-      { type: 'sierpe', x: 900, z: -6000, height: 2000, heading: 270, mode: 'idle' }
+      { type: 'superdirigible', x: -400, z: -4600, height: 1500, heading: 90 },   // (v30: 1000 m de eslora)
+      { type: 'sierpe', x: 800, z: -2600, height: 2000, heading: 270, mode: 'circle' }   // v30: patrulla circular sobre todo el campo (radio del Excel) alrededor de x, z
     ],
     objectives: [],
     radio: {},
@@ -8854,7 +8955,7 @@ const STATS_SCHEMA = {
     { sec: 'Núcleo (el casco)' },
     ['vida', 'Puntos de vida del núcleo', 'puntos', 1500, 'Se puede dañar aunque queden torretas; al caer, caen todas.'],
     ['puntos', 'Puntos al destruirlo', 'puntos', 2000, ''],
-    ['largo', 'Eslora', 'm', 500, 'Jorge: 500 m como mínimo.'],
+    ['largo', 'Eslora', 'm', 1000, 'Jorge: 500 m como mínimo (v29) y luego el doble (v30). Las torretas no cambian de tamaño: quedan más separadas.'],
     ['altura_min', 'Altura mínima de vuelo', 'm', 1500, 'Sobre el suelo. La receta puede ponerlo más alto, nunca más bajo.'],
     ['velocidad', 'Velocidad', 'km/h', 60, 'Aún sin uso: en la galería está quieto.'],
     { sec: 'Torretas (cañones y balistas sobre la cubierta)' },
@@ -8877,7 +8978,7 @@ const STATS_SCHEMA = {
     ['largo', 'Largo', 'm', 500, ''],
     { sec: 'Vuelo' },
     ['altura', 'Altura de vuelo', 'm', 2000, 'Sobre el suelo, si la receta no dice otra.'],
-    ['radio_circulo', 'Radio del círculo', 'm', 2500, 'En vuelo circular (en la galería, con el panel de pruebas).'],
+    ['radio_circulo', 'Radio del círculo', 'm', 3500, 'En vuelo circular: su patrulla (en la galería, sobre todo el campo).'],
     ['velocidad', 'Velocidad', 'km/h', 150, 'En vuelo circular.'],
     { sec: 'Llamarada (si te pones delante de la cabeza)' },
     ['llamas_dano', 'Daño', 'puntos/s', 40, ''],
@@ -9018,7 +9119,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":1500,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":80,"soldados_max":300,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":500,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"sierpe":{"vida":3000,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":2500,"velocidad":150,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":1500,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":80,"soldados_max":300,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"sierpe":{"vida":3000,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":150,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
@@ -9153,7 +9254,7 @@ function statText(s) {
      «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
 const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
-  fire: true, serpentFly: false };                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  fire: true, serpentFly: true };                          // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
@@ -9239,7 +9340,8 @@ function devBuild() {
   const en = devSection('Enemigos', !!mission.gallery);
   devCheck(en, 'Los enemigos disparan', 'fire');
   if (mission.gallery) {
-    devCheck(en, 'Sierpe: vuelo circular (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
+    DEV.serpentFly = UNITS.some(u => u.kind === 'sierpe' && u.mode === 'circle');
+    devCheck(en, 'Sierpe: patrulla en círculo (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
     const eb = devEl$('div', 'd-btns', null, en);
     devButton(eb, 'Restaurar galería', galleryRestore);
     devEl$('div', 'd-sub', 'Ir a…', en);
@@ -9382,8 +9484,9 @@ const GALLERY_SPOTS = [                                    // [botón, función 
   ['Batallones', () => ({ x: 0, y: 45, z: -900, at: [0, 0, -1150] })],
   ['Dragones', () => ({ x: 0, y: 200, z: -2100, at: [0, 160, -2500] })],
   ['Barcos', () => ({ x: 2000, y: 60, z: -900, at: [2800, 0, -1700] })],
-  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + 150, z: u.pos.z + 1100, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
-  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); return u ? { x: u.pos.x - 300, y: u.pos.y + 250, z: u.pos.z + 1300, at: [u.bc.x, u.bc.y, u.bc.z] } : null; }]
+  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + u.size * 0.2, z: u.pos.z + u.size * 1.5, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
+  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); if (!u) return null; const m = u.spP[12], t = u.spT[12];   // de costado, a 900 m de su lomo
+    return { x: m.x - t.z * 900, y: m.y + 200, z: m.z + t.x * 900, at: [m.x, m.y, m.z] }; }]
 ];
 function galleryGo(fn) {
   const s = fn(); if (!s || state !== 'playing') return;

@@ -29,6 +29,8 @@ const ART_NAME = { balista: 'Balista', catapulta: 'Catapulta', canon: 'Cañón' 
 const BARCO_DRAFT = 0.05;                                   // calado del barco naval (fracción del largo, desde la quilla)
 const SUPER_MOUNTS = [-0.3, -0.21, -0.12, -0.03, 0.06, 0.15];   // torretas del superdirigible: a lo largo (fracción del largo, + = hacia proa; medido en Blender, 04_sondear.py)
 const SUPER_DECK = { x: 0.058, y: 0.016 };                  // borde de la cubierta donde van (fracción del largo)
+const SUPER_JETS = { x: 0.051, y: -0.018, z: 0.445, r: 0.016, len: 0.15 };   // v30: motores arcanos: las dos turbinas de popa (medidas en Blender) y el largo del chorro
+const unitTime = { value: 0 };                              // gameTime para los shaders de las unidades (soldados, escudo de la sierpe, chorros)
 const _Ua = new THREE.Vector3(), _Ub = new THREE.Vector3(), _Uc = new THREE.Vector3(), _Ud = new THREE.Vector3(), _Uf = new THREE.Vector3(), _Us = new THREE.Vector3();
 const _Uq = new THREE.Quaternion(), _Uq2 = new THREE.Quaternion(), _Uhit = new THREE.Vector3(), _Ux = new THREE.Vector3(1, 0, 0), _Uz = new THREE.Vector3(0, 0, 1);
 const holdFire = () => !!(mission.dev && typeof DEV !== 'undefined' && !DEV.fire);   // panel de pruebas: «Los enemigos disparan» desactivado
@@ -50,6 +52,7 @@ function loadUnits() {
       if (src.map) geo.deleteAttribute('color'); else srgbColors(geo);   // (con textura, el color por vértice que traiga no se usa)
       const mat = new THREE.MeshLambertMaterial({ map: src.map || null, vertexColors: !!geo.attributes.color, side: THREE.DoubleSide });
       if (mat.map) mat.map.encoding = THREE.LinearEncoding; else if (!geo.attributes.color) mat.color.copy(src.color);
+      if (src.alphaTest > 0 || src.transparent) mat.alphaTest = Math.max(0.5, src.alphaTest);   // (v30: las aletas de la sierpe, recortadas por su alfa)
       let n = key; for (let p = o; p; p = p.parent) if (/hechicero/i.test(p.name)) n = 'hechicero';
       (unitRes[n] = unitRes[n] || []).push({ geo, mat });
     });
@@ -105,36 +108,55 @@ function capsBound(u) {
   for (const c of C) u.bc.add(c.a).add(c.b);
   u.bc.multiplyScalar(1 / Math.max(1, 2 * C.length)); u.br = 0;
   for (const c of C) u.br = Math.max(u.br, u.bc.distanceTo(c.a) + c.r, u.bc.distanceTo(c.b) + c.r);
+  if (!u.aimAt) u.aimAt = u.bc;                             // v30: a dónde se apunta (bola guiada, fijado, adelanto): su centro, no su base (targetCenter)
+}
+/* Punto al que se apunta en un blanco: el centro de las unidades nuevas (su pos es la base: en los barcos, bajo el agua), la pos en los demás. */
+const targetCenter = t => t.aimAt || t.pos;
+/* v30: bola guiada contra una unidad que da en el suelo o en el agua cerca de ella (a menos de MSL_NEAR m de sus cápsulas): cuenta como
+   impacto. Devuelve si lo fue. */
+const MSL_NEAR = 25;
+function mslNearMiss(f) {
+  const u = f.target;
+  if (!u || u.dead || !u.caps || !u.caps.length) return false;
+  let d = Infinity; for (const c of u.caps) d = Math.min(d, Math.sqrt(segPointDist2(c.a, c.b, f.pos)) - c.r);
+  if (d > MSL_NEAR) return false;
+  byAlly = f.ally; damageUnit(u, f.dmg, false, f.pos.clone(), 'msl'); byAlly = false;
+  return true;
 }
 function segPointDist2(p, q, c) {                           // distancia² del punto c al segmento p→q
   _Ud.subVectors(q, p); const l2 = _Ud.lengthSq(), t = l2 > 1e-9 ? clamp(_Uc.subVectors(c, p).dot(_Ud) / l2, 0, 1) : 0;
   return _Uc.copy(p).addScaledVector(_Ud, t).distanceToSquared(c);
 }
-/* Segmento p→q (proyectil, llamarada, rayo) contra las unidades: la primera que toca (con pad m de margen), o null; el punto del segmento
-   más cercano a ella queda en _Uhit. */
+/* Segmento p→q (proyectil, llamarada, rayo, mira) contra las unidades: la primera que toca (con pad m de margen), o null; el punto donde
+   entra en ella (en su superficie, no dentro) queda en _Uhit. v30: antes era el punto más cercano al eje (dentro del casco) y la caja de los
+   batallones pisaba el vector q. */
+const _Use = new THREE.Vector3(), _Upt = new THREE.Vector3(), _Uray = new THREE.Vector3();
 function unitSegHit(p, q, pad) {
-  let best = null, bestD = Infinity;
+  let best = null, bestT = Infinity;
+  _Use.subVectors(q, p); const len = _Use.length(); if (len < 1e-6) return null; _Use.divideScalar(len);
   for (const u of UNITS) {
     if (u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
     if (u.boxHit) {                                         // (batallones: una caja baja, no una cápsula)
-      const t = u.boxHit(u, p, q, pad);
-      if (t >= 0) { _Ua.subVectors(q, p).multiplyScalar(t).add(p); const d2 = _Ua.distanceToSquared(p); if (d2 < bestD) { bestD = d2; best = u; _Uhit.copy(_Ua); } }
+      const t = u.boxHit(u, p, q, pad) * len;
+      if (t >= 0 && t < bestT) { bestT = t; best = u; _Uhit.copy(p).addScaledVector(_Use, t); }
       continue;
     }
     for (const c of u.caps) {
-      if (segSegDist2(p, q, c.a, c.b) < (c.r + pad) ** 2) {
-        const t = _sdc.distanceToSquared(p);
-        if (t < bestD) { bestD = t; best = u; _Uhit.copy(_sdc); }
-        break;
-      }
+      const R2 = (c.r + pad) ** 2;
+      if (segSegDist2(p, q, c.a, c.b) >= R2) continue;
+      let lo = 0, hi = _sdc.distanceTo(p);                  // (el punto más cercano al eje está dentro: se busca hacia atrás el borde)
+      if (hi >= bestT) continue;
+      if (segPointDist2(c.a, c.b, p) < R2) hi = 0;
+      else for (let i = 0; i < 12; i++) { const m = (lo + hi) / 2; _Upt.copy(p).addScaledVector(_Use, m); if (segPointDist2(c.a, c.b, _Upt) < R2) hi = m; else lo = m; }
+      if (hi < bestT) { bestT = hi; best = u; _Uhit.copy(p).addScaledVector(_Use, hi); }
     }
   }
   return best;
 }
 /* Rayo o→d: distancia a la primera unidad (asistencia de puntería: la mira se para en ella), o Infinity. */
 function unitRayHit(o, d, maxT) {
-  _Ua.copy(o).addScaledVector(d, maxT);
-  const u = unitSegHit(o, _Ua, 2);
+  _Uray.copy(o).addScaledVector(d, maxT);
+  const u = unitSegHit(o, _Uray, 2);
   if (!u) return Infinity;
   const t = _Uhit.distanceTo(o);
   return t > 25 ? t : Infinity;
@@ -246,7 +268,7 @@ const unitVol = d => clamp(1.1 - d / 2500, 0.12, 0.6);
 function addArtilleria(variant, x, z, heading, tags) {
   const S = STATS.artilleria, ang = heading * Math.PI / 180;
   const u = newUnit('artilleria', { variant, tags: tags || [], label: ART_NAME[variant], killText: ART_NAME[variant] + (variant === 'canon' ? ' destruido' : ' destruida'),
-    hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: variant, markR: 3500, radar: 'sq', crashText: 'una pieza de artillería', upd: updArtilleria, onKill: wreckUnit });
+    hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: variant, markR: 3500, radar: 'sq', crashText: 'una pieza de artillería', ground: true, upd: updArtilleria, onKill: wreckUnit });
   u.pos.set(x, groundAt(x, z), z); u.q.setFromAxisAngle(UP, -ang);
   unitResize(u);
   return u;
@@ -309,7 +331,7 @@ function dmgSmoke(u, dt, d, y) {                            // tocado: humo, má
 function addBarco(x, z, heading, tags) {
   const S = STATS.barco_naval, ang = heading * Math.PI / 180;
   const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco hundido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
-    modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
+    modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', ground: true, upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
   u.base = new THREE.Vector3(x, WL, z); u.pos.copy(u.base); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
   unitResize(u);
   return u;
@@ -385,6 +407,8 @@ function superPlace(u, t) {                                 // la torreta, en su
 }
 function updSuper(u, dt, P, d) {
   const t = gameTime * 0.25 + u.ph;
+  if (!u.jets && u.model) superJets(u);
+  if (u.jets) superJetsUpdate(u, dt, d);
   if (u.dead) {                                             // agonía: explosiones por todo el casco y, al final, la explosión de energía
     u.dying -= dt;
     if (Math.random() < dt * 9) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); _Ua.x += rnd(-20, 20); _Ua.y += rnd(-15, 15); explode(_Ua.x, _Ua.y, _Ua.z, rnd(1.5, 3)); }
@@ -432,6 +456,54 @@ function updSuper(u, dt, P, d) {
   }
 }
 function superDie(u) { toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2); }
+/* v30: chorro de los motores arcanos (petición de Jorge): de cada turbina de popa sale un penacho morado con el núcleo casi blanco, que
+   parpadea y fluye hacia atrás (dos conos aditivos con un shader), un brillo en la tobera y unas chispas que salen despedidas. Aunque el
+   superdirigible esté quieto. */
+let jetRes = null;
+function jetResources() {
+  if (jetRes) return jetRes;
+  const geo = new THREE.CylinderGeometry(0.22, 1, 1, 18, 1, true); geo.rotateX(Math.PI / 2); geo.translate(0, 0, 0.5);   // de z = 0 (tobera, ancho) a z = 1
+  const mat = (c, k) => new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    uniforms: { uTime: unitTime, uC: { value: new THREE.Color(c[0], c[1], c[2]) }, uA: { value: 1 }, uK: { value: k } },
+    vertexShader: `varying float vT; varying vec3 vN; varying vec3 vV;
+      void main(){ vT = position.z; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `uniform float uTime; uniform vec3 uC; uniform float uA; uniform float uK; varying float vT; varying vec3 vN; varying vec3 vV;
+      void main(){
+        float face = abs(dot(normalize(vN), normalize(vV)));
+        float flow = 0.7 + 0.3 * sin(vT * 26.0 - uTime * 34.0) * sin(vT * 11.0 - uTime * 19.0 + 1.7);
+        float a = pow(1.0 - vT, 1.3) * (0.35 + 0.65 * face) * flow * uA * uK;
+        gl_FragColor = vec4(uC * a, 1.0); }`
+  });
+  jetRes = { geo, outer: mat([0.62, 0.32, 1], 1.8), inner: mat([0.85, 0.8, 1], 2.6) };
+  return jetRes;
+}
+function superJets(u) {
+  const R = jetResources(), J = SUPER_JETS;
+  u.jets = [];
+  for (const side of [-1, 1]) {
+    const g = new THREE.Group(), outer = new THREE.Mesh(R.geo, R.outer), inner = new THREE.Mesh(R.geo, R.inner);
+    outer.scale.set(J.r * 1.05, J.r * 1.05, J.len); inner.scale.set(J.r * 0.6, J.r * 0.6, J.len * 0.5);
+    outer.renderOrder = inner.renderOrder = 6; g.add(outer, inner);
+    g.position.set(side * J.x, J.y, J.z);
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: 0xc9a2ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    glow.renderOrder = 7; glow.scale.setScalar(J.r * 3.2); g.add(glow);
+    u.model.add(g); u.jets.push({ g, glow, side });
+  }
+}
+function superJetsUpdate(u, dt, d) {
+  const J = SUPER_JETS, L = u.size, on = !u.dead, c = ARC_COLOR;
+  for (const j of u.jets) {
+    j.g.visible = on;
+    if (!on) continue;
+    j.glow.material.opacity = 0.75 + 0.25 * Math.sin(gameTime * 23 + j.side);
+    if (d > 9000 || Math.random() > 0.7) continue;          // chispas: pocas y solo de cerca (comparten las partículas con la llamarada)
+    _Ua.set(j.side * J.x + rnd(-0.5, 0.5) * J.r, J.y + rnd(-0.5, 0.5) * J.r, J.z).multiplyScalar(L).applyQuaternion(u.q).add(u.pos);
+    _Ub.set(0, 0, 1).applyQuaternion(u.q);
+    const v = rnd(60, 140);
+    emit(fxAdd, _Ua.x, _Ua.y, _Ua.z, _Ub.x * v + rnd(-6, 6), _Ub.y * v + rnd(-6, 6), _Ub.z * v + rnd(-6, 6), rnd(0.5, 0.9), J.r * L * rnd(0.6, 1), J.r * L * 2.2, lerp(c[0], 1, 0.3), lerp(c[1], 1, 0.3), 1, 0.7, 0.8, 0);
+  }
+}
 
 /* ---------- Colocación (receta «units», en cada partida desde resetRun) ----------
    RUN.units = [{ type, variant, x, z, heading, height, n, formation, gap, tag, … }] (formato en M1). Cada entrada pone n unidades del
@@ -496,5 +568,6 @@ function updateUnits(dt) {
     if (!u.model && u.modelKey && unitRes[u.modelKey]) attachModel(u);
     if (!u.parent) u.upd(u, dt, P, u.pos.distanceTo(P));    // (las montadas las mueve su unidad)
   }
+  unitTime.value = gameTime;
   if (typeof updateArrows === 'function') updateArrows(dt);
 }

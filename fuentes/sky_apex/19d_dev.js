@@ -17,7 +17,7 @@
      «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
 const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
-  fire: true, serpentFly: false };                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  fire: true, serpentFly: true };                          // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
@@ -103,7 +103,8 @@ function devBuild() {
   const en = devSection('Enemigos', !!mission.gallery);
   devCheck(en, 'Los enemigos disparan', 'fire');
   if (mission.gallery) {
-    devCheck(en, 'Sierpe: vuelo circular (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
+    DEV.serpentFly = UNITS.some(u => u.kind === 'sierpe' && u.mode === 'circle');
+    devCheck(en, 'Sierpe: patrulla en círculo (si no, quieta)', 'serpentFly', on => { for (const u of UNITS) if (u.kind === 'sierpe' && !u.dead) serpentMode(u, on ? 'circle' : 'idle'); });
     const eb = devEl$('div', 'd-btns', null, en);
     devButton(eb, 'Restaurar galería', galleryRestore);
     devEl$('div', 'd-sub', 'Ir a…', en);
@@ -246,8 +247,9 @@ const GALLERY_SPOTS = [                                    // [botón, función 
   ['Batallones', () => ({ x: 0, y: 45, z: -900, at: [0, 0, -1150] })],
   ['Dragones', () => ({ x: 0, y: 200, z: -2100, at: [0, 160, -2500] })],
   ['Barcos', () => ({ x: 2000, y: 60, z: -900, at: [2800, 0, -1700] })],
-  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + 150, z: u.pos.z + 1100, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
-  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); return u ? { x: u.pos.x - 300, y: u.pos.y + 250, z: u.pos.z + 1300, at: [u.bc.x, u.bc.y, u.bc.z] } : null; }]
+  ['Superdirigible', () => { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? { x: u.pos.x, y: u.pos.y + u.size * 0.2, z: u.pos.z + u.size * 1.5, at: [u.pos.x, u.pos.y, u.pos.z] } : null; }],
+  ['Sierpe', () => { const u = UNITS.find(x => x.kind === 'sierpe' && !x.dead); if (!u) return null; const m = u.spP[12], t = u.spT[12];   // de costado, a 900 m de su lomo
+    return { x: m.x - t.z * 900, y: m.y + 200, z: m.z + t.x * 900, at: [m.x, m.y, m.z] }; }]
 ];
 function galleryGo(fn) {
   const s = fn(); if (!s || state !== 'playing') return;

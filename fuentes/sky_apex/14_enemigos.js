@@ -563,12 +563,13 @@ function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--)
    El dragón se extrapola en línea recta. Devuelve el tiempo de vuelo (s) y escribe el punto en `out`; -1 si no hay solución dentro del alcance. */
 function interceptPoint(e, from, out, spd, maxT) {
   spd = spd || GUN_SPEED;
-  const dx = e.pos.x - from.x, dy = e.pos.y - from.y, dz = e.pos.z - from.z, vx = e.vel.x, vy = e.vel.y, vz = e.vel.z;
+  const p = e.aimAt || e.pos;                              // (v30: en las unidades nuevas, su centro: targetCenter)
+  const dx = p.x - from.x, dy = p.y - from.y, dz = p.z - from.z, vx = e.vel.x, vy = e.vel.y, vz = e.vel.z;
   const a = vx * vx + vy * vy + vz * vz - spd * spd, b = 2 * (dx * vx + dy * vy + dz * vz), c = dx * dx + dy * dy + dz * dz;
   if (a >= 0) return -1;                                   // (los dragones son siempre más lentos que el proyectil)
   const t = (-b - Math.sqrt(b * b - 4 * a * c)) / (2 * a);
   if (!(t > 0) || t > (maxT || GUN_LIFE)) return -1;
-  out.set(e.pos.x + vx * t, e.pos.y + vy * t, e.pos.z + vz * t); return t;
+  out.set(p.x + vx * t, p.y + vy * t, p.z + vz * t); return t;
 }
 /* Dragón enemigo más cercano al que apunta el rayo (asistencia ligera de puntería). El disparo converge al punto de
    interceptación del dragón —el mismo que marca el círculo gris del HUD—, no a su posición actual. Usa la boca del jugador (_mouth). */
@@ -650,7 +651,7 @@ function updateEnemies(dt) {
    el blanco fijado, sea del tipo que sea. El fijado se mantiene aunque salga de pantalla (flecha en el borde). */
 const fmtDist = d => d >= 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m';
 function enemyNdc(e, out) {                               // coordenadas normalizadas de pantalla; false si está detrás de la cámara
-  _Ev1.copy(e.pos).applyMatrix4(camera.matrixWorldInverse);
+  _Ev1.copy(e.aimAt || e.pos).applyMatrix4(camera.matrixWorldInverse);   // (v30: el centro de las unidades nuevas)
   if (_Ev1.z > -1) return false;
   const pm = camera.projectionMatrix.elements;
   out.x = _Ev1.x * pm[0] / -_Ev1.z; out.y = _Ev1.y * pm[5] / -_Ev1.z; return true;

@@ -3,7 +3,7 @@
    Si el Excel ya existe, conserva los valores que tenga (por pestaña y clave): un número se queda como está y una fórmula de un dragón
    vuelve a ser «igual que la Base». Sirve para añadir stats o pestañas nuevas sin perder lo que Jorge haya cambiado; el formato a mano
    (colores, notas, columnas propias) sí se pierde. Antes de sobrescribir, guarda una copia en herramientas/salida/.
-   Uso: node herramientas/stats_excel.mjs */
+   Uso: node herramientas/stats_excel.mjs [--poner unidad.clave=valor …]   (v30: --poner cambia ese valor aunque el Excel tuviera otro, p. ej. superdirigible.largo=1000) */
 import fs from 'fs';
 import path from 'path';
 import zlib from 'zlib';
@@ -54,7 +54,10 @@ async function main() {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Sky Apex'; wb.created = new Date(); wb.calcProperties.fullCalcOnLoad = true;
   const dragones = S.STATS_TABS.filter(t => t.kind === 'dragon' && t.unit !== 'base');
+  const PONER = {};                                       // v30: --poner unidad.clave=valor (p. ej. superdirigible.largo=1000): ese valor, aunque el Excel tuviera otro
+  process.argv.forEach((a, i) => { if (a === '--poner' && process.argv[i + 1]) { const m = /^(\w+)\.(\w+)=(-?[\d.]+)$/.exec(process.argv[i + 1]); if (m) PONER[m[1] + '.' + m[2]] = +m[3]; } });
   const def = (T, fila) => {                               // valor de una fila: el del Excel anterior si lo había; si no, el del esquema
+    if ((T.unit + '.' + fila[0]) in PONER) return { v: PONER[T.unit + '.' + fila[0]] };
     const old = prev && prev.out[prev.norm(T.tab)] && prev.out[prev.norm(T.tab)][fila[0]];
     return old && typeof old.v === 'number' ? old : null;
   };

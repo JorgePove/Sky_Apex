@@ -221,12 +221,17 @@ function steerEnemyMissile(f, dt) {
 }
 /* Bola guiada: acelera y gira (con un límite) hacia el punto de interceptación de su blanco; muy cerca gira el triple para no fallar. */
 const _mq = new THREE.Quaternion(), _mq0 = new THREE.Quaternion(), _mt = new THREE.Vector3(), _mv = new THREE.Vector3();
+const MSL_LOFT = [0.3, 150];                               // v30: parábola contra tierra y mar: altura extra del punto al que apunta (fracción de la distancia en planta, máx. m)
 function steerMissile(f, dt) {
   f.speed = Math.min(MSL_SPEED[1], f.speed + MSL_ACCEL * dt);
   _mv.copy(f.vel).normalize();
   const e = f.target;
   if (e && !e.dead) {
-    if (interceptPoint(e, f.pos, _mt, f.speed, 30) < 0) _mt.copy(e.pos);
+    if (interceptPoint(e, f.pos, _mt, f.speed, 30) < 0) _mt.copy(targetCenter(e));
+    if (e.ground) {                                        // v30: contra tierra y mar, sube un poco y cae sobre el blanco (parábola: apunta por encima y baja al acercarse)
+      const hd = Math.hypot(_mt.x - f.pos.x, _mt.z - f.pos.z);
+      _mt.y += Math.min(MSL_LOFT[1], hd * MSL_LOFT[0]) * smooth(60, 380, hd);
+    }
     _mt.sub(f.pos); const d = _mt.length(); _mt.divideScalar(d || 1);
     const ang = Math.acos(clamp(_mv.dot(_mt), -1, 1)), max = MSL_TURN * dt * (d < 200 ? 3 : 1);
     if (ang > 1e-5) { _mq.setFromUnitVectors(_mv, _mt); _mq0.identity().slerp(_mq, Math.min(1, max / ang)); _mv.applyQuaternion(_mq0); }
@@ -262,6 +267,7 @@ function updateFireballs(dt) {
         if (heightAt(f.pos.x, f.pos.z) < WL) { splash(f.pos.x, f.pos.z, fast ? 0.45 : msl ? 2 : 1.3); if (!fast) sfx.hit(); }
         else if (fast) sparks(f.pos.x, gy + 0.5, f.pos.z, 6, 0, 8, 0);
         else explode(f.pos.x, gy + 1, f.pos.z, msl ? 1.3 : 0.75);
+        if (msl && mslNearMiss(f)) { onTarget = true; if (heightAt(f.pos.x, f.pos.z) < WL) explode(f.pos.x, WL + 3, f.pos.z, 1.3); }   // v30: al lado de un barco o de una unidad de tierra, cuenta
       } else if (f.enemy) {
         // bola de fuego enemiga: solo daña al jugador (salvo con el escudo puesto); las guiadas, además, revientan contra las torres
         if (shOn && segHitsSphere(_fo, f.pos, _shC, SHIELD_R)) { hit = true; shieldHit(_fc, emsl ? 1.3 : 0.7); }

@@ -201,7 +201,7 @@ const MISSIONS = {
   },
   /* v29: galería de enemigos (petición de Jorge, 30-oct): campo de pruebas totalmente llano (suelo de blockout) con todos los tipos de
      enemigos en varias formaciones, quietos (solo su animación de reposo), para ver cómo se ven y probar a dispararles. Con los trucos y el
-     panel del modo Dev Test (Tab), donde además se puede parar su fuego, poner a volar a la sierpe y restaurar la galería. Delante del
+     panel del modo Dev Test (Tab), donde además se puede parar su fuego, parar o soltar a la sierpe (v30: patrulla en círculo) y restaurar la galería. Delante del
      inicio (hacia el norte): artillería, batallones, torres y dragones quietos; detrás, los dirigibles, el superdirigible y la sierpe; a la
      derecha, un lago con barcos. */
   galeria: {
@@ -226,8 +226,8 @@ const MISSIONS = {
       { type: 'dragon', n: 3, formation: 'linea', gap: 120, x: -1400, z: -1300, height: 90, heading: 90 },
       { type: 'barco', n: 3, formation: 'columna', x: 2800, z: -1700, heading: 270 },
       { type: 'barco', n: 2, formation: 'linea', gap: 300, x: 2600, z: -200, heading: 180 },
-      { type: 'superdirigible', x: -400, z: -4200, height: 1500, heading: 90 },
-      { type: 'sierpe', x: 900, z: -6000, height: 2000, heading: 270, mode: 'idle' }
+      { type: 'superdirigible', x: -400, z: -4600, height: 1500, heading: 90 },   // (v30: 1000 m de eslora)
+      { type: 'sierpe', x: 800, z: -2600, height: 2000, heading: 270, mode: 'circle' }   // v30: patrulla circular sobre todo el campo (radio del Excel) alrededor de x, z
     ],
     objectives: [],
     radio: {},

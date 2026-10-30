@@ -1,10 +1,12 @@
 
 /* ============================================================
    6h. LA SIERPE (v29): dragón serpiente gigante, el primer minijefe (estilo Ace Combat)
-   Modelo: «Kang Jin Long» de Black Myth: Wukong (estático, recto; dragones raw/), preparado en Blender (enemigos/02_preparar.py: 60 000
-   triángulos, 1 m de largo, cabeza hacia -Z). El juego lo escala a «largo» (500 m) y lo hace serpentear sin esqueleto: cada vértice va
-   pegado a su punto de una columna de SPINE_N puntos (posición y orientación) que se calcula cada fotograma y se pasa al shader
-   (serpentMaterial). Así el cuerpo sigue exactamente el camino de la cabeza.
+   Modelo: «Kang Jin Long» de Black Myth: Wukong (estático, recto; v30: desde el FBX original del zip de dragones raw/, con sus aletas: el
+   GLB traía las patas delanteras estiradas), preparado en Blender (enemigos/02_preparar.py: 60 000 triángulos, 1 m de largo, cabeza hacia
+   -Z). El juego lo escala a «largo» (500 m) y lo hace serpentear sin esqueleto: cada vértice va pegado a su punto de una columna de SPINE_N
+   puntos (posición y orientación) que se calcula cada fotograma y se pasa al shader (serpentMaterial). Así el cuerpo sigue exactamente el
+   camino de la cabeza. Las patas van rígidas, pegadas al punto de su hombro o su cadera (atributo aS, serpentAnchors, con los pesos de los
+   huesos de cada pata que deja Blender en el segundo canal UV): si no, la onda las retorcía.
    · Modos: 'idle' (galería: flota en el sitio y una onda le recorre el cuerpo de la cabeza a la cola) y 'circle' (vuela en círculo de
      radio_circulo a velocidad, a su altura, con el cuerpo detrás por el mismo círculo).
    · Ataques: llamarada sostenida, mucho mayor que la del jugador, si te pones delante de la cabeza (llamas_*), y bolas de fuego como las
@@ -13,17 +15,19 @@
      último, el escudo se rompe y la sierpe ya recibe daño.
    ============================================================ */
 const SPINE_N = 40;                                         // puntos de la columna (el shader interpola entre ellos)
-const SERPENT_AXIS_Y = 0.016;                               // altura del eje del cuerpo en el modelo (fracción del largo; medido en 04_sondear.py)
+const SERPENT_AXIS_Y = -0.006;                              // altura del eje del cuerpo en el modelo (fracción del largo; medido en 04_sondear.py)
 const SERPENT_WAVE = { len: 0.33, amp: 0.035, w: 1.1, up: 0.45 };   // onda: longitud y amplitud (fracción del largo), rad/s, parte vertical
-const SORC_AT = [0.2, 0.33, 0.5], SORC_TOP = 0.0145, SORC_SCALE = 5;   // hechiceros: dónde van (fracción desde la cabeza), altura sobre el eje (fracción del largo), tamaño
+const SORC_AT = [0.2, 0.33, 0.46], SORC_TOP = 0.0145, SORC_SCALE = 5;   // hechiceros: dónde van (fracción desde la cabeza), altura sobre el eje (fracción del largo), tamaño
 const _Sp = new THREE.Vector3(), _St = new THREE.Vector3(), _Su = new THREE.Vector3(), _Sr = new THREE.Vector3(), _Sm = new THREE.Matrix4(), _Sq = new THREE.Quaternion();
 const _Sa = new THREE.Vector3(), _Sb = new THREE.Vector3(), _Sv = new THREE.Vector3();
 const SERPENT_GLSL = `
-  uniform vec3 uSpP[${SPINE_N}]; uniform vec4 uSpQ[${SPINE_N}]; uniform float uLen; uniform float uInfl;
+  uniform vec3 uSpP[${SPINE_N}]; uniform vec4 uSpQ[${SPINE_N}]; uniform float uLen; uniform float uInfl; attribute float aS;
   vec3 spRot(vec4 q, vec3 v) { return v + 2.0 * cross(q.xyz, cross(q.xyz, v) + q.w * v); }`;
-/* Del vértice del modelo (1 m de largo, eje en z) a su sitio en la columna: frame (Q) en beginnormal, posición en begin_vertex. */
+/* Del vértice del modelo (1 m de largo, eje en z) a su sitio en la columna: frame (Q) en beginnormal, posición en begin_vertex. aS = su punto de
+   la columna (el suyo, z + 0,5; en las patas, el del hombro: lo que sobresale a lo largo, spLocal.z, va rígido con él). */
 const SERPENT_FRAME = `
-  float spS = clamp(position.z + 0.5, 0.0, 1.0) * ${SPINE_N - 1}.0;
+  float spS = clamp(aS, 0.0, 1.0) * ${SPINE_N - 1}.0;
+  vec3 spLocal = vec3(position.x, position.y - ${SERPENT_AXIS_Y}, position.z - (aS - 0.5));
   int spI = int(min(floor(spS), ${SPINE_N - 2}.0)); float spT = spS - float(spI);
   vec4 spQ = normalize(mix(uSpQ[spI], uSpQ[spI + 1], spT));
   vec3 spP = mix(uSpP[spI], uSpP[spI + 1], spT);`;
@@ -37,7 +41,7 @@ function serpentMaterial(src, U) {
     Object.assign(sh.uniforms, U);
     sh.vertexShader = SERPENT_GLSL + '\n' + sh.vertexShader
       .replace('#include <beginnormal_vertex>', SERPENT_FRAME + '\n  vec3 objectNormal = spRot(spQ, vec3(normal));')
-      .replace('#include <begin_vertex>', 'vec3 transformed = spP + spRot(spQ, vec3(position.x, position.y - ' + SERPENT_AXIS_Y + ', 0.0) * uLen);');
+      .replace('#include <begin_vertex>', 'vec3 transformed = spP + spRot(spQ, spLocal * uLen);');
   };
   return m;
 }
@@ -50,7 +54,7 @@ function shieldMaterial(U) {
       varying vec3 vN; varying vec3 vV; varying vec3 vW;
       void main(){` + SERPENT_FRAME + `
         vec3 n = spRot(spQ, normal);
-        vec3 w = spP + spRot(spQ, vec3(position.x, position.y - ${SERPENT_AXIS_Y}, 0.0) * uLen) + n * uInfl;
+        vec3 w = spP + spRot(spQ, spLocal * uLen) + n * uInfl;
         vW = w; vN = n; vec4 mv = viewMatrix * vec4(w, 1.0); vV = normalize(-mv.xyz); vN = normalize(mat3(viewMatrix) * n);
         gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `uniform float uA; uniform float uHit; uniform float uTime; uniform vec3 uC; varying vec3 vN; varying vec3 vV; varying vec3 vW;
@@ -62,13 +66,28 @@ function shieldMaterial(U) {
         gl_FragColor = vec4(uC * a, 1.0); }`
   });
 }
-function serpentPrepare() { for (const u of UNITS) if (u.kind === 'sierpe' && !u.model) serpentModel(u); }
+function serpentPrepare() { serpentAnchors(); for (const u of UNITS) if (u.kind === 'sierpe' && !u.model) serpentModel(u); }
+/* v30: aS de cada vértice: su z + 0,5 en el cuerpo; en las patas, hacia el punto del hombro o la cadera de la suya según el peso de sus huesos
+   (uv2 = (ese punto, peso), de enemigos/02_preparar.py): el arranque de la pata se dobla con el cuerpo y el resto va rígido. */
+function serpentAnchors() {
+  for (const p of unitRes.sierpe) {
+    const P = p.geo.attributes.position, A = p.geo.attributes.uv2, a = new Float32Array(P.count);
+    for (let i = 0; i < P.count; i++) {
+      const w = A ? smooth(0.15, 0.85, 1 - A.getY(i)) : 0;   // (glTF guarda la V de las UV invertida: 1 - peso)
+      a[i] = lerp(P.getZ(i) + 0.5, A ? A.getX(i) : 0, w);
+    }
+    p.geo.setAttribute('aS', new THREE.BufferAttribute(a, 1));
+  }
+}
 function serpentModel(u) {
   if (!unitRes.sierpe) return;
   const g = new THREE.Group(), mats = [];
   for (const p of unitRes.sierpe) { const m = serpentMaterial(p.mat, u.U); mats.push(m); const me = new THREE.Mesh(p.geo, m); me.frustumCulled = false; g.add(me); }
   u.shieldMat = shieldMaterial(u.U);
-  for (const p of unitRes.sierpe) { const me = new THREE.Mesh(p.geo, u.shieldMat); me.frustumCulled = false; me.renderOrder = 6; g.add(me); u.shieldMeshes.push(me); }
+  for (const p of unitRes.sierpe) {                       // (las aletas, recortadas por su alfa, no: el escudo saldría con su rectángulo)
+    if (p.mat.alphaTest) continue;
+    const me = new THREE.Mesh(p.geo, u.shieldMat); me.frustumCulled = false; me.renderOrder = 6; g.add(me); u.shieldMeshes.push(me);
+  }
   u.model = g; u.mats = mats; scene.add(g);
 }
 
@@ -82,7 +101,7 @@ function addSierpe(x, z, height, heading, tags, mode) {
   u.home = new THREE.Vector3(x, Math.max(groundAt(x, z) + (height || S.altura), WL + 300), z);
   u.pos.copy(u.home); u.center = u.home.clone();           // (en 'circle' desde la receta: da vueltas alrededor de donde nace)
   u.spP =Array.from({ length: SPINE_N }, () => new THREE.Vector3()); u.spT = Array.from({ length: SPINE_N }, () => new THREE.Vector3());
-  u.capDef = null;
+  u.capDef = null; u.aimAt = new THREE.Vector3();          // (v30: la guiada y el fijado apuntan a su lomo, a un 30 % desde la cabeza: el centro de la caja puede caer fuera del cuerpo)
   serpentSpine(u, 0);
   if (unitRes.sierpe) serpentModel(u);
   const n = clamp(Math.round(S.hechiceros), 0, SORC_AT.length);
@@ -147,7 +166,7 @@ function serpentSpine(u, dt) {
     Q[i].set(_Sq.x, _Sq.y, _Sq.z, _Sq.w); P[i].copy(u.spP[i]); prev = Q[i];
   }
   u.U.uLen.value = L;
-  u.pos.copy(u.spP[0]);
+  u.pos.copy(u.spP[0]); u.aimAt.copy(u.spP[12]);
   // cápsulas: cabeza más gruesa; el cuerpo, una cada 3 puntos
   const D = [];
   for (let i = 0; i < SPINE_N - 1; i += 3) {
