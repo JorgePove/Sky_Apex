@@ -461,7 +461,7 @@ function drawHUD() {
   const heading = ((Math.atan2(fwd.x, -fwd.z) * 180 / Math.PI) + 360) % 360;
   if (F.boostFx > 0.02 || F.kickFx > 0.02) drawSpeedLines(F.boostFx, F.kickFx);
   drawCompass(heading);
-  if (!F.third) drawLadder(fwd);
+  if (dragonAnim.cam < 0.5) drawLadder(fwd);                 // (v27: en 1ª persona de verdad; la cámara de apuntado la saca)
   drawMarkers(fwd);
   drawEnemyMarkers();
   drawRadar(heading, fwd);
@@ -524,11 +524,14 @@ function drawHUD() {
   }
   hudText('PUNTOS  ' + towerState.score, HW - 28, oy, FM(15), C_GOLD, 'right');
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
+  if (mission.dev) hudText('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, FM(12), DEV.fps ? C_GOLD : C_DIM);   // v27
   hctx.shadowBlur = 0;
 }
 
 /* ---------- Mundo: actualizaciones por fotograma ---------- */
-const _cp = new THREE.Vector3();
+const _cp = new THREE.Vector3(), _cpA = new THREE.Vector3(), _cpH = new THREE.Vector3(), _cpQ = new THREE.Quaternion();
+const FOV_BASE = [76, 88];                                 // campo de visión vertical (°) despacio y a la velocidad de crucero (v27: con nombre, para el panel de pruebas)
+const HEAD_BASE = new THREE.Vector3(0, 1.5, -6);           // v27: base del cuello en ejes del dragón (desde ahí mira la cabeza al punto de la mira)
 let islT = 0, towerT = 0, prevFlapSin = 0, lastBeep = 0, fpsEMA = 60;
 function updateWorld(dt) {
   const p = dragon.position;
@@ -539,10 +542,15 @@ function updateWorld(dt) {
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
   updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
-  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
+  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateScorch(); devDebug();   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: F.aimLocal, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY) });
+  // v27: en partida, la cabeza mira al punto de la mira (F.aimPt) desde la base del cuello, no en la dirección de la mira desde la cámara (cerca
+  // del suelo no es lo mismo); y en vuelo recto (Espacio) entra la cámara de apuntado (AIM_CAM, en animateHero)
+  const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
+  let headAim = F.aimLocal, aimPt = null;
+  if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt });
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
     camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
@@ -557,7 +565,7 @@ function updateWorld(dt) {
     camera.rotation.y += (Math.sin(t * 64 + 0.7) * 0.6 + Math.sin(t * 47 + 2.1) * 0.4) * bsh;
     camera.rotation.z += Math.sin(t * 58 + 0.3) * bsh * 0.6;
   }
-  const fov = lerp(76, 88, clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
+  const fov = lerp(FOV_BASE[0], FOV_BASE[1], clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
   if (Math.abs(fov - camera.fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
   updateWind(F.boostFx);
   const sc = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));

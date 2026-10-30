@@ -7,6 +7,7 @@
 <div id="toast"></div>
 <div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
 <div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
+<aside id="dev" hidden aria-label="Panel de pruebas"></aside>   <!-- v27: modo Dev Test (Tab); lo rellena 19d_dev.js -->
 <div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"></div></div>   <!-- v26: entrada de cine -->
 
 <section class="overlay intro" id="menu">
@@ -31,6 +32,7 @@
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
         <button class="mbtn" id="mObj">Prueba de objetivos</button>
+        <button class="mbtn" id="mDev">Dev Test</button>   <!-- v27 -->
         <button class="ghost" id="mBack">← Volver</button>
       </div>
     </nav>
@@ -44,7 +46,7 @@
       <dt><kbd>Ratón</kbd></dt><dd>Dirección y puntería (el dragón gira hacia la mira)</dd>
       <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Acelerar / frenar · en hover, subir / bajar</dd>
       <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta y se recarga)</dd>
-      <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto (el dragón sigue su trayectoria; la mira, el ratón: para disparar al suelo en vuelo rasante)</dd>
+      <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto y nivelado, con la cámara de apuntado (la mira sigue al ratón: para quemar el suelo en pasadas rasantes)</dd>
       <dt><kbd>Ctrl izq.</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
@@ -65,6 +67,7 @@
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
+    <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">

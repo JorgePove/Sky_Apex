@@ -299,6 +299,7 @@ function applyStats(vals, src) {
   if (ally.e) ally.e.vmax = ALLY_VMAX;
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();
+  if (src !== 'panel de pruebas' && typeof devStatsSnap === 'function') devStatsSnap();   // v27: referencia del panel de pruebas (19d)
   statsShowInfo();
 }
 const inflateRawWeb = async u8 => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());

@@ -100,6 +100,27 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #cine.snap .cine-bar,#cine.snap .cine-title,#hud.snap{transition:none}
 #hud{transition:opacity 1.4s ease}#hud.cine{opacity:0}
 @media (prefers-reduced-motion:reduce){#cine .cine-bar{transition-duration:.4s}}
+/* v27: panel de pruebas del modo Dev Test (Tab): a la derecha, sin parar la partida */
+#dev{position:fixed;top:12px;right:12px;bottom:12px;width:min(420px,calc(100vw - 24px));z-index:7;box-sizing:border-box;overflow-y:auto;padding:12px 14px 16px;
+  background:rgba(13,10,15,.9);border:1px solid rgba(241,230,211,.18);border-radius:4px;font-size:12px;color:var(--bone);font-family:var(--f-data)}
+#dev[hidden]{display:none}
+#dev .d-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:6px}
+#dev .d-head b{font-family:var(--f-display);font-size:16px;letter-spacing:.12em;color:var(--gold)}
+#dev .d-hint{color:var(--bone-dim);font-size:11px}
+#dev details{border-top:1px solid rgba(241,230,211,.12);padding:6px 0}
+#dev summary{cursor:pointer;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ember);padding:4px 0;user-select:none}
+#dev .d-sub{margin:8px 0 2px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-dim)}
+#dev .d-row{display:grid;grid-template-columns:1fr 92px 58px;gap:6px;align-items:center;margin:3px 0}
+#dev .d-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--bone-dim)}
+#dev .d-row span.chg{color:var(--gold)}
+#dev .d-row input[type=range]{width:92px;margin:0}
+#dev .d-row input[type=number]{width:58px;box-sizing:border-box;background:rgba(241,230,211,.06);border:1px solid rgba(241,230,211,.2);color:var(--bone);font:inherit;font-size:11px;padding:2px 3px;border-radius:2px}
+#dev label.d-chk{display:flex;align-items:center;gap:8px;margin:4px 0;cursor:pointer;color:var(--bone)}
+#dev select{width:100%;background:#1a1418;color:var(--bone);border:1px solid rgba(241,230,211,.25);font:inherit;padding:3px;margin:4px 0}
+#dev .d-btns{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+#dev button{font:inherit;font-size:11px;letter-spacing:.06em;color:var(--bone);background:rgba(241,230,211,.08);border:1px solid rgba(241,230,211,.25);border-radius:2px;padding:4px 8px;cursor:pointer}
+#dev button:hover{background:rgba(255,122,46,.25)}
+#dev .d-fps{color:var(--gold)}
 #pause .p-btns{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:10px}
 #pause .p-btns .mbtn{width:min(280px,72vw)}
 .vic.fail h2{color:var(--danger);text-shadow:0 0 30px rgba(255,74,58,.45)}
@@ -298,6 +319,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <div id="toast"></div>
 <div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
 <div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
+<aside id="dev" hidden aria-label="Panel de pruebas"></aside>   <!-- v27: modo Dev Test (Tab); lo rellena 19d_dev.js -->
 <div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"></div></div>   <!-- v26: entrada de cine -->
 
 <section class="overlay intro" id="menu">
@@ -322,6 +344,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
         <button class="mbtn" id="mObj">Prueba de objetivos</button>
+        <button class="mbtn" id="mDev">Dev Test</button>   <!-- v27 -->
         <button class="ghost" id="mBack">← Volver</button>
       </div>
     </nav>
@@ -335,7 +358,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <dt><kbd>Ratón</kbd></dt><dd>Dirección y puntería (el dragón gira hacia la mira)</dd>
       <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Acelerar / frenar · en hover, subir / bajar</dd>
       <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta y se recarga)</dd>
-      <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto (el dragón sigue su trayectoria; la mira, el ratón: para disparar al suelo en vuelo rasante)</dd>
+      <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto y nivelado, con la cámara de apuntado (la mira sigue al ratón: para quemar el suelo en pasadas rasantes)</dd>
       <dt><kbd>Ctrl izq.</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
@@ -356,6 +379,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
+    <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -1589,6 +1613,7 @@ const HERO_EMISSIVE = 1.6;                                // brillo de los ojos
 const HERO_NECK = ['Neck1', 'Neck2', 'Neck3', 'Neck4', 'head'], HERO_NECK_W = [0.26, 0.26, 0.24, 0.21, 0.18];   // reparto del giro de la mirada (más en la base: el cuello entero se aparta y asoma la cabeza)
 const HERO_LOOK = [1.25, 1.05, 0.45, 1.25];              // mirada: ganancia de giro y de cabeceo hacia el marcador, anticipo del giro del dragón, giro máximo (rad)
 const HERO_NECK_UP = 0.32;                               // cuello arqueado hacia arriba en vuelo (rad): desde el lomo se ve la cabeza delante
+let HERO_LOOK_DOWN = 1.25;                               // v27: cabeceo máximo de la mirada hacia abajo (rad; antes 0,8): en vuelo recto la cabeza apunta al suelo
 const HERO_TAIL = ['Tail0', 'Tail1', 'Tail2', 'Tail3', 'Tail4', 'Tail5', 'Tail6', 'Tail7', 'Tail8', 'Tail9'];
 /* v13: sensación de vuelo (a partir del vídeo de «Dragontwin», 1:10-1:37).
    · Cuerpo: encima del rumbo de vuelo, el modelo se mueve con muelles (BODY_SPRING: frecuencia en rad/s y amortiguamiento; por debajo de 1
@@ -1602,6 +1627,11 @@ const BODY_ROLL = [0.32, 0.55], BODY_PITCH = [0.2, 0.22], BODY_YAW = [0.1, 0.16]
 const RIDER_LEAN = 0.6;                                   // parte del giro del cuerpo que sigue el torso del jinete en 1ª persona (los brazos)
 const HERO_DIVE_TUCK = 0.75, HERO_TURN_TUCK = [0.3, 0.35];
 const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 5];
+/* v27: cámara de apuntado (vuelo recto, Espacio; a partir del vídeo de referencia de Jorge, «demo lanzallamas»): sale de la 1ª persona si
+   hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
+   punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
+   pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
+const AIM_CAM = { d: 24, elev: 0.26, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
   bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
@@ -1709,7 +1739,7 @@ function animateTyrant(R, A, dt, st) {
   const k5 = 1 - Math.exp(-dt * 5), a = st.aimLocal;
   // mirada: cuello y cabeza buscan el marcador y se adelantan a los giros del dragón
   A.headYaw += (clamp(Math.atan2(-a.x, -a.z) * HERO_LOOK[0] + st.yawRate * HERO_LOOK[2], -HERO_LOOK[3], HERO_LOOK[3]) - A.headYaw) * k5;
-  A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -0.8, 0.8) - A.headPitch) * k5;
+  A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -HERO_LOOK_DOWN, 0.8) - A.headPitch) * k5;   // (v27: hacia abajo, hasta HERO_LOOK_DOWN)
   A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
   A.tuck += (Math.max(bs, (st.dive || 0) * HERO_DIVE_TUCK) * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));   // boost y (v13) picado: alas recogidas
   A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));
@@ -1802,9 +1832,23 @@ function animateHero(dt, st) {
   _hC.set(0, HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM[1] + push).applyQuaternion(L).applyQuaternion(rel);
   camera.position.lerpVectors(_hT, _hC, c);
   camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], HERO_CAM[2] - 0.10 * hv, c)));
+  // v27: cámara de apuntado (AIM_CAM), mezclada encima (A.aim). st.aimPt = punto de la mira en ejes del dragón; todo en el marco con retraso (rel)
+  A.aim = (A.aim || 0) + ((st.aimCam ? 1 : 0) - (A.aim || 0)) * (1 - Math.exp(-dt * AIM_CAM.blend));
+  if (A.aim > 0.002 && st.aimPt) {
+    _kA.copy(st.aimPt).applyQuaternion(_kRi.copy(rel).invert());
+    if (!A.aimT || A.aim < 0.01) A.aimT = _kA.clone(); else A.aimT.lerp(_kA, 1 - Math.exp(-dt * AIM_CAM.follow));
+    const T = A.aimT, oy = Math.atan2(-T.x, -T.z) * AIM_CAM.yawK, e = AIM_CAM.elev;
+    _kP.set(0, Math.sin(e), Math.cos(e)).multiplyScalar(AIM_CAM.d).applyAxisAngle(H_UP, oy);   // la cámara, detrás y por encima
+    _kD.copy(_kP).negate().normalize();                                                         // hacia el dragón
+    _kA.subVectors(T, _kP).normalize();                                                          // hacia la mira
+    _kD.lerp(_kA, AIM_CAM.mix).normalize();
+    _kQa.copy(rel).multiply(_hQ.setFromEuler(_hEu.set(Math.asin(clamp(_kD.y, -1, 1)), Math.atan2(-_kD.x, -_kD.z), 0, 'YXZ')));
+    camera.position.lerp(_kP.applyQuaternion(rel), A.aim); camera.quaternion.slerp(_kQa, A.aim);
+  } else A.aimT = null;
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);
+const _kA = new THREE.Vector3(), _kP = new THREE.Vector3(), _kD = new THREE.Vector3(), _kRi = new THREE.Quaternion(), _kQa = new THREE.Quaternion();   // (v27: cámara de apuntado)
 
 /* ============================================================
    5g. LOS DRAGONES (v16): Tyrant, dragón rojo y Drogon (v20: y Fulgor, el Syrax riggeado en Blender)
@@ -3479,6 +3523,174 @@ const sfx = (() => {
 })();
 
 /* ============================================================
+   6f. IMPACTOS DE LA LLAMARADA Y QUEMADURAS (v27)
+   Petición de Jorge tras jugar la v26: saber si la llamarada llega al suelo y verla impactar.
+   · Círculo de impacto (impactMark): un disco luminoso, blanco cálido, tumbado sobre el terreno (o el agua, o una isla) donde caería la
+     llamarada si se lanzara ahora, solo si está a su alcance (como en el vídeo de referencia «demo lanzallamas»). Con la llamarada
+     encendida brilla más y late.
+   · Impactos (flameImpact, mientras sale la llamarada): en el terreno, tierra que salta (polvo marrón, terrones que caen y salpicaduras de
+     fuego a ras de suelo); en una isla, lo mismo con roca gris; en el agua, vapor y gotas. Al dar a un dragón, una torre o un dirigible
+     (flameHit), una salpicadura de fuego y chispas.
+   · Quemaduras (scorchAt): manchas de tierra negra y quemada sobre el terreno por donde pasa la llamarada; las primeras SCORCH.glow s aún
+     tienen brasas, y desaparecen poco a poco al final de SCORCH.life s (60; la última SCORCH.fade s, desvaneciéndose). Todas en una sola
+     malla (hasta SCORCH.max, las más viejas se reutilizan): cada una, una rejilla de 3×3 puntos pegada al terreno con heightAt.
+   ============================================================ */
+const IMPACT_RATE = 30;                                     // ráfagas de partículas por segundo en el punto de impacto
+const SCORCH = { max: 2400, life: 60, fade: 20, glow: 5, lift: 0.55, i: 0, lastX: 1e9, lastZ: 1e9, lastT: -9, dirty0: Infinity, dirty1: -1 };
+const IMP = { acc: 0, hitAcc: 0, markK: 0 };
+const _imN = new THREE.Vector3(), _imQ = new THREE.Quaternion(), _imUp = new THREE.Vector3(0, 1, 0), _imP = new THREE.Vector3();
+
+/* ---------- Círculo de impacto ---------- */
+const impactMesh = (() => {
+  const geo = new THREE.CircleGeometry(1, 48); geo.rotateX(-Math.PI / 2);
+  const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -16,
+    uniforms: { uI: { value: 0 }, uT: { value: 0 } },
+    vertexShader: `varying vec2 vP; void main(){ vP = position.xz; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uI, uT; varying vec2 vP;
+      void main(){ float d = length(vP);
+        float ring = smoothstep(0.70, 0.86, d) * (1.0 - smoothstep(0.88, 1.0, d));
+        float core = 1.0 - smoothstep(0.0, 0.62, d);
+        float a = (ring * 1.1 + core * core * 0.8) * uI;
+        gl_FragColor = vec4(vec3(1.0, 0.94, 0.82) * a, a); }`
+  }));
+  m.renderOrder = 5; m.visible = false; m.frustumCulled = false; scene.add(m);
+  return m;
+})();
+/* show: ¿se ve? p: punto (se copia); kind: 'tierra' | 'agua' | 'isla'; firing: la llamarada está encendida; dist: distancia desde la boca (m). */
+function impactMark(show, p, kind, firing, dist) {
+  const m = impactMesh;
+  IMP.markK += ((show ? (firing ? 1 : 0.6) : 0) - IMP.markK) * 0.25;
+  if (!show) { if (IMP.markK < 0.02) m.visible = false; m.material.uniforms.uI.value = IMP.markK; return; }
+  if (kind === 'tierra') {                                  // normal del terreno
+    const e = 2, h = heightAt(p.x, p.z);
+    _imN.set(-(heightAt(p.x + e, p.z) - h) / e, 1, -(heightAt(p.x, p.z + e) - h) / e).normalize();
+  } else _imN.set(0, 1, 0);
+  m.quaternion.copy(_imQ.setFromUnitVectors(_imUp, _imN));
+  m.position.copy(p).addScaledVector(_imN, 0.35);
+  const r = (5 + dist * 0.07) * (firing ? 1.12 + 0.08 * Math.sin(gameTime * 18) : 1);
+  m.scale.setScalar(r);
+  m.material.uniforms.uI.value = IMP.markK; m.visible = true;
+}
+
+/* ---------- Partículas de impacto ---------- */
+function flameImpact(kind, p, dt, dist) {
+  if (kind === 'tierra') scorchAt(p.x, p.z, clamp(3.5 + dist * 0.045, 4, 11));
+  IMP.acc += dt * IMPACT_RATE; let n = Math.floor(IMP.acc); IMP.acc -= n;
+  const c = ATTACK;
+  for (; n > 0; n--) {
+    const x = p.x + rnd(-1.5, 1.5), y = p.y + 0.6, z = p.z + rnd(-1.5, 1.5);
+    if (kind === 'agua') {                                    // vapor que sube y gotas
+      for (let i = 0; i < 2; i++) emit(fxSmoke, x + rnd(-3, 3), WL + 0.6, z + rnd(-3, 3), rnd(-3, 3), rnd(5, 13), rnd(-3, 3), rnd(1.4, 2.4), rnd(3, 5), rnd(12, 20), 0.88, 0.9, 0.92, 0.42, 0.9, -2);
+      for (let i = 0; i < 3; i++) { const a = Math.random() * 6.283, sp = rnd(6, 16); emit(fxSmoke, x, WL + 0.4, z, Math.cos(a) * sp, rnd(8, 20), Math.sin(a) * sp, rnd(0.6, 1.1), 0.9, 0.6, 0.85, 0.92, 0.96, 0.7, 0.3, 22); }
+      continue;
+    }
+    const rock = kind === 'isla', dr = rock ? 0.33 : 0.30, dg = rock ? 0.31 : 0.22, db = rock ? 0.29 : 0.14, k = rnd(0.8, 1.15);
+    // polvo: nube marrón que sube despacio
+    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.283, sp = rnd(2, 8); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(4, 12), Math.sin(a) * sp, rnd(1.2, 2.2), rnd(3, 5), rnd(10, 16), dr * k, dg * k, db * k, 0.55, 1.2, -1); }
+    // terrones que saltan y caen
+    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(6, 18); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(10, 26), Math.sin(a) * sp, rnd(0.8, 1.4), rnd(0.9, 1.4), 0.7, dr * 0.45, dg * 0.45, db * 0.45, 1, 0.2, 24); }
+    // fuego que se aplasta contra el suelo y se abre
+    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(10, 30); emit(fxAdd, x, y, z, Math.cos(a) * sp, rnd(1, 6), Math.sin(a) * sp, rnd(0.25, 0.5), rnd(4, 6), rnd(9, 13), c.r, c.g * rnd(0.8, 1.1), c.b, 0.7, 2, -4); }
+    if (Math.random() < 0.5) emit(fxAdd, x, y + 1, z, 0, 2, 0, 0.15, 10, 22, lerp(c.r, 1, 0.5), lerp(c.g, 1, 0.5), lerp(c.b, 1, 0.5), 0.5, 0, 0);
+  }
+}
+/* Al dar a un dragón, una torre o un dirigible: salpicadura de fuego y chispas (p = punto del impacto). */
+function flameHit(p, dt) {
+  IMP.hitAcc += dt * 18; if (IMP.hitAcc < 1) return; IMP.hitAcc = 0;
+  const c = ATTACK;
+  for (let i = 0; i < 6; i++) {
+    const a = Math.random() * 6.283, u = rnd(-0.6, 1), s = Math.sqrt(1 - u * u), sp = rnd(14, 40);
+    emit(fxAdd, p.x, p.y, p.z, Math.cos(a) * s * sp, u * sp, Math.sin(a) * s * sp, rnd(0.25, 0.45), rnd(5, 7), rnd(11, 16), lerp(c.r, 1, 0.25), c.g, c.b, 0.75, 2.2, -3);
+  }
+  sparks(p.x, p.y, p.z, 3, 0, 0, 0);
+}
+
+/* ---------- Quemaduras en el terreno ---------- */
+const scorchTex = (() => {                                  // R = opacidad (borde irregular), G = carbón (centro), B = brasas
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const g = cv.getContext('2d'), img = g.createImageData(S, S), d = img.data;
+  const blobs = Array.from({ length: 9 }, () => [rnd(-0.45, 0.45), rnd(-0.45, 0.45), rnd(0.25, 0.5)]);
+  const n2 = (x, y) => Math.sin(x * 9.1 + y * 3.7) * 0.5 + Math.sin(x * 17.3 - y * 13.1) * 0.3 + Math.sin(x * 31.7 + y * 27.9) * 0.2;
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+    const x = i / S * 2 - 1, y = j / S * 2 - 1;
+    let f = 0; for (const [bx, by, br] of blobs) f = Math.max(f, 1 - Math.hypot(x - bx, y - by) / br);
+    const r = Math.hypot(x, y), n = n2(x, y);
+    const a = clamp((f * 0.9 + (1 - r) * 0.5 + n * 0.18) * 1.6 - 0.35, 0, 1) * (1 - smooth(0.82, 1, r));
+    const ch = clamp((1 - r * 1.15) + n * 0.25, 0, 1), em = clamp(n * 0.5 + 0.5 - r * 0.6, 0, 1) ** 3;
+    const k = (j * S + i) * 4; d[k] = a * 255; d[k + 1] = ch * 255; d[k + 2] = em * 255; d[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv); t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true;
+  return t;
+})();
+const scorchMesh = (() => {
+  const N = SCORCH.max, V = N * 9, pos = new Float32Array(V * 3), uv = new Float32Array(V * 2), birth = new Float32Array(V).fill(-1e6), idx = new Uint32Array(N * 24);
+  for (let s = 0; s < N; s++) {
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) { const v = s * 9 + j * 3 + i; uv[v * 2] = i / 2; uv[v * 2 + 1] = j / 2; }
+    let t = s * 24;
+    for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+      const a = s * 9 + j * 3 + i, b = a + 1, c = a + 3, e = a + 4;
+      idx[t++] = a; idx[t++] = c; idx[t++] = b; idx[t++] = b; idx[t++] = c; idx[t++] = e;
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+  geo.setAttribute('aBirth', new THREE.BufferAttribute(birth, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setIndex(new THREE.BufferAttribute(idx, 1));
+  const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
+    uniforms: { uTex: { value: scorchTex }, uTime: { value: 0 }, uLife: { value: SCORCH.life }, uFade: { value: SCORCH.fade }, uGlow: { value: SCORCH.glow },
+      uFog: { value: FOG_DENSITY }, uSunDir: { value: SUN_DIR } },
+    vertexShader: `attribute float aBirth; varying vec2 vUv; varying float vB; varying vec3 vW;
+      void main(){ vUv = uv; vB = aBirth; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: GLSL_COMMON + `uniform sampler2D uTex; uniform float uTime, uLife, uFade, uGlow, uFog; varying vec2 vUv; varying float vB; varying vec3 vW;
+      void main(){
+        vec4 t = texture2D(uTex, vUv);
+        float age = uTime - vB;
+        float a = t.r * (1.0 - smoothstep(uLife - uFade, uLife, age)) * smoothstep(0.0, 0.3, age);
+        if (a < 0.01) discard;
+        vec3 col = mix(vec3(0.19, 0.13, 0.08), vec3(0.03, 0.026, 0.024), t.g);
+        col += vec3(1.0, 0.36, 0.07) * (1.0 - smoothstep(0.4, uGlow, age)) * t.b * 2.2;
+        vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+        float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+        gl_FragColor = vec4(mix(col, skyColor(normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z))), fogF), a * 0.94);
+      }`
+  }));
+  m.frustumCulled = false; m.renderOrder = 3; scene.add(m);
+  return m;
+})();
+/* Una quemadura de radio r en (x, z), si el chorro se ha movido lo bastante desde la última (o ha pasado un rato en el mismo sitio). */
+function scorchAt(x, z, r) {
+  const d = Math.hypot(x - SCORCH.lastX, z - SCORCH.lastZ);
+  if (d < r * 0.75 && gameTime - SCORCH.lastT < 0.35) return;
+  if (heightAt(x, z) < WL + 0.2) return;                    // (en el agua no)
+  SCORCH.lastX = x; SCORCH.lastZ = z; SCORCH.lastT = gameTime;
+  const s = SCORCH.i; SCORCH.i = (SCORCH.i + 1) % SCORCH.max;
+  const geo = scorchMesh.geometry, P = geo.attributes.position.array, B = geo.attributes.aBirth.array;
+  const th = Math.random() * 6.283, c = Math.cos(th) * r, sn = Math.sin(th) * r, born = gameTime;
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+    const u = i - 1, w = j - 1, vx = x + u * c - w * sn, vz = z + u * sn + w * c, v = s * 9 + j * 3 + i;
+    P[v * 3] = vx; P[v * 3 + 1] = heightAt(vx, vz) + SCORCH.lift; P[v * 3 + 2] = vz; B[v] = born;
+  }
+  SCORCH.dirty0 = Math.min(SCORCH.dirty0, s); SCORCH.dirty1 = Math.max(SCORCH.dirty1, s);
+}
+/* Cada fotograma (updateWorld): el reloj del shader y las quemaduras nuevas a la tarjeta gráfica. */
+function updateScorch() {
+  const u = scorchMesh.material.uniforms; u.uTime.value = gameTime; u.uLife.value = SCORCH.life; u.uFade.value = Math.min(SCORCH.fade, SCORCH.life);
+  if (SCORCH.dirty1 < 0) return;
+  const geo = scorchMesh.geometry, a = geo.attributes.position, b = geo.attributes.aBirth, v0 = SCORCH.dirty0 * 9, n = (SCORCH.dirty1 - SCORCH.dirty0 + 1) * 9;
+  a.updateRange.offset = v0 * 3; a.updateRange.count = n * 3; a.needsUpdate = true;
+  b.updateRange.offset = v0; b.updateRange.count = n; b.needsUpdate = true;
+  SCORCH.dirty0 = Infinity; SCORCH.dirty1 = -1;
+}
+/* Todas fuera (partida nueva, otro mundo o el botón del panel de pruebas). */
+function scorchClear() {
+  scorchMesh.geometry.attributes.aBirth.array.fill(-1e6);
+  SCORCH.dirty0 = 0; SCORCH.dirty1 = SCORCH.max - 1; SCORCH.lastX = SCORCH.lastZ = 1e9;
+}
+/* ============================================================
    6b. DRAGONES ENEMIGOS (IA sencilla)
    Mismo modelo que el del jugador (el TyrantDragon, copiado con su propio esqueleto y teñido de amarillo, un 50 % más grande),
    mismas bolas de fuego, misma velocidad máxima sin boost. Se animan con animateTyrant, como el del jugador:
@@ -4685,6 +4897,7 @@ const F = {
   hover: false, hoverK: 0, hvy: 0,                       // hvy: velocidad vertical en hover (W/S)
   steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0,  // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
   straight: false, straightT: 0, holdDir: new THREE.Vector3(0, 0, -1),   // v26: vuelo recto (Espacio: s mantenido y dirección fijada)
+  aimPt: new THREE.Vector3(0, 0, -1400),                                 // v27: punto de la mira en el mundo (lo que toca el rayo de la mira desde la cámara; updateAttacks)
   tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0                  // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
@@ -4696,11 +4909,11 @@ const THRUST = [3, 27];
 let DRAG = (THRUST[0] + THRUST[1]) / (VCRUISE_MAX * VCRUISE_MAX);
 const GRAVITY = 30;                                     // aceleración por la pendiente (m/s² en vertical): subir frena y bajar acelera, más que la gravedad real
 const DIVE_DRAG = 0.4;                                  // en picado el dragón pliega las alas: la resistencia baja hasta este tanto (por eso se gana tanta velocidad)
-const BANK_GAIN = 0.40, BANK_MAX = 0.80;                // alabeo ≈ 0,40 rad por rad/s de guiñada (máx. ~46°; v12: 0,30 y 29°). El cuerpo se inclina aún más (BODY_ROLL)
+let BANK_GAIN = 0.40, BANK_MAX = 0.80;                  // (v27: let, para el panel de pruebas) alabeo ≈ 0,40 rad por rad/s de guiñada (máx. ~46°; v12: 0,30 y 29°). El cuerpo se inclina aún más (BODY_ROLL)
 /* v13: peso. La mira responde al momento, pero el dragón la sigue con un poco de retraso (STEER_LAG: la dirección que persigue alcanza a la
    mira en ~0,1 s) y con más inercia en las tasas de giro (RATE_RESP, antes 7,5 y 4,5). STEER_GAIN: giro pedido por radián de error
    (antes 2,6). Simulado: a un salto de la mira de 20°, llega a la mitad en 0,47 s (antes 0,34) y se pasa un 6 % antes de asentarse. */
-const STEER_LAG = 12, RATE_RESP = [6, 4], STEER_GAIN = 2.2;
+let STEER_LAG = 12, STEER_GAIN = 2.2; const RATE_RESP = [6, 4];   // (v27: let, para el panel de pruebas)
 let BOOST_DRAIN = 0.1, BOOST_REFILL = 0.02, BOOST_DELAY = 2;   // barra por segundo: gasto (1 / duración) y recarga; espera antes de recargar (s)
 const BOOST_STEER = 0.2;                                // autoridad de giro con boost
 const BOOST_FOV = 18, BOOST_KICK_FOV = 5;               // apertura del campo de visión con boost y golpe extra al activarlo (grados)
@@ -4714,6 +4927,7 @@ const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3
 /* ---------- Entrada ---------- */
 const hudEl = document.getElementById('hud');
 window.addEventListener('keydown', e => {
+  if (DEV.open && e.target && e.target.closest && e.target.closest('#dev')) return;   // v27: escribiendo en el panel de pruebas
   const inGame = state === 'playing' || state === 'paused';
   if (e.code === 'Space' && inGame) e.preventDefault();   // evita el scroll / activar botones
   if (e.ctrlKey && inGame && e.code !== 'ControlLeft') e.preventDefault();   // v26: Ctrl es el hover; que Ctrl + tecla no dispare atajos del navegador (Ctrl+W no se puede parar: ver beforeunload)
@@ -4745,6 +4959,7 @@ window.addEventListener('mousemove', e => {
 /* Ratón en partida: izquierdo = fuego rápido / bola guiada, derecho = llamarada, los dos casi a la vez = rayo, central = fijar objetivo. */
 canvasGL.addEventListener('mousedown', e => {
   if (state !== 'playing' || cine.on) return;              // (v26: en la entrada de cine, sin armas)
+  if (DEV.open) { devPanel(false); return; }               // v27: con el panel de pruebas abierto, un clic en el juego lo cierra
   if (e.button === 1) { e.preventDefault(); cycleTarget(); return; }   // clic central: fijar el siguiente dragón enemigo a la vista
   const t = performance.now() / 1000;
   if (e.button === 0) {
@@ -4810,7 +5025,7 @@ const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: T
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 function showResult(win, why) {
-  state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet(); cineEnd(true);
+  state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet(); cineEnd(true); devPanel(false);
   deadEl.hidden = pauseEl.hidden = true; toastEl.classList.remove('on');
   if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
   music.game.stop(2); music.menu.play(2.5);
@@ -4846,6 +5061,7 @@ function resetRun(pump) {
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; dragonVel.set(0, 0, 0);
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
+  F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
@@ -4853,7 +5069,7 @@ function resetRun(pump) {
   updateTowerStreaming(P.x, P.z); updateIslandStreaming(P.x, P.z); pumpIslands(4000);
 }
 function backToMenu() {
-  vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true);
+  vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true); devPanel(false);   // (v27: panel de pruebas)
   MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
@@ -4936,6 +5152,7 @@ function toggleHover() {
 }
 function crash(why) {
   if (state !== 'playing') return;
+  if (devCheat('noCrash')) { const p = dragon.position, g = Math.max(heightAt(p.x, p.z), WL); if (p.y < g + 3) p.y = g + 3; return; }   // v27: Dev Test, «sin choques»
   state = 'dead'; F.deadT = 0; W.lmb = W.rmb = false; stats.deaths++; if (W.shieldT > 0) { W.shieldT = 0; W.shieldFade = 0.4; }
   document.getElementById('deadwhy').textContent = why; F.deadWhy = why;
   deadEl.hidden = false;
@@ -4948,7 +5165,7 @@ function respawn() {
   for (let i = 0, s; i < 6 && (s = islandAt(p.x, p.y, p.z, 90)); i++) p.y = s.yMax + 130;
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
-  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
+  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
@@ -4956,7 +5173,7 @@ function respawn() {
 function boltsClear() { for (const b of bolts) scene.remove(b.mesh); bolts.length = 0; }
 /* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. v24: el daño se lo lleva primero la armadura y lo que sobra, la vida. */
 function hurtDragon(n, why, light) {
-  if (cine.on) return;                                     // v26: la entrada de cine no se interrumpe
+  if (cine.on || devCheat('god')) return;                  // v26: la entrada de cine no se interrumpe (v27: ni en Dev Test con «invulnerable»)
   F.lastHit = gameTime; stats.dmgTaken += n;
   const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
@@ -5268,45 +5485,73 @@ function updateAttacks(dt) {
   const on = state === 'playing', fl = on && W.flame, la = on && W.laser > 0;
   if (fl || la || W.snd) { sfx.breath(fl ? 1 : 0, la ? 1 : 0); W.snd = fl || la; }
   if (!la) { for (const L of BEAM_LAYERS) L[0].visible = false; for (const b of beamBallList) b.visible = false; }
-  if (!on) { W.shotQ = false; W.mslQ = null; return; }
+  if (!on) { W.shotQ = false; W.mslQ = null; impactMark(false); return; }
+  // v27: el punto de la mira (lo que toca el rayo de la mira desde la cámara) y hasta dónde llegaría la llamarada (círculo de impacto, 13b)
+  heroMouth(_bS); camera.getWorldPosition(_bC);
+  F.aimPt.copy(aimPointFrom(_bC, F.aimWorld));
+  const reach = flameAim();
+  impactMark(!cine.on && !la && FL.kind !== '' && reach <= FLAME_RANGE, _bF, FL.kind, fl, reach);
   if (W.shotQ) { W.shotQ = false; fireGun(); }
   if (W.mslQ) { const e = W.mslQ; W.mslQ = null; if (!e.dead && W.msl > 0) launchMissile(e); }
   if (!fl && !la) {
     if (W.overheat > 0 && Math.random() < 0.45) {      // vapor por la boca mientras se enfría
-      heroMouth(_bS);
       emit(fxSmoke, _bS.x, _bS.y, _bS.z, dragonVel.x * 0.9 + rnd(-2, 2), dragonVel.y * 0.9 + rnd(2, 6), dragonVel.z * 0.9 + rnd(-2, 2), rnd(0.5, 0.8), 0.8, rnd(4, 7), 0.8, 0.8, 0.82, 0.3, 0.6, -3);
     }
     return;
   }
-  heroMouth(_bS); camera.getWorldPosition(_bC);
-  if (fl) flameFx(dt); else laserFx(dt);
+  if (fl) flameFx(dt, reach); else laserFx(dt);
 }
-function flameFx(dt) {
-  _bE.copy(_bC).addScaledVector(F.aimWorld, FLAME_RANGE);                    // hacia la mira, a la distancia del alcance
-  _bD.subVectors(_bE, _bS).normalize(); perpBasis();
-  // llamas: viajan con el dragón (heredan su velocidad) y salen a FLAME_SPEED, así que el chorro mide FLAME_RANGE y se curva al girar
-  const c = ATTACK, n = Math.round(800 * dt + Math.random());
+/* v27: dirección (_bD, con _bX y _bU) y alcance de la llamarada desde la boca (_bS): va de la boca al punto de la mira (F.aimPt), así que llega
+   justo a la mira aunque la boca esté por delante y por debajo de la cámara (antes iba en paralelo a la línea de la mira y, cerca del suelo,
+   caía lejos de ella). Devuelve la distancia hasta lo primero que toca del terreno, el agua o una isla (FL.kind; si no toca nada en
+   FLAME_RANGE + 1 m, FL.kind = '' y devuelve ese tope); el punto, en _bF. */
+const FL = { kind: '' };
+function flameAim() {
+  _bD.subVectors(F.aimPt, _bS); if (_bD.lengthSq() < 4) _bD.copy(F.aimWorld); _bD.normalize(); perpBasis();
+  const maxT = FLAME_RANGE + 1, tIsl = islandRayHit(_bS, _bD, maxT), lim = Math.min(maxT, tIsl);
+  let t = 1.5, last = 0;
+  FL.kind = '';
+  while (t < lim) {
+    _bF.copy(_bS).addScaledVector(_bD, t);
+    if (_bF.y < Math.max(heightAt(_bF.x, _bF.z), WL)) {
+      let a = last, b = t;
+      for (let i = 0; i < 7; i++) { const m = (a + b) / 2; _bF.copy(_bS).addScaledVector(_bD, m); if (_bF.y < Math.max(heightAt(_bF.x, _bF.z), WL)) b = m; else a = m; }
+      _bF.copy(_bS).addScaledVector(_bD, b); FL.kind = heightAt(_bF.x, _bF.z) < WL ? 'agua' : 'tierra';
+      return b;
+    }
+    last = t; t += Math.max(2.5, t * 0.035);
+  }
+  if (tIsl < maxT) { _bF.copy(_bS).addScaledVector(_bD, tIsl); FL.kind = 'isla'; return tIsl; }
+  _bF.copy(_bS).addScaledVector(_bD, maxT);
+  return maxT;
+}
+function flameFx(dt, reach) {
+  // llamas: viajan con el dragón (heredan su velocidad) y salen a FLAME_SPEED; el chorro mide FLAME_RANGE o, si antes toca el terreno, el agua o
+  // una isla, llega justo hasta ahí (vistas desde el dragón van en línea recta de la boca a la mira)
+  const c = ATTACK, n = Math.round(800 * dt + Math.random()), len = Math.min(FLAME_RANGE, reach);
   for (let i = 0; i < n; i++) {
     const sp = FLAME_SPEED * rnd(0.9, 1.1), a = Math.random() * 6.283, s = rnd(0, 0.11), cx = Math.cos(a) * s, cy = Math.sin(a) * s, o = rnd(0, dt);
     const vx = (_bD.x + _bX.x * cx + _bU.x * cy) * sp, vy = (_bD.y + _bX.y * cx + _bU.y * cy) * sp, vz = (_bD.z + _bX.z * cx + _bU.z * cy) * sp;
-    const hot = Math.random() < 0.3, life = FLAME_RANGE / sp * rnd(0.7, 1.05);
+    const hot = Math.random() < 0.3, life = len / sp * (len < FLAME_RANGE ? rnd(0.85, 1) : rnd(0.7, 1.05));
     emit(fxAdd, _bS.x + vx * o, _bS.y + vy * o, _bS.z + vz * o, vx + dragonVel.x, vy + dragonVel.y, vz + dragonVel.z,
       hot ? life * 0.4 : life, hot ? 0.8 : rnd(1, 1.8), hot ? 5 : rnd(15, 24),
-      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, -8);   // sin saturar a blanco encima de la mira
+      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, len < FLAME_RANGE ? 0 : -8);   // sin saturar a blanco encima de la mira
   }
-  // daño: cono de FLAME_RANGE m que se abre un 11 % de la distancia
-  const amt = FLAME_DPS * dt;
+  // v27: donde toca (terreno, agua o isla): tierra que salta y quemaduras, vapor o roca (13b)
+  if (reach <= FLAME_RANGE) flameImpact(FL.kind, _bF, dt, reach);
+  // daño: cono de FLAME_RANGE m que se abre un 11 % de la distancia (v27: no pasa a través del terreno ni de las islas)
+  const amt = FLAME_DPS * dt, lim = Math.min(FLAME_RANGE, reach + 4);
   for (const e of enemies) {
     if (e.dead) continue;
     _bM.subVectors(e.pos, _bS); const along = _bM.dot(_bD);
-    if (along < -ENEMY_HIT_R || along > FLAME_RANGE + ENEMY_HIT_R) continue;
-    const r = ENEMY_HIT_R + 2 + clamp(along, 0, FLAME_RANGE) * 0.11;
-    if (_bM.lengthSq() - along * along < r * r) damageEnemy(e, amt, _bM.copy(_bS).addScaledVector(_bD, clamp(along, 0, FLAME_RANGE)), true);
+    if (along < -ENEMY_HIT_R || along > lim + ENEMY_HIT_R) continue;
+    const r = ENEMY_HIT_R + 2 + clamp(along, 0, lim) * 0.11;
+    if (_bM.lengthSq() - along * along < r * r) { _bM.copy(_bS).addScaledVector(_bD, clamp(along, 0, lim)); damageEnemy(e, amt, _bM, true); flameHit(_bM, dt); }
   }
-  _bF.copy(_bS).addScaledVector(_bD, FLAME_RANGE);
-  for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) damageTower(t, amt, true, _sdc);   // _sdc: punto de la llamarada más cercano a la torre
-  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);       // v21: dirigibles
-  fbLight.position.copy(_bS).addScaledVector(_bD, 40); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
+  _bF.copy(_bS).addScaledVector(_bD, lim);
+  for (const t of towers.values()) if (!t.dead && towerSegDist2(t, _bS, _bF) < (TOWER_R + 12) ** 2) { damageTower(t, amt, true, _sdc); flameHit(_sdc, dt); }   // _sdc: punto de la llamarada más cercano a la torre
+  for (const a of airships) if (!a.dead && airshipSegDist2(a, _bS, _bF) < (a.r + 12) ** 2) { damageAirship(a, amt, true, _sdc); flameHit(_sdc, dt); }      // v21: dirigibles
+  fbLight.position.copy(_bS).addScaledVector(_bD, Math.min(40, len * 0.5)); fbLight.intensity = 4.5; fbLight.color.copy(ATTACK);
 }
 /* Llamarada corta sin sonido ni temblor (impacto del rayo contra el terreno). */
 function burstFx(x, y, z, c) {
@@ -5374,7 +5619,7 @@ const LOOK_FP_YAW = 170 * Math.PI / 180, LOOK_FP_PITCH = [-1.1, 1.0], LOOK_TP_PI
    mirar alrededor: en 1ª persona, la cabeza del jinete (hasta LOOK_FP_YAW); en 3ª, la cámara orbita y deja al dragón delante, entre ella y el
    blanco. El ratón sigue moviendo la mira (puede salirse de la pantalla). Sin blanco fijado, al pulsar fija el mejor a la vista
    (cycleTarget); si no hay ninguno, no hace nada. La Z manda sobre la F. */
-const TARGET_CAM_W = 6;
+let TARGET_CAM_W = 6;                                    // (let: panel de pruebas)
 const _tq = new THREE.Quaternion();
 function updateLook(dt) {
   F.lookHeld = !!keys.KeyZ && state === 'playing' && !cine.on;
@@ -5441,7 +5686,7 @@ function updateAim(dt, auto) {
     yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
     _l.set(Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit));
     F.aimWorld.copy(_l).applyQuaternion(q);
-  } else if (!F.lookHeld && !F.tgtCam) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
+  } else if (!F.lookHeld && !F.tgtCam && !DEV.open) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
     const t = Math.tan(camera.fov * Math.PI / 360);
     _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize().applyQuaternion(camera.quaternion).applyQuaternion(q);
     F.aimWorld.copy(_l);
@@ -5454,6 +5699,7 @@ function updateAim(dt, auto) {
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
   if (!auto && cine.on) cineUpdate(dt);                    // v26: entrada de cine (sin control hasta que acaba)
+  if (!auto && mission.dev) devUpdate(dt);                 // v27: trucos del modo Dev Test
   const ctl = !auto && !cine.on;                           // las teclas de vuelo cuentan
   const hov = !auto && F.hover;
   F.hoverK += ((hov ? 1 : 0) - F.hoverK) * (1 - Math.exp(-dt * 3));
@@ -5517,19 +5763,20 @@ function updateFlight(dt, auto) {
   const maxRate = lerp(TURN_RATE[0], TURN_RATE[1], sn), steer = lerp(1, BOOST_STEER, F.boostFx);   // (v24: TURN_RATE sale del radio de giro del dragón)
   F.steer.lerp(F.aimLocal, 1 - Math.exp(-dt * STEER_LAG)).normalize();   // v13: el dragón persigue la mira con un poco de retraso
   let a = F.steer;
-  // v26: vuelo recto (Espacio mantenido): el dragón deja de seguir a la mira y mantiene la dirección que llevaba (rumbo y pendiente del morro).
-  // Los primeros STRAIGHT_SETTLE s solo frena el giro que traía; después fija esa dirección y levanta el morro lo justo para compensar el leve
-  // hundimiento (sink): la trayectoria va justo hacia donde apuntaba el morro, así que en vuelo nivelado no pierde altura. La mira sigue al
-  // ratón; el cuello y los ataques la siguen (animateTyrant).
+  // v26: vuelo recto (Espacio mantenido): el dragón deja de seguir a la mira. v27: además se autonivela: alas a 0° y morro al horizonte, con
+  // el rumbo que llevaba (los primeros STRAIGHT_SETTLE s solo frena el giro que traía; luego fija ese rumbo). El morro se levanta lo justo
+  // para compensar el leve hundimiento (sink): vuela perfectamente horizontal. Q/E no cuentan. La mira sigue al ratón; la cabeza y la
+  // llamarada van hacia ella (F.aimPt) y la cámara pasa a la de apuntado (animateHero).
   const straight = ctl && !!keys.Space;
   if (straight) {
     if (!F.straight) F.straightT = 0;
     F.straightT += dt;
-    if (hov || F.straightT < STRAIGHT_SETTLE) {             // (en hover: sin girar hacia la mira, el morro se queda donde está)
-      F.holdDir.set(0, 0, -1).applyQuaternion(q); if (hov) F.holdDir.y = 0;
+    if (hov || F.straightT < STRAIGHT_SETTLE) {             // rumbo: el de ahora (en hover, siempre: sin girar hacia la mira)
+      F.holdDir.set(0, 0, -1).applyQuaternion(q); F.holdDir.y = 0;
+      if (F.holdDir.lengthSq() < 0.0025) { F.holdDir.set(0, 1, 0).applyQuaternion(q); F.holdDir.y = 0; }   // (en vertical: hacia donde mira el lomo)
       F.holdDir.normalize();
     }
-    _l.copy(F.holdDir); if (!hov && F.straightT >= STRAIGHT_SETTLE) _l.y += clamp(F.sink / Math.max(F.speed, 1), 0, 0.3);
+    _l.copy(F.holdDir); if (!hov) _l.y = clamp(F.sink / Math.max(F.speed, 1), 0, 0.3);
     a = _l.normalize().applyQuaternion(_iq.copy(q).invert());
   }
   F.straight = straight;
@@ -5546,8 +5793,8 @@ function updateFlight(dt, auto) {
     tRoll = -clamp(rollAng * 3.0, -1.8, 1.8) * (1 - smooth(0.9, 0.99, Math.abs(_f.y)));
   } else {
     tRoll = ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 1.9;
-    if (!ctl) tRoll = 0;
-    if ((ctl && keys.KeyX) || !ctl) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);   // v26: nivelar pasa de la R a la X (la R es el escudo); en la entrada de cine, solo
+    if (!ctl || straight) tRoll = 0;
+    if ((ctl && keys.KeyX) || !ctl || straight) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);   // v26: nivelar pasa de la R a la X (la R es el escudo); en la entrada de cine y (v27) en vuelo recto, solo
   }
   const k = 1 - Math.exp(-dt * lerp(RATE_RESP[0], RATE_RESP[1], F.boostFx));
   F.rate.y += (tYaw - F.rate.y) * k; F.rate.p += (tPit - F.rate.p) * k; F.rate.r += (tRoll - F.rate.r) * k;
@@ -6060,7 +6307,7 @@ function drawHUD() {
   const heading = ((Math.atan2(fwd.x, -fwd.z) * 180 / Math.PI) + 360) % 360;
   if (F.boostFx > 0.02 || F.kickFx > 0.02) drawSpeedLines(F.boostFx, F.kickFx);
   drawCompass(heading);
-  if (!F.third) drawLadder(fwd);
+  if (dragonAnim.cam < 0.5) drawLadder(fwd);                 // (v27: en 1ª persona de verdad; la cámara de apuntado la saca)
   drawMarkers(fwd);
   drawEnemyMarkers();
   drawRadar(heading, fwd);
@@ -6123,11 +6370,14 @@ function drawHUD() {
   }
   hudText('PUNTOS  ' + towerState.score, HW - 28, oy, FM(15), C_GOLD, 'right');
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
+  if (mission.dev) hudText('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, FM(12), DEV.fps ? C_GOLD : C_DIM);   // v27
   hctx.shadowBlur = 0;
 }
 
 /* ---------- Mundo: actualizaciones por fotograma ---------- */
-const _cp = new THREE.Vector3();
+const _cp = new THREE.Vector3(), _cpA = new THREE.Vector3(), _cpH = new THREE.Vector3(), _cpQ = new THREE.Quaternion();
+const FOV_BASE = [76, 88];                                 // campo de visión vertical (°) despacio y a la velocidad de crucero (v27: con nombre, para el panel de pruebas)
+const HEAD_BASE = new THREE.Vector3(0, 1.5, -6);           // v27: base del cuello en ejes del dragón (desde ahí mira la cabeza al punto de la mira)
 let islT = 0, towerT = 0, prevFlapSin = 0, lastBeep = 0, fpsEMA = 60;
 function updateWorld(dt) {
   const p = dragon.position;
@@ -6138,10 +6388,15 @@ function updateWorld(dt) {
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
   updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado)
-  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt);
+  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateScorch(); devDebug();   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: F.aimLocal, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY) });
+  // v27: en partida, la cabeza mira al punto de la mira (F.aimPt) desde la base del cuello, no en la dirección de la mira desde la cámara (cerca
+  // del suelo no es lo mismo); y en vuelo recto (Espacio) entra la cámara de apuntado (AIM_CAM, en animateHero)
+  const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
+  let headAim = F.aimLocal, aimPt = null;
+  if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt });
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
     camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
@@ -6156,7 +6411,7 @@ function updateWorld(dt) {
     camera.rotation.y += (Math.sin(t * 64 + 0.7) * 0.6 + Math.sin(t * 47 + 2.1) * 0.4) * bsh;
     camera.rotation.z += Math.sin(t * 58 + 0.3) * bsh * 0.6;
   }
-  const fov = lerp(76, 88, clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
+  const fov = lerp(FOV_BASE[0], FOV_BASE[1], clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
   if (Math.abs(fov - camera.fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
   updateWind(F.boostFx);
   const sc = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
@@ -6295,7 +6550,7 @@ const TUTORIAL = [
       'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde apunta el morro en ese momento; cuando los dos coinciden, vuelas recto.',
       'Cuanto más lejos del morro pongas la mira, más cerrado será el giro. A poca velocidad el dragón gira más deprisa; a mucha, los giros son más abiertos.',
       'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.',
-      'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira y mantiene la trayectoria que llevaba, sin perder altura, mientras la mira sigue al ratón y la cabeza del dragón la sigue. Sirve, por ejemplo, para barrer el suelo con la llamarada en un vuelo rasante sin bajar más. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira.'] },
+      'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira, se nivela solo (alas y morro) y vuela horizontal con el rumbo que llevaba, mientras la mira sigue al ratón y la cabeza del dragón la sigue. La cámara pasa a la de <b>apuntado</b>, detrás y por encima del dragón, para ver el suelo al que apuntas. Sirve para barrer el suelo con la llamarada en una pasada rasante. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira y la cámara a la de antes.'] },
     { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
       'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
@@ -6334,6 +6589,7 @@ const TUTORIAL = [
       'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de {llamas_alcance} m que quema todo lo que toca ({llamas_dano} de daño por segundo). Sirve para torres y para dragones que tienes encima.',
+      'Si el suelo (o el agua, o una isla) está a su alcance en la dirección de la mira, un <b>círculo blanco</b> marca dónde caerá. Al tocarlo, la tierra salta y deja una mancha quemada que dura un minuto; en el agua levanta vapor.',
       'Se calienta: el arco a la derecha de la mira se llena en {llamas_sobrecarga} s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
     { id: 'rayo', title: 'Rayo de fuego', sum: 'El ataque definitivo: un rayo larguísimo durante unos segundos.', keys: [[['Clic izq.', 'Clic dcho.'], 'A la vez, con la barra llena']], text: [
       'Su barra, la última del panel de <b>ARMAS</b>, se llena con el tiempo ({rayo_recarga} % por segundo) y un {rayo_por_derribo} % más por cada enemigo que destruyes (dragón, torre o dirigible). Llena, parpadea y pone <b>LISTO</b>.',
@@ -6807,6 +7063,26 @@ const MISSIONS = {
       { when: { done: ['dirigibles', 'baterias', 'alfa'] }, do: [{ say: ['mando', 'Objetivos cumplidos. Buen trabajo, jinete.'] }] },
       { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
     ]
+  },
+  /* v27: Dev Test (pedido por Jorge): el combate libre con los trucos del panel de pruebas (19d: invulnerable, munición infinita…) y, con
+     Tab, el panel para cambiar en directo trucos, stats, vuelo y cámara. Sin final ni entrada de cine. dev: true lo activa. */
+  devtest: {
+    name: 'Dev Test', place: 'Mundo abierto', free: true, dev: true,
+    world: { seed: null, biome: 'valle' },
+    start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 0,
+    area: null,
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 30, zone: [1500, 9000], islands: [10, 15], random: true },
+    dragons: { total: 200, atOnce: 6 },
+    objectives: [
+      { id: 'torres', text: 'Destruye las torres de cristal', hud: 'TORRES', target: 'tower', count: 30 },
+      { id: 'dragones', text: 'Derriba a los dragones enemigos', hud: 'DRAGONES', target: 'dragon', count: 200 }
+    ],
+    radio: {},
+    events: []
   },
   /* Combate libre: la partida de la v14 tal cual (sin límites, reapareciendo al caer; mundo al azar al abrir el juego y torres nuevas en
      cada partida). */
@@ -7483,6 +7759,7 @@ function applyStats(vals, src) {
   if (ally.e) ally.e.vmax = ALLY_VMAX;
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();
+  if (src !== 'panel de pruebas' && typeof devStatsSnap === 'function') devStatsSnap();   // v27: referencia del panel de pruebas (19d)
   statsShowInfo();
 }
 const inflateRawWeb = async u8 => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer());
@@ -7530,6 +7807,209 @@ function statText(s) {
     return typeof v === 'number' ? fmtStat(v) : m;
   });
 }
+
+/* ============================================================
+   M4. MODO DEV TEST Y PANEL DE PRUEBAS (v27)
+   Petición de Jorge: un modo de juego igual que el combate libre pero con trucos (receta «devtest», mission.dev) y una pantalla de pruebas
+   con controles en directo. Tab abre y cierra el panel sin parar la partida (suelta el ratón; un clic en el juego también lo cierra).
+   Mientras está abierto, la mira se queda quieta y el dragón sigue recto.
+   · Trucos (DEV): invulnerable, sin choques, munición, guiadas, boost y escudos infinitos, sin sobrecalentamiento y rayo siempre listo.
+     Solo valen en el modo Dev Test (devCheat; devUpdate cada fotograma desde updateFlight).
+   · Stats en vivo: las del Excel de la unidad elegida (tu dragón, el dragón enemigo, la torre, el dirigible o Lance), con sus nombres y
+     secciones de STATS_SCHEMA. Se aplican al momento (applyStats con la fuente «panel de pruebas»). En dorado, las que ya no son las del
+     Excel. «Copiar cambios» deja en el portapapeles la lista para pasarla al Excel; «Volver al Excel», las de antes. Si el Excel cambia
+     con el juego abierto (Jugar.bat), manda el Excel.
+   · Vuelo y cámara: sensación de vuelo, cámaras (1ª, 3ª, apuntado, objetivo) y campo de visión. «Copiar ajustes» deja los valores con el
+     nombre de su constante, para fijarlos después en el código.
+   · Depuración: FPS, hitboxes (dragones, Lance, el jugador y las torres), duración de las quemaduras, entrada de cine y reaparecer.
+   ============================================================ */
+const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '' };
+const DEV_SRC = 'panel de pruebas';
+const devEl = document.getElementById('dev');
+const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
+function devCheat(k) { return !!(mission.dev && DEV[k]); }
+/* applyStats llama aquí cada vez que llegan stats que no son del panel. */
+function devStatsSnap() { devStats.base = JSON.parse(JSON.stringify(STATS)); if (DEV.open) devBuildStats(); }
+
+/* ---------- Trucos (cada fotograma, en el modo Dev Test) ---------- */
+function devUpdate(dt) {
+  if (state !== 'playing') return;
+  if (DEV.god) { F.health = heroHpMax(); F.armor = ARMOR_MAX; }
+  if (DEV.ammo) W.ammo = GUN_AMMO;
+  if (DEV.msl) W.msl = Math.max(1, MSL_AMMO);
+  if (DEV.boost) { F.boost = 1; F.boostExhausted = false; }
+  if (DEV.shield) W.shield = Math.max(1, SHIELD_MAX);
+  if (DEV.heat) { W.heat = 0; W.overheat = 0; }
+  if (DEV.ult && W.laser <= 0) W.ult = 1;
+}
+
+/* ---------- Abrir y cerrar ---------- */
+const devInGame = () => state === 'playing' || state === 'paused' || state === 'dead';
+function devPanel(open) {
+  if (open && !(mission.dev && devInGame())) return;
+  DEV.open = !!open; devEl.hidden = !open;
+  if (open) { devBuild(); if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); } }
+  else { if (document.activeElement && devEl.contains(document.activeElement)) document.activeElement.blur(); if (state === 'playing') { requestLock(); canvasGL.focus(); } }
+}
+window.addEventListener('keydown', e => {
+  if (e.code !== 'Tab' || !mission.dev || !devInGame()) return;
+  e.preventDefault(); if (!e.repeat) devPanel(!DEV.open);
+});
+
+/* ---------- Controles ---------- */
+const devNum = v => Math.abs(v) >= 100 ? Math.round(v * 10) / 10 : Math.abs(v) >= 10 ? Math.round(v * 100) / 100 : Math.round(v * 1000) / 1000;
+function devEl$(tag, cls, text, parent) { const el = document.createElement(tag); if (cls) el.className = cls; if (text != null) el.textContent = text; if (parent) parent.appendChild(el); return el; }
+function devSection(title, open) { const d = devEl$('details', '', null, devEl); d.open = !!open; devEl$('summary', '', title, d); return d; }
+function devCheck(parent, label, key, onChange) {
+  const l = devEl$('label', 'd-chk', null, parent), c = devEl$('input', '', null, l); c.type = 'checkbox'; c.checked = !!DEV[key];
+  devEl$('span', '', label, l);
+  c.addEventListener('change', () => { DEV[key] = c.checked; if (onChange) onChange(c.checked); });
+  return c;
+}
+function devButton(parent, label, fn) { const b = devEl$('button', '', label, parent); b.type = 'button'; b.addEventListener('click', fn); return b; }
+/* Fila con nombre, deslizador y casilla numérica. o = { label, get, set, min, max, step, base (valor de referencia para marcarlo si cambia), title } */
+function devSlider(parent, o) {
+  const row = devEl$('div', 'd-row', null, parent), name = devEl$('span', '', o.label, row), r = devEl$('input', '', null, row), n = devEl$('input', '', null, row);
+  if (o.title) name.title = o.title; else name.title = o.label;
+  r.type = 'range'; n.type = 'number'; r.min = o.min; r.max = o.max; r.step = o.step; n.step = o.step;
+  const show = v => { r.value = v; n.value = devNum(v); name.classList.toggle('chg', o.base != null && Math.abs(v - o.base) > 1e-9); };
+  show(o.get());
+  const put = v => { if (!isFinite(v)) return; if (v > +r.max) r.max = v; o.set(v); show(o.get()); };
+  r.addEventListener('input', () => put(+r.value));
+  n.addEventListener('change', () => put(+n.value));
+  return row;
+}
+/* Rango y paso de un deslizador para un valor v con valor por defecto def. */
+function devRange(def, v) {
+  const top = Math.max(Math.abs(def) * 3, Math.abs(v) * 1.5, 1), p = Math.pow(10, Math.floor(Math.log10(top))), max = Math.ceil(top / p) * p;
+  const intish = Number.isInteger(def) && Number.isInteger(v) && max >= 20;
+  return { min: 0, max, step: intish ? 1 : Math.max(0.001, +(max / 200).toPrecision(1)) };
+}
+function devCopy(text, what) {
+  const done = () => toast(what + ' copiados al portapapeles');
+  try { navigator.clipboard.writeText(text).then(done, () => { console.log(text); toast('No se pudo copiar: están en la consola (F12)'); }); }
+  catch (err) { console.log(text); toast('No se pudo copiar: están en la consola (F12)'); }
+}
+
+/* ---------- El panel ---------- */
+function devBuild() {
+  devEl.textContent = '';
+  const head = devEl$('div', 'd-head', null, devEl); devEl$('b', '', 'DEV TEST', head); devEl$('span', 'd-hint', 'Tab: cerrar · clic en el juego: volver', head);
+  // Trucos
+  const t = devSection('Trucos', true);
+  devCheck(t, 'Invulnerable (sin daño)', 'god');
+  devCheck(t, 'Sin choques (atraviesa terreno, islas y torres)', 'noCrash');
+  devCheck(t, 'Munición infinita (fuego rápido)', 'ammo');
+  devCheck(t, 'Bolas guiadas infinitas', 'msl');
+  devCheck(t, 'Boost infinito', 'boost');
+  devCheck(t, 'Escudos infinitos', 'shield');
+  devCheck(t, 'Sin sobrecalentamiento', 'heat');
+  devCheck(t, 'Rayo siempre listo', 'ult');
+  // Stats en vivo
+  devStats.sec = devSection('Stats en vivo', false);
+  devBuildStats();
+  // Vuelo y cámara
+  const v = devSection('Vuelo y cámara', false);
+  devFeel.forEach(d => { if (typeof d === 'string') devEl$('div', 'd-sub', d, v); else devSlider(v, Object.assign({ base: devFeelBase[d.key] }, d)); });
+  const vb = devEl$('div', 'd-btns', null, v);
+  devButton(vb, 'Copiar ajustes', () => devCopy(devFeel.filter(d => typeof d !== 'string').map(d => d.key + ' = ' + devNum(d.get()) + (Math.abs(d.get() - devFeelBase[d.key]) > 1e-9 ? '   (antes ' + devNum(devFeelBase[d.key]) + ')' : '')).join('\n'), 'Ajustes'));
+  devButton(vb, 'Restablecer', () => { devFeel.forEach(d => { if (typeof d !== 'string') d.set(devFeelBase[d.key]); }); devBuild(); });
+  // Depuración
+  const g = devSection('Depuración', false);
+  devCheck(g, 'Mostrar FPS', 'fps');
+  devCheck(g, 'Hitboxes (dragones, Lance, tú y las torres)', 'hitbox');
+  devEl$('div', 'd-sub', 'Quemaduras de la llamarada', g);
+  devSlider(g, { label: 'Duración (s)', get: () => SCORCH.life, set: x => SCORCH.life = Math.max(1, x), min: 5, max: 300, step: 1, base: 60 });
+  devSlider(g, { label: 'Desvanecido final (s)', get: () => SCORCH.fade, set: x => SCORCH.fade = Math.max(0.5, x), min: 1, max: 120, step: 1, base: 20 });
+  devSlider(g, { label: 'Brasas (s)', get: () => SCORCH.glow, set: x => { SCORCH.glow = Math.max(0.5, x); scorchMesh.material.uniforms.uGlow.value = SCORCH.glow; }, min: 0.5, max: 20, step: 0.5, base: 5 });
+  const gb = devEl$('div', 'd-btns', null, g);
+  devButton(gb, 'Borrar quemaduras', scorchClear);
+  devButton(gb, 'Probar la entrada de cine', () => { if (state === 'playing') cineStart(CINE_T, mission.name, 'Prueba de la entrada de cine'); });
+  devButton(gb, 'Reaparecer', () => { if (state === 'playing' || state === 'dead') respawn(); });
+}
+/* Stats en vivo de la unidad elegida (DEV.unit; por defecto, tu dragón). */
+function devBuildStats() {
+  const s = devStats.sec; if (!s) return;
+  while (s.children.length > 1) s.removeChild(s.lastChild);
+  const units = STATS_TABS.filter(T => T.unit !== 'base' && (T.kind !== 'dragon' || T.unit === alt.id));
+  if (!units.some(T => T.unit === DEV.unit)) DEV.unit = alt.id;
+  const sel = devEl$('select', '', null, s);
+  for (const T of units) { const o = devEl$('option', '', T.kind === 'dragon' ? 'Tu dragón: ' + T.tab : T.tab, sel); o.value = T.unit; }
+  sel.value = DEV.unit; sel.addEventListener('change', () => { DEV.unit = sel.value; devBuildStats(); });
+  const T = units.find(x => x.unit === DEV.unit), base = devStats.base && devStats.base[DEV.unit];
+  for (const row of STATS_SCHEMA[T.kind]) {
+    if (!Array.isArray(row)) { devEl$('div', 'd-sub', row.sec, s); continue; }
+    const [key, name, unit, def, desc] = row, cur = STATS[DEV.unit][key];
+    devSlider(s, Object.assign(devRange(def, cur), { label: name + (unit ? ' (' + unit + ')' : ''), title: desc || name, base: base ? base[key] : null,
+      get: () => STATS[DEV.unit][key], set: x => { STATS[DEV.unit][key] = x; applyStats(STATS, DEV_SRC); } }));
+  }
+  const b = devEl$('div', 'd-btns', null, s);
+  devButton(b, 'Copiar cambios', () => {
+    const out = [];
+    for (const U of STATS_TABS) for (const row of STATS_SCHEMA[U.kind]) {
+      if (!Array.isArray(row) || !devStats.base || !devStats.base[U.unit]) continue;
+      const a = devStats.base[U.unit][row[0]], v = STATS[U.unit][row[0]];
+      if (Math.abs(a - v) > 1e-9) out.push(U.tab + ' · ' + row[1] + ': ' + devNum(v) + '   (Excel: ' + devNum(a) + ')');
+    }
+    if (!out.length) { toast('No hay cambios respecto al Excel'); return; }
+    devCopy(out.join('\n'), 'Cambios');
+  });
+  devButton(b, 'Volver al Excel', () => { if (devStats.base) { applyStats(JSON.parse(JSON.stringify(devStats.base)), statsInfo.src === DEV_SRC ? 'excel' : statsInfo.src); devBuildStats(); } });
+}
+/* Sensación de vuelo y cámaras: la constante, su valor y su rango. (Los ángulos, en grados en el panel.) */
+const devDeg = 180 / Math.PI;
+const devFeel = [
+  'Vuelo',
+  { key: 'STEER_LAG', label: 'Retraso al seguir la mira (1/s)', get: () => STEER_LAG, set: x => STEER_LAG = x, min: 2, max: 30, step: 0.5 },
+  { key: 'STEER_GAIN', label: 'Fuerza de giro hacia la mira', get: () => STEER_GAIN, set: x => STEER_GAIN = x, min: 0.5, max: 5, step: 0.1 },
+  { key: 'RATE_RESP[0]', label: 'Respuesta del giro (1/s)', get: () => RATE_RESP[0], set: x => RATE_RESP[0] = x, min: 1, max: 15, step: 0.5 },
+  { key: 'BANK_GAIN', label: 'Alabeo al virar', get: () => BANK_GAIN, set: x => BANK_GAIN = x, min: 0, max: 1, step: 0.02 },
+  { key: 'BANK_MAX', label: 'Alabeo máximo (°)', get: () => BANK_MAX * devDeg, set: x => BANK_MAX = x / devDeg, min: 0, max: 80, step: 1 },
+  { key: 'BODY_SPRING[0]', label: 'Muelle del cuerpo: frecuencia', get: () => BODY_SPRING[0], set: x => BODY_SPRING[0] = x, min: 1, max: 15, step: 0.5 },
+  { key: 'BODY_SPRING[1]', label: 'Muelle del cuerpo: amortiguación', get: () => BODY_SPRING[1], set: x => BODY_SPRING[1] = x, min: 0.1, max: 1.5, step: 0.05 },
+  'Cámaras',
+  { key: 'CAM_LAG[0]', label: 'Retraso 1ª persona (1/s)', get: () => CAM_LAG[0], set: x => CAM_LAG[0] = x, min: 1, max: 30, step: 0.5 },
+  { key: 'CAM_LAG[1]', label: 'Retraso 3ª persona (1/s)', get: () => CAM_LAG[1], set: x => CAM_LAG[1] = x, min: 1, max: 20, step: 0.2 },
+  { key: 'HERO_CAM[0]', label: '3ª persona: altura (m)', get: () => HERO_CAM[0], set: x => HERO_CAM[0] = x, min: 0, max: 30, step: 0.5 },
+  { key: 'HERO_CAM[1]', label: '3ª persona: distancia (m)', get: () => HERO_CAM[1], set: x => HERO_CAM[1] = x, min: 5, max: 60, step: 0.5 },
+  { key: 'FOV_BASE[0]', label: 'Campo de visión (°)', get: () => FOV_BASE[0], set: x => FOV_BASE[0] = x, min: 50, max: 110, step: 1 },
+  { key: 'FOV_BASE[1]', label: 'Campo de visión a toda velocidad (°)', get: () => FOV_BASE[1], set: x => FOV_BASE[1] = x, min: 50, max: 120, step: 1 },
+  { key: 'TARGET_CAM_W', label: 'Cámara al objetivo (F): rapidez', get: () => TARGET_CAM_W, set: x => TARGET_CAM_W = x, min: 1, max: 15, step: 0.5 },
+  'Cámara de apuntado (Espacio)',
+  { key: 'AIM_CAM.d', label: 'Distancia (m)', get: () => AIM_CAM.d, set: x => AIM_CAM.d = x, min: 8, max: 60, step: 0.5 },
+  { key: 'AIM_CAM.elev', label: 'Elevación (°)', get: () => AIM_CAM.elev * devDeg, set: x => AIM_CAM.elev = x / devDeg, min: 0, max: 60, step: 1 },
+  { key: 'AIM_CAM.mix', label: 'Mira al dragón (0) o a la mira (1)', get: () => AIM_CAM.mix, set: x => AIM_CAM.mix = x, min: 0, max: 1, step: 0.02 },
+  { key: 'AIM_CAM.yawK', label: 'Giro hacia el lado de la mira', get: () => AIM_CAM.yawK, set: x => AIM_CAM.yawK = x, min: 0, max: 1, step: 0.05 },
+  { key: 'AIM_CAM.follow', label: 'Suavizado (1/s)', get: () => AIM_CAM.follow, set: x => AIM_CAM.follow = x, min: 1, max: 20, step: 0.5 },
+  { key: 'AIM_CAM.blend', label: 'Entrada y salida (1/s)', get: () => AIM_CAM.blend, set: x => AIM_CAM.blend = x, min: 1, max: 12, step: 0.5 },
+  { key: 'HERO_LOOK_DOWN', label: 'Cabeza hacia abajo, máximo (°)', get: () => HERO_LOOK_DOWN * devDeg, set: x => HERO_LOOK_DOWN = x / devDeg, min: 30, max: 95, step: 1 }
+];
+const devFeelBase = {}; for (const d of devFeel) if (typeof d !== 'string') devFeelBase[d.key] = d.get();
+
+/* ---------- Depuración: hitboxes y FPS ---------- */
+const devHit = { pool: [], geo: new THREE.WireframeGeometry(new THREE.SphereGeometry(1, 14, 10)), cyl: new THREE.WireframeGeometry(new THREE.CylinderGeometry(1, 1, 1, 14, 1, true)) };
+function devHitBox(i, cyl, color) {
+  let m = devHit.pool[i];
+  if (!m || m.userData.cyl !== cyl) {
+    if (m) scene.remove(m);
+    m = devHit.pool[i] = new THREE.LineSegments(cyl ? devHit.cyl : devHit.geo, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.7, depthTest: false }));
+    m.userData.cyl = cyl; m.renderOrder = 9; m.frustumCulled = false; scene.add(m);
+  }
+  m.material.color.set(color); m.visible = true;
+  return m;
+}
+/* Cada fotograma (updateWorld). */
+function devDebug() {
+  let n = 0;
+  const put = (cyl, color, x, y, z, r, h) => { const m = devHitBox(n++, cyl, color); m.position.set(x, y, z); m.scale.set(r, h, r); };
+  if (mission.dev && DEV.hitbox && devInGame()) {
+    for (const e of enemies) if (!e.dead && !e.off) put(false, 0xff4a3a, e.pos.x, e.pos.y, e.pos.z, ENEMY_HIT_R, ENEMY_HIT_R);
+    if (ally.e && ally.on) { const p = ally.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }
+    const P = dragon.position; put(false, 0xf2b84b, P.x, P.y, P.z, PLAYER_HIT_R, PLAYER_HIT_R);
+    for (const t of towers.values()) if (!t.dead && Math.hypot(t.x - P.x, t.z - P.z) < 4000) put(true, 0xff7a2e, t.x, t.y + TOWER_TOP / 2, t.z, TOWER_R, TOWER_TOP);
+  }
+  for (let i = n; i < devHit.pool.length; i++) devHit.pool[i].visible = false;
+}
 /* ---------- Bucle ---------- */
 let lastT = performance.now(), loadTotal = 1;
 const loadBar = document.getElementById('loadbar'), goBtn = document.getElementById('go');
@@ -7574,6 +8054,7 @@ function frame(now) {
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objetivos'));          // v21
+  document.getElementById('mDev').addEventListener('click', () => chooseMission('devtest'));           // v27: modo Dev Test (19d)
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally,   // (v21; v23: ally)

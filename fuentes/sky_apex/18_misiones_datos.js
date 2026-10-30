@@ -169,6 +169,26 @@ const MISSIONS = {
       { when: { hp: 30 }, repeat: 25, do: [{ say: ['mando', '¡Estás muy tocado! Aléjate del fuego y espera a recuperarte.'] }] }
     ]
   },
+  /* v27: Dev Test (pedido por Jorge): el combate libre con los trucos del panel de pruebas (19d: invulnerable, munición infinita…) y, con
+     Tab, el panel para cambiar en directo trucos, stats, vuelo y cámara. Sin final ni entrada de cine. dev: true lo activa. */
+  devtest: {
+    name: 'Dev Test', place: 'Mundo abierto', free: true, dev: true,
+    world: { seed: null, biome: 'valle' },
+    start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 0,
+    area: null,
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 30, zone: [1500, 9000], islands: [10, 15], random: true },
+    dragons: { total: 200, atOnce: 6 },
+    objectives: [
+      { id: 'torres', text: 'Destruye las torres de cristal', hud: 'TORRES', target: 'tower', count: 30 },
+      { id: 'dragones', text: 'Derriba a los dragones enemigos', hud: 'DRAGONES', target: 'dragon', count: 200 }
+    ],
+    radio: {},
+    events: []
+  },
   /* Combate libre: la partida de la v14 tal cual (sin límites, reapareciendo al caer; mundo al azar al abrir el juego y torres nuevas en
      cada partida). */
   libre: {

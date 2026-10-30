@@ -22,6 +22,7 @@ const HERO_EMISSIVE = 1.6;                                // brillo de los ojos
 const HERO_NECK = ['Neck1', 'Neck2', 'Neck3', 'Neck4', 'head'], HERO_NECK_W = [0.26, 0.26, 0.24, 0.21, 0.18];   // reparto del giro de la mirada (más en la base: el cuello entero se aparta y asoma la cabeza)
 const HERO_LOOK = [1.25, 1.05, 0.45, 1.25];              // mirada: ganancia de giro y de cabeceo hacia el marcador, anticipo del giro del dragón, giro máximo (rad)
 const HERO_NECK_UP = 0.32;                               // cuello arqueado hacia arriba en vuelo (rad): desde el lomo se ve la cabeza delante
+let HERO_LOOK_DOWN = 1.25;                               // v27: cabeceo máximo de la mirada hacia abajo (rad; antes 0,8): en vuelo recto la cabeza apunta al suelo
 const HERO_TAIL = ['Tail0', 'Tail1', 'Tail2', 'Tail3', 'Tail4', 'Tail5', 'Tail6', 'Tail7', 'Tail8', 'Tail9'];
 /* v13: sensación de vuelo (a partir del vídeo de «Dragontwin», 1:10-1:37).
    · Cuerpo: encima del rumbo de vuelo, el modelo se mueve con muelles (BODY_SPRING: frecuencia en rad/s y amortiguamiento; por debajo de 1
@@ -35,6 +36,11 @@ const BODY_ROLL = [0.32, 0.55], BODY_PITCH = [0.2, 0.22], BODY_YAW = [0.1, 0.16]
 const RIDER_LEAN = 0.6;                                   // parte del giro del cuerpo que sigue el torso del jinete en 1ª persona (los brazos)
 const HERO_DIVE_TUCK = 0.75, HERO_TURN_TUCK = [0.3, 0.35];
 const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 5];
+/* v27: cámara de apuntado (vuelo recto, Espacio; a partir del vídeo de referencia de Jorge, «demo lanzallamas»): sale de la 1ª persona si
+   hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
+   punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
+   pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
+const AIM_CAM = { d: 24, elev: 0.26, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
   bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
@@ -142,7 +148,7 @@ function animateTyrant(R, A, dt, st) {
   const k5 = 1 - Math.exp(-dt * 5), a = st.aimLocal;
   // mirada: cuello y cabeza buscan el marcador y se adelantan a los giros del dragón
   A.headYaw += (clamp(Math.atan2(-a.x, -a.z) * HERO_LOOK[0] + st.yawRate * HERO_LOOK[2], -HERO_LOOK[3], HERO_LOOK[3]) - A.headYaw) * k5;
-  A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -0.8, 0.8) - A.headPitch) * k5;
+  A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -HERO_LOOK_DOWN, 0.8) - A.headPitch) * k5;   // (v27: hacia abajo, hasta HERO_LOOK_DOWN)
   A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
   A.tuck += (Math.max(bs, (st.dive || 0) * HERO_DIVE_TUCK) * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));   // boost y (v13) picado: alas recogidas
   A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));
@@ -235,6 +241,20 @@ function animateHero(dt, st) {
   _hC.set(0, HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM[1] + push).applyQuaternion(L).applyQuaternion(rel);
   camera.position.lerpVectors(_hT, _hC, c);
   camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], HERO_CAM[2] - 0.10 * hv, c)));
+  // v27: cámara de apuntado (AIM_CAM), mezclada encima (A.aim). st.aimPt = punto de la mira en ejes del dragón; todo en el marco con retraso (rel)
+  A.aim = (A.aim || 0) + ((st.aimCam ? 1 : 0) - (A.aim || 0)) * (1 - Math.exp(-dt * AIM_CAM.blend));
+  if (A.aim > 0.002 && st.aimPt) {
+    _kA.copy(st.aimPt).applyQuaternion(_kRi.copy(rel).invert());
+    if (!A.aimT || A.aim < 0.01) A.aimT = _kA.clone(); else A.aimT.lerp(_kA, 1 - Math.exp(-dt * AIM_CAM.follow));
+    const T = A.aimT, oy = Math.atan2(-T.x, -T.z) * AIM_CAM.yawK, e = AIM_CAM.elev;
+    _kP.set(0, Math.sin(e), Math.cos(e)).multiplyScalar(AIM_CAM.d).applyAxisAngle(H_UP, oy);   // la cámara, detrás y por encima
+    _kD.copy(_kP).negate().normalize();                                                         // hacia el dragón
+    _kA.subVectors(T, _kP).normalize();                                                          // hacia la mira
+    _kD.lerp(_kA, AIM_CAM.mix).normalize();
+    _kQa.copy(rel).multiply(_hQ.setFromEuler(_hEu.set(Math.asin(clamp(_kD.y, -1, 1)), Math.atan2(-_kD.x, -_kD.z), 0, 'YXZ')));
+    camera.position.lerp(_kP.applyQuaternion(rel), A.aim); camera.quaternion.slerp(_kQa, A.aim);
+  } else A.aimT = null;
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);
+const _kA = new THREE.Vector3(), _kP = new THREE.Vector3(), _kD = new THREE.Vector3(), _kRi = new THREE.Quaternion(), _kQa = new THREE.Quaternion();   // (v27: cámara de apuntado)
