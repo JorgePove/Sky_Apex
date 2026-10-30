@@ -40,7 +40,7 @@ const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 
    hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
    punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
    pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
-const AIM_CAM = { d: 24, elev: 0.26, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };
+const AIM_CAM = { d: 24, elev: 0.08, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };   // (v28: elev 0,26 → 0,08: más alta, la cola tapaba el impacto)
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
   bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)

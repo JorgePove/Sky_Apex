@@ -50,25 +50,42 @@ function impactMark(show, p, kind, firing, dist) {
 }
 
 /* ---------- Partículas de impacto ---------- */
+/* v28: el impacto, más visible (Jorge: «que salten chispas o fragmentos de tierra y roca al aire»). Por cada ráfaga: un destello en el punto de
+   contacto; fuego que se abre a ras de suelo (en el plano del terreno, sobre todo hacia donde iba el chorro, _bD); chispas brillantes que saltan
+   y caen; fragmentos de tierra (o de roca, en las islas) de 1,5-2,5 m que salen despedidos y caen, y polvo. En el agua: vapor, gotas y un
+   destello. Todo en el mundo (el suelo no se mueve con el dragón). */
+const _imT = new THREE.Vector3(), _imB = new THREE.Vector3();
 function flameImpact(kind, p, dt, dist) {
   if (kind === 'tierra') scorchAt(p.x, p.z, clamp(3.5 + dist * 0.045, 4, 11));
   IMP.acc += dt * IMPACT_RATE; let n = Math.floor(IMP.acc); IMP.acc -= n;
-  const c = ATTACK;
+  if (!n) return;
+  const c = ATTACK, water = kind === 'agua', rock = kind === 'isla';
+  if (kind === 'tierra') { const e = 2, h = heightAt(p.x, p.z); _imN.set(-(heightAt(p.x + e, p.z) - h) / e, 1, -(heightAt(p.x, p.z + e) - h) / e).normalize(); } else _imN.set(0, 1, 0);
+  _imT.set(1, 0, 0).cross(_imN); if (_imT.lengthSq() < 1e-4) _imT.set(0, 0, 1); _imT.normalize(); _imB.crossVectors(_imN, _imT);   // ejes del plano del suelo
+  const fx = _bD.dot(_imT), fz = _bD.dot(_imB), fl = Math.hypot(fx, fz) || 1;                     // hacia dónde va el chorro, en ese plano
+  const out = (a, sp, up, o) => { const ca = Math.cos(a), sa = Math.sin(a); o.set(_imT.x * ca + _imB.x * sa, _imT.y * ca + _imB.y * sa, _imT.z * ca + _imB.z * sa).multiplyScalar(sp).addScaledVector(_imN, up); return o; };
+  const v = _imP, dir = Math.atan2(fz / fl, fx / fl);
   for (; n > 0; n--) {
-    const x = p.x + rnd(-1.5, 1.5), y = p.y + 0.6, z = p.z + rnd(-1.5, 1.5);
-    if (kind === 'agua') {                                    // vapor que sube y gotas
-      for (let i = 0; i < 2; i++) emit(fxSmoke, x + rnd(-3, 3), WL + 0.6, z + rnd(-3, 3), rnd(-3, 3), rnd(5, 13), rnd(-3, 3), rnd(1.4, 2.4), rnd(3, 5), rnd(12, 20), 0.88, 0.9, 0.92, 0.42, 0.9, -2);
-      for (let i = 0; i < 3; i++) { const a = Math.random() * 6.283, sp = rnd(6, 16); emit(fxSmoke, x, WL + 0.4, z, Math.cos(a) * sp, rnd(8, 20), Math.sin(a) * sp, rnd(0.6, 1.1), 0.9, 0.6, 0.85, 0.92, 0.96, 0.7, 0.3, 22); }
+    const x = p.x + _imN.x * 0.8, y = (water ? WL : p.y) + _imN.y * 0.8, z = p.z + _imN.z * 0.8;
+    // destello en el contacto
+    emit(fxAdd, x, y, z, 0, 3, 0, rnd(0.16, 0.26), rnd(6, 8), rnd(13, 18), lerp(c.r, 1, 0.4), lerp(c.g, 1, 0.4), lerp(c.b, 1, 0.4), 0.85, 0, 0);
+    if (water) {                                              // vapor que sube y gotas
+      for (let i = 0; i < 3; i++) emit(fxSmoke, x + rnd(-4, 4), WL + 0.6, z + rnd(-4, 4), rnd(-3, 3), rnd(6, 15), rnd(-3, 3), rnd(1.4, 2.6), rnd(4, 6), rnd(14, 24), 0.9, 0.92, 0.94, 0.5, 0.9, -2);
+      for (let i = 0; i < 5; i++) { out(Math.random() * 6.283, rnd(6, 18), rnd(10, 26), v); emit(fxSmoke, x, WL + 0.4, z, v.x, v.y, v.z, rnd(0.6, 1.1), rnd(0.8, 1.2), 0.5, 0.86, 0.93, 0.97, 0.85, 0.3, 22); }
       continue;
     }
-    const rock = kind === 'isla', dr = rock ? 0.33 : 0.30, dg = rock ? 0.31 : 0.22, db = rock ? 0.29 : 0.14, k = rnd(0.8, 1.15);
-    // polvo: nube marrón que sube despacio
-    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.283, sp = rnd(2, 8); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(4, 12), Math.sin(a) * sp, rnd(1.2, 2.2), rnd(3, 5), rnd(10, 16), dr * k, dg * k, db * k, 0.55, 1.2, -1); }
-    // terrones que saltan y caen
-    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(6, 18); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(10, 26), Math.sin(a) * sp, rnd(0.8, 1.4), rnd(0.9, 1.4), 0.7, dr * 0.45, dg * 0.45, db * 0.45, 1, 0.2, 24); }
-    // fuego que se aplasta contra el suelo y se abre
-    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(10, 30); emit(fxAdd, x, y, z, Math.cos(a) * sp, rnd(1, 6), Math.sin(a) * sp, rnd(0.25, 0.5), rnd(4, 6), rnd(9, 13), c.r, c.g * rnd(0.8, 1.1), c.b, 0.7, 2, -4); }
-    if (Math.random() < 0.5) emit(fxAdd, x, y + 1, z, 0, 2, 0, 0.15, 10, 22, lerp(c.r, 1, 0.5), lerp(c.g, 1, 0.5), lerp(c.b, 1, 0.5), 0.5, 0, 0);
+    // fuego que se aplasta contra el suelo y se abre (más hacia donde iba el chorro)
+    for (let i = 0; i < 6; i++) { out(Math.random() < 0.6 ? dir + rnd(-1, 1) : Math.random() * 6.283, rnd(18, 45), rnd(1, 5), v); emit(fxAdd, x, y, z, v.x, v.y, v.z, rnd(0.3, 0.55), rnd(4, 6), rnd(10, 14), c.r, c.g * rnd(0.8, 1.1), c.b, 0.7, 2.5, -3); }
+    // chispas que saltan y caen (grandes: la cámara de apuntado queda a unos 80 m del impacto)
+    for (let i = 0; i < 8; i++) { out(Math.random() * 6.283, rnd(8, 28), rnd(20, 45), v); emit(fxAdd, x, y, z, v.x, v.y, v.z, rnd(0.8, 1.5), rnd(1.4, 2.2), 0.5, 1, rnd(0.68, 0.86), rnd(0.25, 0.4), 1, 0.3, 22); }
+    // fragmentos de tierra o roca, de tonos distintos para que se vean contra la hierba
+    for (let i = 0; i < 6; i++) {
+      const k = rnd(0.7, 1.45), cr = rock ? 0.42 * k : 0.40 * k, cg = rock ? 0.40 * k : 0.28 * k, cb = rock ? 0.37 * k : 0.17 * k;
+      out(Math.random() < 0.5 ? dir + rnd(-1.2, 1.2) : Math.random() * 6.283, rnd(8, 22), rnd(16, 38), v);
+      emit(fxSmoke, x, y, z, v.x, v.y, v.z, rnd(1, 1.7), rnd(2, 3.4), 1.4, cr, cg, cb, 1, 0.15, 26);
+    }
+    // polvo
+    out(Math.random() * 6.283, rnd(2, 7), rnd(4, 10), v); emit(fxSmoke, x, y, z, v.x, v.y, v.z, rnd(1.5, 2.5), rnd(5, 7), rnd(16, 22), rock ? 0.5 : 0.52, rock ? 0.48 : 0.42, rock ? 0.45 : 0.3, 0.5, 1, -1);
   }
 }
 /* Al dar a un dragón, una torre o un dirigible: salpicadura de fuego y chispas (p = punto del impacto). */

@@ -47,7 +47,7 @@ const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (r
 const SPEED_SHAKE = 0.0022;                             // v13: temblor por encima de la velocidad de crucero (picados), hasta este tope a VMAX
 const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
 const STRAIGHT_SETTLE = 0.3;                            // v26, vuelo recto: s que tarda en frenar el giro que traía antes de fijar la trayectoria
-const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion();
+const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion(), _sc = new THREE.Vector3();
 
 /* ---------- Entrada ---------- */
 const hudEl = document.getElementById('hud');
@@ -653,14 +653,16 @@ function flameAim() {
 function flameFx(dt, reach) {
   // llamas: viajan con el dragón (heredan su velocidad) y salen a FLAME_SPEED; el chorro mide FLAME_RANGE o, si antes toca el terreno, el agua o
   // una isla, llega justo hasta ahí (vistas desde el dragón van en línea recta de la boca a la mira)
-  const c = ATTACK, n = Math.round(800 * dt + Math.random()), len = Math.min(FLAME_RANGE, reach);
+  // v28: si choca, cada llama vive justo hasta el punto de contacto (descontado el adelanto con el que sale) y mantiene el brillo hasta el final
+  // (hold), sin hincharse tanto: el chorro llega entero y se corta en el suelo, donde salta el impacto (flameImpact)
+  const c = ATTACK, n = Math.round(800 * dt + Math.random()), len = Math.min(FLAME_RANGE, reach), cut = reach <= FLAME_RANGE;
   for (let i = 0; i < n; i++) {
     const sp = FLAME_SPEED * rnd(0.9, 1.1), a = Math.random() * 6.283, s = rnd(0, 0.11), cx = Math.cos(a) * s, cy = Math.sin(a) * s, o = rnd(0, dt);
     const vx = (_bD.x + _bX.x * cx + _bU.x * cy) * sp, vy = (_bD.y + _bX.y * cx + _bU.y * cy) * sp, vz = (_bD.z + _bX.z * cx + _bU.z * cy) * sp;
-    const hot = Math.random() < 0.3, life = len / sp * (len < FLAME_RANGE ? rnd(0.85, 1) : rnd(0.7, 1.05));
+    const hot = Math.random() < 0.3, life = cut ? Math.max(0.02, len / sp - o) : len / sp * rnd(0.7, 1.05);
     emit(fxAdd, _bS.x + vx * o, _bS.y + vy * o, _bS.z + vz * o, vx + dragonVel.x, vy + dragonVel.y, vz + dragonVel.z,
-      hot ? life * 0.4 : life, hot ? 0.8 : rnd(1, 1.8), hot ? 5 : rnd(15, 24),
-      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, len < FLAME_RANGE ? 0 : -8);   // sin saturar a blanco encima de la mira
+      hot ? life * 0.4 : life, hot ? 0.8 : rnd(1, 1.8), hot ? 5 : cut ? rnd(8, 13) : rnd(15, 24),
+      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, cut ? 0 : -8, cut && !hot);   // sin saturar a blanco encima de la mira
   }
   // v27: donde toca (terreno, agua o isla): tierra que salta y quemaduras, vapor o roca (13b)
   if (reach <= FLAME_RANGE) flameImpact(FL.kind, _bF, dt, reach);
@@ -903,6 +905,12 @@ function updateFlight(dt, auto) {
     }
     _l.copy(F.holdDir); if (!hov) _l.y = clamp(F.sink / Math.max(F.speed, 1), 0, 0.3);
     a = _l.normalize().applyQuaternion(_iq.copy(q).invert());
+  } else if (!hov) {
+    // v28: el dragón va hacia donde apunta la mira, no solo su morro: lo levanta lo justo para compensar el leve hundimiento (sink, en la
+    // vertical del mundo), así que con la mira en el 0° de la escalera de cabeceo vuela horizontal (antes perdía ~2,5 m/s y había que apuntar
+    // algo por encima). Por debajo de la velocidad mínima no lo compensa del todo: sigue perdiendo sustentación.
+    const c = clamp(F.sink / Math.max(F.speed, 1), 0, 0.06);
+    if (c > 1e-4) { _l.set(0, 1, 0).applyQuaternion(_iq.copy(q).invert()); a = _sc.copy(F.steer).addScaledVector(_l, c).normalize(); }
   }
   F.straight = straight;
   const yawErr = Math.atan2(a.x, -a.z), pitErr = Math.atan2(a.y, Math.hypot(a.x, a.z));

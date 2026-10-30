@@ -63,9 +63,13 @@ function drawLadder(fwd) {
   }
   hctx.globalAlpha = 1;
 }
+const _pth = new THREE.Vector3();
 function drawMarkers(fwd) {
   const p = {};
-  if (proj(_camP.x + fwd.x * 1000, _camP.y + fwd.y * 1000, _camP.z + fwd.z * 1000, p)) {
+  // v28: el marcador pequeño es la trayectoria (hacia dónde va de verdad: su velocidad), no el morro; en hover o muy despacio, el morro.
+  // Con él en el 0° de la escalera de cabeceo, vuela horizontal
+  const v = F.speed > 20 && F.hoverK < 0.5 && state === 'playing' ? _pth.copy(dragonVel).normalize() : fwd;
+  if (proj(_camP.x + v.x * 1000, _camP.y + v.y * 1000, _camP.z + v.z * 1000, p)) {
     hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
     hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
     if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)

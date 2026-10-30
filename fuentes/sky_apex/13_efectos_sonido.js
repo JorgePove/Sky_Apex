@@ -10,7 +10,8 @@ function makeParticles(cap, additive) {
     cap, i: 0,
     pos: new Float32Array(cap * 3), col: new Float32Array(cap * 4), size: new Float32Array(cap),
     vel: new Float32Array(cap * 3), life: new Float32Array(cap), max: new Float32Array(cap),
-    s0: new Float32Array(cap), s1: new Float32Array(cap), a0: new Float32Array(cap), drag: new Float32Array(cap), grav: new Float32Array(cap)
+    s0: new Float32Array(cap), s1: new Float32Array(cap), a0: new Float32Array(cap), drag: new Float32Array(cap), grav: new Float32Array(cap),
+    hold: new Uint8Array(cap)                              // v28: 1 = mantiene el brillo hasta casi el final (la llamarada que choca con el suelo)
   };
   const geo = new THREE.BufferGeometry();
   P.aPos = new THREE.BufferAttribute(P.pos, 3); P.aCol = new THREE.BufferAttribute(P.col, 4); P.aSize = new THREE.BufferAttribute(P.size, 1);
@@ -33,11 +34,11 @@ function makeParticles(cap, additive) {
   return P;
 }
 const fxAdd = makeParticles(3400, true), fxSmoke = makeParticles(1400, false);   // (3400: la llamarada de 200 m y el rayo usan muchas)
-function emit(P, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav) {
+function emit(P, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav, hold) {
   const i = P.i; P.i = (P.i + 1) % P.cap;
   P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
   P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
-  P.life[i] = life; P.max[i] = life; P.s0[i] = s0; P.s1[i] = s1; P.a0[i] = a; P.drag[i] = drag; P.grav[i] = grav;
+  P.life[i] = life; P.max[i] = life; P.s0[i] = s0; P.s1[i] = s1; P.a0[i] = a; P.drag[i] = drag; P.grav[i] = grav; P.hold[i] = hold ? 1 : 0;
   P.col[i * 4] = r; P.col[i * 4 + 1] = g; P.col[i * 4 + 2] = b;
 }
 function updateParticles(P, dt) {
@@ -51,7 +52,7 @@ function updateParticles(P, dt) {
     P.pos[i * 3] += P.vel[i * 3] * dt; P.pos[i * 3 + 1] += P.vel[i * 3 + 1] * dt; P.pos[i * 3 + 2] += P.vel[i * 3 + 2] * dt;
     const f = 1 - nl / P.max[i];
     P.size[i] = lerp(P.s0[i], P.s1[i], f);
-    P.col[i * 4 + 3] = P.a0[i] * (1 - f) * Math.min(1, f * 12 + 0.25);
+    P.col[i * 4 + 3] = P.a0[i] * (P.hold[i] ? Math.min(1, (1 - f) * 8) : 1 - f) * Math.min(1, f * 12 + 0.25);
   }
   P.aPos.needsUpdate = true; P.aCol.needsUpdate = true; P.aSize.needsUpdate = true;
 }

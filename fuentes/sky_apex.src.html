@@ -1631,7 +1631,7 @@ const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 
    hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
    punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
    pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
-const AIM_CAM = { d: 24, elev: 0.26, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };
+const AIM_CAM = { d: 24, elev: 0.08, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };   // (v28: elev 0,26 → 0,08: más alta, la cola tapaba el impacto)
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
   bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
@@ -2997,7 +2997,8 @@ function makeParticles(cap, additive) {
     cap, i: 0,
     pos: new Float32Array(cap * 3), col: new Float32Array(cap * 4), size: new Float32Array(cap),
     vel: new Float32Array(cap * 3), life: new Float32Array(cap), max: new Float32Array(cap),
-    s0: new Float32Array(cap), s1: new Float32Array(cap), a0: new Float32Array(cap), drag: new Float32Array(cap), grav: new Float32Array(cap)
+    s0: new Float32Array(cap), s1: new Float32Array(cap), a0: new Float32Array(cap), drag: new Float32Array(cap), grav: new Float32Array(cap),
+    hold: new Uint8Array(cap)                              // v28: 1 = mantiene el brillo hasta casi el final (la llamarada que choca con el suelo)
   };
   const geo = new THREE.BufferGeometry();
   P.aPos = new THREE.BufferAttribute(P.pos, 3); P.aCol = new THREE.BufferAttribute(P.col, 4); P.aSize = new THREE.BufferAttribute(P.size, 1);
@@ -3020,11 +3021,11 @@ function makeParticles(cap, additive) {
   return P;
 }
 const fxAdd = makeParticles(3400, true), fxSmoke = makeParticles(1400, false);   // (3400: la llamarada de 200 m y el rayo usan muchas)
-function emit(P, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav) {
+function emit(P, x, y, z, vx, vy, vz, life, s0, s1, r, g, b, a, drag, grav, hold) {
   const i = P.i; P.i = (P.i + 1) % P.cap;
   P.pos[i * 3] = x; P.pos[i * 3 + 1] = y; P.pos[i * 3 + 2] = z;
   P.vel[i * 3] = vx; P.vel[i * 3 + 1] = vy; P.vel[i * 3 + 2] = vz;
-  P.life[i] = life; P.max[i] = life; P.s0[i] = s0; P.s1[i] = s1; P.a0[i] = a; P.drag[i] = drag; P.grav[i] = grav;
+  P.life[i] = life; P.max[i] = life; P.s0[i] = s0; P.s1[i] = s1; P.a0[i] = a; P.drag[i] = drag; P.grav[i] = grav; P.hold[i] = hold ? 1 : 0;
   P.col[i * 4] = r; P.col[i * 4 + 1] = g; P.col[i * 4 + 2] = b;
 }
 function updateParticles(P, dt) {
@@ -3038,7 +3039,7 @@ function updateParticles(P, dt) {
     P.pos[i * 3] += P.vel[i * 3] * dt; P.pos[i * 3 + 1] += P.vel[i * 3 + 1] * dt; P.pos[i * 3 + 2] += P.vel[i * 3 + 2] * dt;
     const f = 1 - nl / P.max[i];
     P.size[i] = lerp(P.s0[i], P.s1[i], f);
-    P.col[i * 4 + 3] = P.a0[i] * (1 - f) * Math.min(1, f * 12 + 0.25);
+    P.col[i * 4 + 3] = P.a0[i] * (P.hold[i] ? Math.min(1, (1 - f) * 8) : 1 - f) * Math.min(1, f * 12 + 0.25);
   }
   P.aPos.needsUpdate = true; P.aCol.needsUpdate = true; P.aSize.needsUpdate = true;
 }
@@ -3574,25 +3575,42 @@ function impactMark(show, p, kind, firing, dist) {
 }
 
 /* ---------- Partículas de impacto ---------- */
+/* v28: el impacto, más visible (Jorge: «que salten chispas o fragmentos de tierra y roca al aire»). Por cada ráfaga: un destello en el punto de
+   contacto; fuego que se abre a ras de suelo (en el plano del terreno, sobre todo hacia donde iba el chorro, _bD); chispas brillantes que saltan
+   y caen; fragmentos de tierra (o de roca, en las islas) de 1,5-2,5 m que salen despedidos y caen, y polvo. En el agua: vapor, gotas y un
+   destello. Todo en el mundo (el suelo no se mueve con el dragón). */
+const _imT = new THREE.Vector3(), _imB = new THREE.Vector3();
 function flameImpact(kind, p, dt, dist) {
   if (kind === 'tierra') scorchAt(p.x, p.z, clamp(3.5 + dist * 0.045, 4, 11));
   IMP.acc += dt * IMPACT_RATE; let n = Math.floor(IMP.acc); IMP.acc -= n;
-  const c = ATTACK;
+  if (!n) return;
+  const c = ATTACK, water = kind === 'agua', rock = kind === 'isla';
+  if (kind === 'tierra') { const e = 2, h = heightAt(p.x, p.z); _imN.set(-(heightAt(p.x + e, p.z) - h) / e, 1, -(heightAt(p.x, p.z + e) - h) / e).normalize(); } else _imN.set(0, 1, 0);
+  _imT.set(1, 0, 0).cross(_imN); if (_imT.lengthSq() < 1e-4) _imT.set(0, 0, 1); _imT.normalize(); _imB.crossVectors(_imN, _imT);   // ejes del plano del suelo
+  const fx = _bD.dot(_imT), fz = _bD.dot(_imB), fl = Math.hypot(fx, fz) || 1;                     // hacia dónde va el chorro, en ese plano
+  const out = (a, sp, up, o) => { const ca = Math.cos(a), sa = Math.sin(a); o.set(_imT.x * ca + _imB.x * sa, _imT.y * ca + _imB.y * sa, _imT.z * ca + _imB.z * sa).multiplyScalar(sp).addScaledVector(_imN, up); return o; };
+  const v = _imP, dir = Math.atan2(fz / fl, fx / fl);
   for (; n > 0; n--) {
-    const x = p.x + rnd(-1.5, 1.5), y = p.y + 0.6, z = p.z + rnd(-1.5, 1.5);
-    if (kind === 'agua') {                                    // vapor que sube y gotas
-      for (let i = 0; i < 2; i++) emit(fxSmoke, x + rnd(-3, 3), WL + 0.6, z + rnd(-3, 3), rnd(-3, 3), rnd(5, 13), rnd(-3, 3), rnd(1.4, 2.4), rnd(3, 5), rnd(12, 20), 0.88, 0.9, 0.92, 0.42, 0.9, -2);
-      for (let i = 0; i < 3; i++) { const a = Math.random() * 6.283, sp = rnd(6, 16); emit(fxSmoke, x, WL + 0.4, z, Math.cos(a) * sp, rnd(8, 20), Math.sin(a) * sp, rnd(0.6, 1.1), 0.9, 0.6, 0.85, 0.92, 0.96, 0.7, 0.3, 22); }
+    const x = p.x + _imN.x * 0.8, y = (water ? WL : p.y) + _imN.y * 0.8, z = p.z + _imN.z * 0.8;
+    // destello en el contacto
+    emit(fxAdd, x, y, z, 0, 3, 0, rnd(0.16, 0.26), rnd(6, 8), rnd(13, 18), lerp(c.r, 1, 0.4), lerp(c.g, 1, 0.4), lerp(c.b, 1, 0.4), 0.85, 0, 0);
+    if (water) {                                              // vapor que sube y gotas
+      for (let i = 0; i < 3; i++) emit(fxSmoke, x + rnd(-4, 4), WL + 0.6, z + rnd(-4, 4), rnd(-3, 3), rnd(6, 15), rnd(-3, 3), rnd(1.4, 2.6), rnd(4, 6), rnd(14, 24), 0.9, 0.92, 0.94, 0.5, 0.9, -2);
+      for (let i = 0; i < 5; i++) { out(Math.random() * 6.283, rnd(6, 18), rnd(10, 26), v); emit(fxSmoke, x, WL + 0.4, z, v.x, v.y, v.z, rnd(0.6, 1.1), rnd(0.8, 1.2), 0.5, 0.86, 0.93, 0.97, 0.85, 0.3, 22); }
       continue;
     }
-    const rock = kind === 'isla', dr = rock ? 0.33 : 0.30, dg = rock ? 0.31 : 0.22, db = rock ? 0.29 : 0.14, k = rnd(0.8, 1.15);
-    // polvo: nube marrón que sube despacio
-    for (let i = 0; i < 2; i++) { const a = Math.random() * 6.283, sp = rnd(2, 8); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(4, 12), Math.sin(a) * sp, rnd(1.2, 2.2), rnd(3, 5), rnd(10, 16), dr * k, dg * k, db * k, 0.55, 1.2, -1); }
-    // terrones que saltan y caen
-    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(6, 18); emit(fxSmoke, x, y, z, Math.cos(a) * sp, rnd(10, 26), Math.sin(a) * sp, rnd(0.8, 1.4), rnd(0.9, 1.4), 0.7, dr * 0.45, dg * 0.45, db * 0.45, 1, 0.2, 24); }
-    // fuego que se aplasta contra el suelo y se abre
-    for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(10, 30); emit(fxAdd, x, y, z, Math.cos(a) * sp, rnd(1, 6), Math.sin(a) * sp, rnd(0.25, 0.5), rnd(4, 6), rnd(9, 13), c.r, c.g * rnd(0.8, 1.1), c.b, 0.7, 2, -4); }
-    if (Math.random() < 0.5) emit(fxAdd, x, y + 1, z, 0, 2, 0, 0.15, 10, 22, lerp(c.r, 1, 0.5), lerp(c.g, 1, 0.5), lerp(c.b, 1, 0.5), 0.5, 0, 0);
+    // fuego que se aplasta contra el suelo y se abre (más hacia donde iba el chorro)
+    for (let i = 0; i < 6; i++) { out(Math.random() < 0.6 ? dir + rnd(-1, 1) : Math.random() * 6.283, rnd(18, 45), rnd(1, 5), v); emit(fxAdd, x, y, z, v.x, v.y, v.z, rnd(0.3, 0.55), rnd(4, 6), rnd(10, 14), c.r, c.g * rnd(0.8, 1.1), c.b, 0.7, 2.5, -3); }
+    // chispas que saltan y caen (grandes: la cámara de apuntado queda a unos 80 m del impacto)
+    for (let i = 0; i < 8; i++) { out(Math.random() * 6.283, rnd(8, 28), rnd(20, 45), v); emit(fxAdd, x, y, z, v.x, v.y, v.z, rnd(0.8, 1.5), rnd(1.4, 2.2), 0.5, 1, rnd(0.68, 0.86), rnd(0.25, 0.4), 1, 0.3, 22); }
+    // fragmentos de tierra o roca, de tonos distintos para que se vean contra la hierba
+    for (let i = 0; i < 6; i++) {
+      const k = rnd(0.7, 1.45), cr = rock ? 0.42 * k : 0.40 * k, cg = rock ? 0.40 * k : 0.28 * k, cb = rock ? 0.37 * k : 0.17 * k;
+      out(Math.random() < 0.5 ? dir + rnd(-1.2, 1.2) : Math.random() * 6.283, rnd(8, 22), rnd(16, 38), v);
+      emit(fxSmoke, x, y, z, v.x, v.y, v.z, rnd(1, 1.7), rnd(2, 3.4), 1.4, cr, cg, cb, 1, 0.15, 26);
+    }
+    // polvo
+    out(Math.random() * 6.283, rnd(2, 7), rnd(4, 10), v); emit(fxSmoke, x, y, z, v.x, v.y, v.z, rnd(1.5, 2.5), rnd(5, 7), rnd(16, 22), rock ? 0.5 : 0.52, rock ? 0.48 : 0.42, rock ? 0.45 : 0.3, 0.5, 1, -1);
   }
 }
 /* Al dar a un dragón, una torre o un dirigible: salpicadura de fuego y chispas (p = punto del impacto). */
@@ -4922,7 +4940,7 @@ const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (r
 const SPEED_SHAKE = 0.0022;                             // v13: temblor por encima de la velocidad de crucero (picados), hasta este tope a VMAX
 const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
 const STRAIGHT_SETTLE = 0.3;                            // v26, vuelo recto: s que tarda en frenar el giro que traía antes de fijar la trayectoria
-const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion();
+const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion(), _sc = new THREE.Vector3();
 
 /* ---------- Entrada ---------- */
 const hudEl = document.getElementById('hud');
@@ -5528,14 +5546,16 @@ function flameAim() {
 function flameFx(dt, reach) {
   // llamas: viajan con el dragón (heredan su velocidad) y salen a FLAME_SPEED; el chorro mide FLAME_RANGE o, si antes toca el terreno, el agua o
   // una isla, llega justo hasta ahí (vistas desde el dragón van en línea recta de la boca a la mira)
-  const c = ATTACK, n = Math.round(800 * dt + Math.random()), len = Math.min(FLAME_RANGE, reach);
+  // v28: si choca, cada llama vive justo hasta el punto de contacto (descontado el adelanto con el que sale) y mantiene el brillo hasta el final
+  // (hold), sin hincharse tanto: el chorro llega entero y se corta en el suelo, donde salta el impacto (flameImpact)
+  const c = ATTACK, n = Math.round(800 * dt + Math.random()), len = Math.min(FLAME_RANGE, reach), cut = reach <= FLAME_RANGE;
   for (let i = 0; i < n; i++) {
     const sp = FLAME_SPEED * rnd(0.9, 1.1), a = Math.random() * 6.283, s = rnd(0, 0.11), cx = Math.cos(a) * s, cy = Math.sin(a) * s, o = rnd(0, dt);
     const vx = (_bD.x + _bX.x * cx + _bU.x * cy) * sp, vy = (_bD.y + _bX.y * cx + _bU.y * cy) * sp, vz = (_bD.z + _bX.z * cx + _bU.z * cy) * sp;
-    const hot = Math.random() < 0.3, life = len / sp * (len < FLAME_RANGE ? rnd(0.85, 1) : rnd(0.7, 1.05));
+    const hot = Math.random() < 0.3, life = cut ? Math.max(0.02, len / sp - o) : len / sp * rnd(0.7, 1.05);
     emit(fxAdd, _bS.x + vx * o, _bS.y + vy * o, _bS.z + vz * o, vx + dragonVel.x, vy + dragonVel.y, vz + dragonVel.z,
-      hot ? life * 0.4 : life, hot ? 0.8 : rnd(1, 1.8), hot ? 5 : rnd(15, 24),
-      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, len < FLAME_RANGE ? 0 : -8);   // sin saturar a blanco encima de la mira
+      hot ? life * 0.4 : life, hot ? 0.8 : rnd(1, 1.8), hot ? 5 : cut ? rnd(8, 13) : rnd(15, 24),
+      hot ? lerp(c.r, 1, 0.6) : c.r, hot ? lerp(c.g, 1, 0.6) : c.g * rnd(0.75, 1.15), hot ? lerp(c.b, 1, 0.6) : c.b, hot ? 0.6 : 0.38, 0, cut ? 0 : -8, cut && !hot);   // sin saturar a blanco encima de la mira
   }
   // v27: donde toca (terreno, agua o isla): tierra que salta y quemaduras, vapor o roca (13b)
   if (reach <= FLAME_RANGE) flameImpact(FL.kind, _bF, dt, reach);
@@ -5778,6 +5798,12 @@ function updateFlight(dt, auto) {
     }
     _l.copy(F.holdDir); if (!hov) _l.y = clamp(F.sink / Math.max(F.speed, 1), 0, 0.3);
     a = _l.normalize().applyQuaternion(_iq.copy(q).invert());
+  } else if (!hov) {
+    // v28: el dragón va hacia donde apunta la mira, no solo su morro: lo levanta lo justo para compensar el leve hundimiento (sink, en la
+    // vertical del mundo), así que con la mira en el 0° de la escalera de cabeceo vuela horizontal (antes perdía ~2,5 m/s y había que apuntar
+    // algo por encima). Por debajo de la velocidad mínima no lo compensa del todo: sigue perdiendo sustentación.
+    const c = clamp(F.sink / Math.max(F.speed, 1), 0, 0.06);
+    if (c > 1e-4) { _l.set(0, 1, 0).applyQuaternion(_iq.copy(q).invert()); a = _sc.copy(F.steer).addScaledVector(_l, c).normalize(); }
   }
   F.straight = straight;
   const yawErr = Math.atan2(a.x, -a.z), pitErr = Math.atan2(a.y, Math.hypot(a.x, a.z));
@@ -5909,9 +5935,13 @@ function drawLadder(fwd) {
   }
   hctx.globalAlpha = 1;
 }
+const _pth = new THREE.Vector3();
 function drawMarkers(fwd) {
   const p = {};
-  if (proj(_camP.x + fwd.x * 1000, _camP.y + fwd.y * 1000, _camP.z + fwd.z * 1000, p)) {
+  // v28: el marcador pequeño es la trayectoria (hacia dónde va de verdad: su velocidad), no el morro; en hover o muy despacio, el morro.
+  // Con él en el 0° de la escalera de cabeceo, vuela horizontal
+  const v = F.speed > 20 && F.hoverK < 0.5 && state === 'playing' ? _pth.copy(dragonVel).normalize() : fwd;
+  if (proj(_camP.x + v.x * 1000, _camP.y + v.y * 1000, _camP.z + v.z * 1000, p)) {
     hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
     hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
     if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
@@ -6547,7 +6577,7 @@ const K = (...k) => k.map(x => `<kbd>${x}</kbd>`).join('');
 const TUTORIAL = [
   { cat: 'Vuelo', items: [
     { id: 'direccion', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella'], [['Espacio'], 'Mantener: vuelo recto']], text: [
-      'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde apunta el morro en ese momento; cuando los dos coinciden, vuelas recto.',
+      'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde vas en ese momento (tu trayectoria); cuando los dos coinciden, vas justo hacia la mira. En 1ª persona, con la mira en el 0 de la escalera de cabeceo, vuelas horizontal.',
       'Cuanto más lejos del morro pongas la mira, más cerrado será el giro. A poca velocidad el dragón gira más deprisa; a mucha, los giros son más abiertos.',
       'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.',
       'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira, se nivela solo (alas y morro) y vuela horizontal con el rumbo que llevaba, mientras la mira sigue al ratón y la cabeza del dragón la sigue. La cámara pasa a la de <b>apuntado</b>, detrás y por encima del dragón, para ver el suelo al que apuntas. Sirve para barrer el suelo con la llamarada en una pasada rasante. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira y la cámara a la de antes.'] },
