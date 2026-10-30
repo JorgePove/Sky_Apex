@@ -35,7 +35,7 @@ const STATS_SCHEMA = {
     ['guiado_dano', 'Daño disparo guiado', 'puntos', 60, 'Daño del impacto.'],
     ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan. A 0, no hay más.'],
     ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco para cargar el guiado.', 1],
-    ['guiado_fijado', 'Tiempo de fijado', 's', 3, 'Segundos con la mira en el círculo rojo hasta que sale.', 1],
+    ['guiado_fijado', 'Tiempo de fijado', 's', 2, 'Segundos con la mira en el círculo rojo hasta que sale (v31: 2, antes 3).', 1],
     { sec: 'Lanzallamas (clic derecho)' },
     ['llamas_dano', 'Daño lanzallamas', 'puntos/s', 15, 'Daño por segundo a todo lo que toca.'],
     ['llamas_alcance', 'Alcance lanzallamas', 'm', 300, 'Largo del chorro.'],

@@ -359,7 +359,7 @@ let GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;   
 const GUN_SPEED = 1100, GUN_LIFE = 2.8;                                           // m/s (fija en el mundo) y vida (s)
 let GUN_DMG = 5;                                                                  // daño por impacto
 const MSL_HOLD = 0.5, MSL_DECAY = 2, MSL_CIRCLE = 0.1;                            // clic mantenido antes de empezar a cargar (s), fuera del círculo la carga se pierde x veces más rápido, radio mínimo del círculo (fracción del alto de pantalla)
-let MSL_RANGE = 3000, MSL_LOCK = 3, MSL_AMMO = 20, MSL_DMG = 60;                  // alcance (m), segundos de carga con la mira en el círculo, guiadas por misión, daño
+let MSL_RANGE = 3000, MSL_LOCK = 2, MSL_AMMO = 20, MSL_DMG = 60;                  // alcance (m), segundos de carga con la mira en el círculo, guiadas por misión, daño
 const MSL_CIRCLE_K = 0.5;                                                         // tamaño del círculo rojo respecto al de la v9 (que medía lo del cuadro dorado + 14 px, o el 10 % del alto)
 const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15;    // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s)
 const FLAME_SPEED = 240;                                                          // velocidad de las llamas (m/s)

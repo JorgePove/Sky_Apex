@@ -384,7 +384,7 @@ function broadside(u, dt, P, d, S, px, py, pzs, msg) {
 function addSuper(x, z, height, heading, tags) {
   const S = STATS.superdirigible, ang = heading * Math.PI / 180;
   const u = newUnit('superdirigible', { tags: tags || [], label: 'Superdirigible', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: 'superdirigible',
-    markR: 14000, lockRange: 12000, radar: 'super', crashText: 'un superdirigible', upd: updSuper, onKill: superDie, dieT: 3.5 });
+    markR: 14000, lockRange: 12000, radar: 'super', crashText: 'un superdirigible', upd: updSuper, onKill: superDie });
   u.base = Math.max(groundAt(x, z) + Math.max(height || 0, S.altura_min), WL + S.altura_min);
   u.pos.set(x, u.base, z); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
   unitResize(u);
@@ -409,19 +409,7 @@ function updSuper(u, dt, P, d) {
   const t = gameTime * 0.25 + u.ph;
   if (!u.jets && u.model) superJets(u);
   if (u.jets) superJetsUpdate(u, dt, d);
-  if (u.dead) {                                             // agonía: explosiones por todo el casco y, al final, la explosión de energía
-    u.dying -= dt;
-    if (Math.random() < dt * 9) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); _Ua.x += rnd(-20, 20); _Ua.y += rnd(-15, 15); explode(_Ua.x, _Ua.y, _Ua.z, rnd(1.5, 3)); }
-    if (u.mats) charUnit(u, 1 - u.dying / u.dieT);
-    u.pos.y -= dt * 6 * (1 - u.dying / u.dieT);
-    if (u.model) u.model.position.copy(u.pos);
-    if (u.dying <= 0) {
-      for (const k of [-0.3, 0, 0.3]) { _Ua.set(0, 0, k * u.size).applyQuaternion(u.q).add(u.pos); airshipBlast({ pos: _Ua.clone() }); }
-      for (const k of u.kids) { removeUnitMesh(k); k.gone = true; }
-      removeUnitMesh(u); u.gone = true;
-    }
-    return;
-  }
+  if (u.dead) { superFall(u, dt, d); if (u.upd2) u.upd2(u, dt); return; }             // v31: cae ennegrecido y en llamas, con una estela de humo, y se estrella
   u.pos.y = u.base + Math.sin(t) * 4;                       // vaivén muy lento
   u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, Math.sin(t * 0.8) * 0.01));
   if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
@@ -455,7 +443,77 @@ function updSuper(u, dt, P, d) {
     k.cool = Math.max(0.05, S.torreta_cadencia) * rnd(0.8, 1.2);
   }
 }
-function superDie(u) { toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2); }
+function superDie(u) {
+  toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2);
+  u.fallT = 0; u.fallV = 0; u.pitch = 0; u.landed = false; u.wreckT = 0; u.trailT = 0; u.rollS = Math.random() < 0.5 ? -1 : 1;
+  for (let i = 0; i < 5; i++) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); explode(_Ua.x + rnd(-25, 25), _Ua.y + rnd(-15, 15), _Ua.z + rnd(-25, 25), rnd(2, 3.5)); }
+}
+/* v31 (petición de Jorge): al destruirlo ya no estalla en el aire con tres explosiones de energía: se ennegrece, arde y cae (cada vez más
+   deprisa, hasta SUPER_FALL.vmax), con el morro bajando y un leve balanceo, dejando una estela de humo negro (fxTrail, aparte: es muy larga)
+   y llamas por el casco; al tocar el suelo con la proa, explosiones a lo largo del casco, polvo y temblor, y los restos se quedan ardiendo
+   en el suelo (SUPER_FALL.wreck s de humo). Las torretas caen con él. */
+const SUPER_FALL = { g: 7, vmax: 85, pitch: 0.32, pitchRate: 0.035, wreck: 90 };   // m/s², m/s, morro abajo (rad) y su ritmo (rad/s), s de humo en el suelo
+const fxTrail = makeParticles(1800, false);
+function superFall(u, dt, d) {
+  const L = u.size, F_ = SUPER_FALL, c = u.caps[0];
+  u.fallT += dt;
+  if (u.mats) charUnit(u, Math.min(1, u.fallT / 2));
+  if (!u.landed) {
+    u.fallV = Math.min(F_.vmax, u.fallV + F_.g * dt); u.pos.y -= u.fallV * dt;
+    u.pitch = Math.min(F_.pitch, u.pitch + F_.pitchRate * dt);
+    u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Ux, -u.pitch)).multiply(_Uq2.setFromAxisAngle(_Uz, u.rollS * (0.06 * Math.sin(u.fallT * 0.4) + u.pitch * 0.25)));
+    unitCaps(u);
+    // ¿toca el suelo? (la proa, que va por delante y más baja)
+    _Ua.set(0, -0.045 * L, -0.48 * L).applyQuaternion(u.q).add(u.pos);
+    if (_Ua.y <= groundAt(_Ua.x, _Ua.z)) { u.landed = true; superCrash(u, _Ua); }
+    // estela de humo negro (de tres puntos del casco) y llamas por todo él
+    u.trailT -= dt;
+    if (u.trailT <= 0) {
+      u.trailT = 0.04;
+      for (const k of [0.1, 0.3, 0.5, 0.7, 0.9]) {
+        _Ub.copy(c.a).lerp(c.b, k + rnd(-0.1, 0.1)); _Ub.y += rnd(-0.01, 0.03) * L;
+        emit(fxTrail, _Ub.x + rnd(-20, 20), _Ub.y, _Ub.z + rnd(-20, 20), rnd(-4, 4), rnd(2, 6), rnd(-4, 4), rnd(10, 14), rnd(45, 65), rnd(170, 250), 0.09, 0.08, 0.08, 0.7, 0.15, -0.4);
+      }
+    }
+    if (d < 12000) for (let i = 0; i < 5; i++) {
+      _Ub.copy(c.a).lerp(c.b, Math.random()); _Ud.set(rnd(-1, 1), rnd(-0.3, 1), rnd(-1, 1)).normalize().multiplyScalar(c.r * rnd(0.5, 1)); _Ub.add(_Ud);
+      emit(fxAdd, _Ub.x, _Ub.y, _Ub.z, _Ud.x * 0.3, u.fallV * 0.6 + rnd(4, 14), _Ud.z * 0.3, rnd(0.4, 0.8), rnd(14, 24), rnd(5, 10), 1, rnd(0.4, 0.65), 0.12, 0.85, 0.4, 0);
+    }
+    if (Math.random() < dt * 1.8) { _Ub.copy(c.a).lerp(c.b, Math.random()); explode(_Ub.x + rnd(-20, 20), _Ub.y + rnd(-10, 10), _Ub.z + rnd(-20, 20), rnd(1.8, 3)); }
+  } else {                                                  // en el suelo: humo y algo de fuego durante un rato
+    u.wreckT += dt;
+    if (u.wreckT < F_.wreck && d < 9000) {
+      u.trailT -= dt;
+      if (u.trailT <= 0) {
+        u.trailT = 0.12; const f = 1 - u.wreckT / F_.wreck;
+        _Ub.copy(c.a).lerp(c.b, Math.random());
+        emit(fxTrail, _Ub.x + rnd(-15, 15), Math.max(_Ub.y, groundAt(_Ub.x, _Ub.z)) + 10, _Ub.z + rnd(-15, 15), rnd(-2, 2), rnd(10, 18), rnd(-2, 2), rnd(8, 12), 30 * f + 10, 150 * f + 40, 0.1, 0.09, 0.09, 0.6, 0.2, -0.6);
+        if (f > 0.4) emit(fxAdd, _Ub.x + rnd(-15, 15), Math.max(_Ub.y, groundAt(_Ub.x, _Ub.z)) + 5, _Ub.z + rnd(-15, 15), 0, rnd(6, 12), 0, 0.8, 18 * f, 6, 1, 0.5, 0.12, 0.8, 0.5, 0);
+      }
+    }
+  }
+  if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
+  for (const k of u.kids) { superPlace(u, k); if (k.model) { k.model.position.copy(k.pos); k.model.quaternion.copy(k.q); } unitCaps(k); }
+}
+/* El choque: explosiones que recorren el casco desde la proa (las lanza superCrashStep), polvo que se abre a ras de suelo y temblor. */
+function superCrash(u, at) {
+  const d = at.distanceTo(dragon.position);
+  camShake = Math.max(camShake, 2.2 * clamp(1 - d / 6000, 0.15, 1));
+  sfx.boom(clamp(1.3 - d / 5000, 0.3, 1));
+  for (let i = 0; i < 70; i++) {
+    const a = Math.random() * 6.283, sp = rnd(30, 120);
+    emit(fxSmoke, at.x + rnd(-40, 40), at.y + rnd(2, 12), at.z + rnd(-40, 40), Math.cos(a) * sp, rnd(2, 12), Math.sin(a) * sp, rnd(3, 6), rnd(20, 30), rnd(70, 120), 0.42, 0.37, 0.31, 0.7, 0.6, -0.5);
+  }
+  u.crashK = 0; u.crashT = 0;
+  u.upd2 = superCrashStep;
+}
+function superCrashStep(u, dt) {
+  if (u.crashK > 1) return;
+  u.crashT -= dt; if (u.crashT > 0) return;
+  u.crashT = 0.12; u.crashK += 0.09;
+  _Ua.copy(u.caps[0].b).lerp(u.caps[0].a, Math.min(1, u.crashK));   // (b = proa)
+  explode(_Ua.x + rnd(-30, 30), _Ua.y + rnd(-10, 20), _Ua.z + rnd(-30, 30), rnd(3.5, 5.5)); debris(_Ua.x, _Ua.y, _Ua.z);
+}
 /* v30: chorro de los motores arcanos (petición de Jorge): de cada turbina de popa sale un penacho morado con el núcleo casi blanco, que
    parpadea y fluye hacia atrás (dos conos aditivos con un shader), un brillo en la tobera y unas chispas que salen despedidas. Aunque el
    superdirigible esté quieto. */

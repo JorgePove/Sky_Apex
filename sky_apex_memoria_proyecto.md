@@ -2,7 +2,7 @@
 
 Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho hasta ahora: qué es el juego, cómo funciona por dentro, qué se pidió y en qué orden, qué se probó, qué se aprendió y por dónde seguir.
 
-Fecha de este resumen: 30 de octubre de 2026, v30 (la primera versión es del 16 de octubre).
+Fecha de este resumen: 30 de octubre de 2026, v31 (la primera versión es del 16 de octubre).
 
 > **v15 (26-oct): empieza la campaña «Ace Combat con dragones»** (sección 7d). La fuente ya no es un solo archivo: se edita por módulos en `fuentes/sky_apex/` y `herramientas/construir.mjs` genera `fuentes/sky_apex.src.html` y `sky_apex.html`. Hay un motor de misiones por datos (recetas en `18_misiones_datos.js`), una «Misión de prueba» y el «Combate libre» de la v14. Jugada por Jorge: «todo parece funcionar correctamente».
 > **v16 (26-oct): tres dragones** (sección 7c, «v16»): en «Elige tu dragón», botones arriba a la izquierda para elegir entre tres dragones, cada uno con sus colores. Los otros dos copian en cada fotograma la pose del Tyrant (`09b_dragones.js`). Jorge: Drogon salía roto y el rojo mal en la plataforma.
@@ -13,6 +13,7 @@ Fecha de este resumen: 30 de octubre de 2026, v30 (la primera versión es del 16
 > **27-oct (chat nuevo): repositorio de GitHub** `JorgePove/Sky_Apex`, público, con la web en GitHub Pages desde `main` (sección 13 y `CLAUDE.md`). Commit y push al terminar cada entrega; las versiones son etiquetas de git.
 > **v23 (27-oct): Misión 1 «la flota» y el compañero Lance** (sección 7c, «v23»): Fase 1 empezada. Diez dirigibles en formación huyen hacia el borde (si sale uno, se falla) con 15 dragones de escolta; Lance, aliado con IA, vuela en formación y luego ataca protegiendo al jugador (Percival). Entregada, sin jugar aún.
 > **v25 (28-oct): valores de Jorge, sin guiadas a costa de vida y armadura como marco** (sección 7c, «v25»): Jorge cambió a mano los valores de los enemigos en el Excel; se quitó lanzar guiadas sin munición a costa de vida máxima («mantenerlo simple») y la armadura pasa a ser un marco amarillo alrededor de la barra de vida, según su boceto. Entregada, sin jugar aún.
+> **v31 (30-oct): fijar y apuntar más cómodo; superdirigible que cae** (sección 7c, «v31»): Jorge, tras la v30: «está todo mucho mejor». Círculo de adelanto solo con blancos a más de 150 km/h, fijar primero lo más cercano a la mira, guiada en 2 s (Excel), barra de vida grande bajo el superdirigible y, al destruirlo, cae ennegrecido y en llamas con estela de humo y se estrella. Entregada, sin jugar aún.
 > **v30 (30-oct): arreglos de la galería** (sección 7c, «v30»): Jorge jugó la v29 («una gran implementación y casi todo funciona bien»). Apuntado arreglado (la mira saltaba al punto viejo de un dragón al apuntar a cualquier unidad nueva: cabeza girada, cámara rara, llamarada hacia otro lado), sierpe rehecha desde el FBX original (patas bien, aletas, patas rígidas con su hombro) y en patrulla circular amplia, superdirigible de 1000 m con dos chorros de motor arcano, bola guiada con parábola contra tierra y mar y que cuenta si cae junto al blanco. Entregada, sin jugar aún.
 > **v29 (30-oct): lista de enemigos y galería de enemigos** (sección 7c, «v29»): los siete tipos nuevos de la lista de Jorge en el juego y en el Excel (artillería —balistas, catapultas y cañones—, batallones de 80-300 soldados, barcos navales, superdirigible de 500 m con 12 torretas, sierpe de 500 m con 3 hechiceros y escudo), modelos preparados en Blender (soldado y hechicero hechos desde cero) y el modo nuevo **Galería de enemigos**: campo de pruebas llano de blockout con todos los enemigos quietos en formaciones. Entregada, sin jugar aún.
 > **v28 (30-oct): vuelo hacia la mira e impacto de la llamarada** (sección 7c, «v28»): Jorge, tras la v27: «mucho mejor». Con la mira en el 0° de la escalera de cabeceo el dragón vuela horizontal (antes perdía ~2,5 m/s y había que apuntar algo por encima) y el marcador pequeño del HUD es la trayectoria; la llamarada se corta en el punto de contacto y de ahí saltan chispas, fragmentos de tierra o roca y polvo; cámara de apuntado más baja (la cola tapaba el impacto). **Aprobada por Jorge** («Bien, está mucho mejor así»); con ella acaba este chat.
@@ -23,7 +24,8 @@ Fecha de este resumen: 30 de octubre de 2026, v30 (la primera versión es del 16
 > **27-oct, al cerrar el chat:** v20 corregida tras jugarla Jorge (el jinete de Fulgor flotaba muy atrás y la 1ª persona iba muy atrás y baja); sin nueva respuesta suya aún. Blender enlazado al proyecto (sección 8.3).
 
 Estado:
-- **v30 entregada (30-oct-2026, sin jugar aún)**: arreglos de la v29 que pidió Jorge (sección 7c, «v30»).
+- **v31 entregada (30-oct-2026, sin jugar aún)**: fijado y adelanto, guiada en 2 s y caída del superdirigible (sección 7c, «v31»).
+- **v30 jugada** («está todo mucho mejor»): arreglos de la v29 (sección 7c, «v30»).
 - **v29 jugada**: lista de enemigos en el juego y en el Excel, y la Galería de enemigos (sección 7c, «v29»). Pendiente de que Jorge la juegue: aspecto y tamaño de cada enemigo, sensación de disparo, valores provisionales del Excel y rendimiento en la Vega 10.
 - **Para el chat nuevo (30-oct-2026)**: la v28 está aprobada y subida (etiqueta `v28`). Jorge no ha dicho aún qué toca. Lo pendiente o anunciado: lo que queda de la Fase 1 de la campaña (briefing, hangar con loadout, mapa del mundo, resultados con rango y guardado: preguntarle cada cosa), la lista completa de enemigos y sus stats, regrabar los vídeos del tutorial que muestran teclas o controles viejos (hover, alabeo, escudo, boost, guiadas, vida), y los ajustes que salgan de jugar con el panel del modo Dev Test (Tab; «Copiar ajustes» y «Copiar cambios» dan los valores para fijarlos en el código o en el Excel). Preguntarle por dónde seguir.
 - Nombre provisional del juego: **Sky Apex** (desde el 23-oct; antes «Alas de Brasa»). Desde la v5 los archivos de la línea activa se llaman `sky_apex*` (este documento incluido); la v6 estable, la rama humanoide y las copias de `versiones/` conservan el nombre antiguo.
@@ -749,6 +751,16 @@ Jorge jugó la v29: «es una gran implementación y casi todo funciona bien», c
 - Probado (navegador integrado): lo de arriba, impactos de nuevo contra cada tipo, la galería, la Misión 1 y la prueba de objetivos, y el HTML generado (48,7 MB). Sin comprobar: la sensación jugando.
 - Etiqueta `v30`.
 
+### v31 (30-oct): fijar y apuntar más cómodo; el superdirigible cae
+Jorge jugó la v30: «está todo mucho mejor». Pidió:
+- **Círculo de adelanto** (el blanco del fijado, `drawLeadPipper`, 16): con blancos quietos se quedaba en su centro y lo tapaba sin hacer falta. Ahora solo sale si el blanco va a más de 150 km/h (`LEAD_MIN_V`). Comprobado: 0, 108 y 140 km/h sin círculo; 160 y 540 km/h con él. La sierpe ya tiene su velocidad de verdad (`u.vel`, del movimiento de su lomo; ~150 km/h en patrulla), que usan también la guiada y el adelanto.
+- **Fijar** (`cycleTarget`, 14c): primero lo más cercano a la mira en pantalla (antes, los TGT de más cerca a más lejos: en la galería había que pasar por muchos). Si apuntas a otro sitio, el clic fija lo que tienes en la mira; si sigues apuntando al mismo sitio (menos de 0,05 rad en menos de 3 s, `LOCK_CYCLE`), cada clic pasa al siguiente más cercano a la mira. La F sin blanco usa lo mismo. Comprobado: mira en una catapulta → esa; dos clics más → las catapultas vecinas; mira en una balista → esa; en un batallón → ese.
+- **Guiada**: fijado en 2 s (antes 3): `guiado_fijado` de la Base en el Excel (`stats_excel.mjs --poner base.guiado_fijado=2`; los cuatro dragones lo siguen con su fórmula) y `MSL_LOCK`.
+- **Barra de vida del superdirigible** (`superBar`, 16): grande (220 px), bajo el casco y siempre a la vista, con «NÚCLEO vida / máx. · TORRETAS n / 12»; las demás unidades siguen con la pequeña.
+- **Muerte del superdirigible** (`superFall`, 14e): ya no estalla en el aire con tres explosiones de energía: se ennegrece, arde y cae cada vez más deprisa (7 m/s², hasta 85 m/s; ~22 s desde 1500 m), con el morro bajando (hasta 0,32 rad) y un leve balanceo, llamas y explosiones por el casco y una estela de humo negro de cinco puntos (sistema de partículas propio, `fxTrail`, 1800, porque es muy larga); las torretas caen con él. Al tocar el suelo con la proa (`superCrash`): temblor, estruendo, polvo a ras de suelo y explosiones que recorren el casco de proa a popa; los restos se quedan en el suelo humeando y ardiendo 90 s (`SUPER_FALL`).
+- Probado (navegador integrado): lo de arriba, capturas de la barra y de la caída (a los 6 y 12 s, el choque y los restos) y el HTML generado (48,7 MB). Sin comprobar: la sensación jugando.
+- Etiqueta `v31`.
+
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.
 - El Tyrant del jugador cuesta unos 2 ms de render y 0,3–0,6 ms de CPU de animación.
@@ -757,7 +769,8 @@ Jorge jugó la v29: «es una gran implementación y casi todo funciona bien», c
 - Partidas simuladas de 30 s: sin errores.
 
 ### Pendiente
-- **v30 entregada** (30-oct, sin jugar aún): apuntado arreglado, sierpe desde el FBX (patas y aletas) en patrulla circular, superdirigible de 1000 m con motores arcanos, guiada con parábola contra tierra y mar.
+- **v31 entregada** (30-oct, sin jugar aún): círculo de adelanto solo con blancos rápidos, fijar por cercanía a la mira, guiada en 2 s, barra grande y caída del superdirigible.
+- **v30 jugada** («está todo mucho mejor»). Era: apuntado arreglado, sierpe desde el FBX (patas y aletas) en patrulla circular, superdirigible de 1000 m con motores arcanos, guiada con parábola contra tierra y mar.
 - **v29 jugada** («una gran implementación y casi todo funciona bien»): correcciones en la v30. Era: lista de enemigos (artillería, batallones, barcos navales, superdirigible, sierpe) en el juego y en el Excel, y la Galería de enemigos. Para ajustar al jugarla: todo el Excel nuevo (valores provisionales), tamaños (`largo`), dónde está cada grupo en la galería (receta `galeria`). Siguiente natural: que se muevan (velocidades del Excel) y usarlos en misiones (preguntar a Jorge cada una).
 - **v28 aprobada** (30-oct, «Bien, está mucho mejor así»): vuelo hacia la mira (marcador de trayectoria en el 0°) e impacto de la llamarada (corte en el suelo, chispas y fragmentos), cámara de apuntado más baja. Con ella acaba el chat; lo siguiente lo decide Jorge (ver «Para el chat nuevo», arriba).
 - **v27 jugada** (30-oct): «mucho mejor»; correcciones en la v28.

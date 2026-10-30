@@ -95,7 +95,7 @@ function serpentModel(u) {
 function addSierpe(x, z, height, heading, tags, mode) {
   const S = STATS.sierpe, ang = heading * Math.PI / 180;
   const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: '¡Sierpe abatida!', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
-    markR: 16000, lockRange: 14000, radar: 'serpent', crashText: 'la sierpe', mode: mode || 'idle', U: serpentUniforms(), shieldMeshes: [], shield: true, shieldA: 1, shieldHitT: 0, hint: false,
+    markR: 16000, lockRange: 14000, radar: 'serpent', crashText: 'la sierpe', vel: new THREE.Vector3(), mode: mode || 'idle', U: serpentUniforms(), shieldMeshes: [], shield: true, shieldA: 1, shieldHitT: 0, hint: false,
     breath: 0, breathCool: 2, fireCool: 2, theta: 0, t: Math.random() * 10, dieT: 4.5, upd: updSierpe, hurt: serpentHurt, onKill: serpentDie, cleanup: u => { if (u.shieldMat) u.shieldMat.dispose(); } });
   u.size = S.largo; u.half = 40;
   u.home = new THREE.Vector3(x, Math.max(groundAt(x, z) + (height || S.altura), WL + 300), z);
@@ -166,6 +166,7 @@ function serpentSpine(u, dt) {
     Q[i].set(_Sq.x, _Sq.y, _Sq.z, _Sq.w); P[i].copy(u.spP[i]); prev = Q[i];
   }
   u.U.uLen.value = L;
+  if (dt > 0) u.vel.subVectors(u.spP[12], u.aimAt).divideScalar(dt);   // (v31: su velocidad, para el adelanto)
   u.pos.copy(u.spP[0]); u.aimAt.copy(u.spP[12]);
   // cápsulas: cabeza más gruesa; el cuerpo, una cada 3 puntos
   const D = [];

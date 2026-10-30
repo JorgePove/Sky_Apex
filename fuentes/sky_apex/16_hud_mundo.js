@@ -204,10 +204,24 @@ function drawUnitMarkers(a, lock) {
       const name = big ? u.label.toUpperCase() + (u.kind === 'sierpe' && u.shield ? ' · ESCUDO' : '') + '  ' : u.kind === 'batallon' ? u.alive + '  ·  ' : '';
       hudText((tgt ? 'TGT  ' : '') + name + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
     }
-    if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
+    if (u.kind === 'superdirigible') superBar(u, a, half);
+    else if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
   }
   hctx.globalAlpha = 1;
   return shown;
+}
+/* v31: barra de vida del superdirigible, grande y bajo el casco (siempre, no solo tocado), con su vida y las torretas que le quedan. */
+const _sb = { x: 0, y: 0 };
+function superBar(u, a, half) {
+  const bx = a.x, by0 = proj(u.bc.x, u.bc.y - u.size * 0.06, u.bc.z, _sb) ? _sb.y + 18 : a.y + 40, by = Math.max(by0, half ? a.y + half + 12 : 0);
+  if (by > HH - 60) return;
+  const w = 220, h = 9, f = clamp(u.hp / u.hpMax, 0, 1), left = u.kids.filter(k => !k.dead).length;
+  hctx.globalAlpha = 1;
+  hctx.fillStyle = 'rgba(13,10,15,.7)'; hctx.fillRect(bx - w / 2 - 3, by - 3, w + 6, h + 6);
+  hctx.fillStyle = 'rgba(241,230,211,.22)'; hctx.fillRect(bx - w / 2, by, w, h);
+  hctx.fillStyle = f < 0.35 ? '#ff3b2e' : C_DANGER; hctx.fillRect(bx - w / 2, by, w * f, h);
+  hctx.strokeStyle = 'rgba(241,230,211,.55)'; hctx.lineWidth = 1; hctx.strokeRect(bx - w / 2 - 0.5, by - 0.5, w + 1, h + 1);
+  hudText('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '   ·   TORRETAS ' + left + ' / ' + u.kids.length, bx, by + h + 14, FM(11), C_BONE, 'center');
 }
 /* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
 const C_ALLY = '#5ab4ff';
@@ -237,7 +251,9 @@ function drawLockCircle() {
 }
 /* Indicador de adelanto (estilo Star Citizen): círculo gris donde hay que apuntar para que la bola de fuego alcance al dragón fijado. */
 const _lp = new THREE.Vector3(), _lm = new THREE.Vector3(), _lq = new THREE.Vector3();
+const LEAD_MIN_V = 150 / 3.6;                              // v31: el círculo de adelanto solo sale con blancos a más de 150 km/h (lo quieto o lento se ve mejor sin él)
 function drawLeadPipper(e) {
+  if (e.vel.lengthSq() < LEAD_MIN_V * LEAD_MIN_V) return;
   heroMouth(_lm);                                                                                            // boca del jugador: de donde sale la bola
   if (interceptPoint(e, _lm, _lp) < 0) return;                                                               // fuera de alcance
   _lq.subVectors(_lp, _lm).normalize().multiplyScalar(1400).add(_lm);                                        // el marcador de disparo va a un punto lejano de esa línea
@@ -593,7 +609,7 @@ function updateWorld(dt) {
   pumpIslands(3); updateWaterfalls(dt);
   threat.lock = 0; threat.incoming.length = 0;            // los rellenan las torres, los dragones y las bolas guiadas en camino
   updateTowerAI(dt); updateBolts(dt); updateEnemies(dt); updateAlly(dt); updateFireballs(dt); updateAirships(dt); updateUnits(dt);   // (v21: dirigibles, tras los proyectiles: su explosión usa la luz de las bolas; v23: el aliado; v29: unidades nuevas, 6f)
-  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateScorch(); devDebug();   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
+  updateParticles(fxAdd, dt); updateParticles(fxSmoke, dt); updateParticles(fxTrail, dt); updateScorch(); devDebug();   // (v31: fxTrail, la estela del superdirigible que cae)   // (v27: quemaduras, 13b; hitboxes del modo Dev Test, 19d)
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1.4);
   const fwdY = _cp.set(0, 0, -1).applyQuaternion(dragon.quaternion).y;
   // v27: en partida, la cabeza mira al punto de la mira (F.aimPt) desde la base del cuello, no en la dirección de la mira desde la cámara (cerca
