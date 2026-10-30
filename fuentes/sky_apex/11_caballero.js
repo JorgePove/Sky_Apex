@@ -69,7 +69,7 @@ function knightToGame() {
 function updateKnight() {
   if (!knight.ready || knight.holder.parent !== dragon) return;
   const A = dragonAnim;
-  knight.holder.visible = (state === 'playing' || state === 'dead') && hero.ready && !!A.fp && A.cam > KNIGHT_SHOW_CAM;
+  knight.holder.visible = (state === 'playing' || state === 'dead') && hero.ready && !!A.fp && A.cam > KNIGHT_SHOW_CAM && !devNoRider();   // (v32: sin jinete en los modos de prueba)
   if (!knight.holder.visible) return;
   const e = knight.eyes;
   knight.holder.position.set(e.x, heroFP[0] - e.y, heroFP[1] + e.z).applyQuaternion(hero.bodyQ).add(A.fp);   // (v13) sobre el lomo, que se inclina

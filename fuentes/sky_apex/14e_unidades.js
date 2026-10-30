@@ -445,27 +445,39 @@ function updSuper(u, dt, P, d) {
 }
 function superDie(u) {
   toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2);
-  u.fallT = 0; u.fallV = 0; u.pitch = 0; u.landed = false; u.wreckT = 0; u.trailT = 0; u.rollS = Math.random() < 0.5 ? -1 : 1;
+  u.fallT = 0; u.fallV = 0; u.pitch = 0; u.landed = u.sinking = false; u.wreckT = 0; u.trailT = 0; u.rollS = Math.random() < 0.5 ? -1 : 1;
   for (let i = 0; i < 5; i++) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); explode(_Ua.x + rnd(-25, 25), _Ua.y + rnd(-15, 15), _Ua.z + rnd(-25, 25), rnd(2, 3.5)); }
 }
 /* v31 (petición de Jorge): al destruirlo ya no estalla en el aire con tres explosiones de energía: se ennegrece, arde y cae (cada vez más
    deprisa, hasta SUPER_FALL.vmax), con el morro bajando y un leve balanceo, dejando una estela de humo negro (fxTrail, aparte: es muy larga)
    y llamas por el casco; al tocar el suelo con la proa, explosiones a lo largo del casco, polvo y temblor, y los restos se quedan ardiendo
    en el suelo (SUPER_FALL.wreck s de humo). Las torretas caen con él. */
-const SUPER_FALL = { g: 7, vmax: 85, pitch: 0.32, pitchRate: 0.035, wreck: 90 };   // m/s², m/s, morro abajo (rad) y su ritmo (rad/s), s de humo en el suelo
+const SUPER_FALL = { g: 7, vmax: 85, pitch: 0.32, pitchRate: 0.035, wreck: 90, sink: 0.5, settle: 0.06, vEnd: 4 };   // m/s², m/s, morro abajo (rad) y su ritmo (rad/s), s de humo en el suelo; v32: hundimiento (abajo)
+/* v32 (petición de Jorge): al tocar el suelo ya no se para en seco (lo primero que tocaba era el mástil de abajo o la proa): sigue hundiéndose,
+   frenando de su velocidad de caída a vEnd m/s, y la popa baja hasta quedar casi nivelado (settle rad de morro abajo), hasta enterrar en el
+   terreno la parte sink del casco (0,5 = la mitad). SUPER_HULL: alto del casco sin los mástiles (fracción del largo, medido en el modelo). */
+const SUPER_HULL = [-0.06, 0.045];
 const fxTrail = makeParticles(1800, false);
 function superFall(u, dt, d) {
   const L = u.size, F_ = SUPER_FALL, c = u.caps[0];
   u.fallT += dt;
   if (u.mats) charUnit(u, Math.min(1, u.fallT / 2));
-  if (!u.landed) {
+  if (u.sinking) superSink(u, dt);
+  else if (!u.landed) {
     u.fallV = Math.min(F_.vmax, u.fallV + F_.g * dt); u.pos.y -= u.fallV * dt;
     u.pitch = Math.min(F_.pitch, u.pitch + F_.pitchRate * dt);
-    u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Ux, -u.pitch)).multiply(_Uq2.setFromAxisAngle(_Uz, u.rollS * (0.06 * Math.sin(u.fallT * 0.4) + u.pitch * 0.25)));
-    unitCaps(u);
+    superTilt(u, 1);
     // ¿toca el suelo? (la proa, que va por delante y más baja)
     _Ua.set(0, -0.045 * L, -0.48 * L).applyQuaternion(u.q).add(u.pos);
-    if (_Ua.y <= groundAt(_Ua.x, _Ua.z)) { u.landed = true; superCrash(u, _Ua); }
+    if (_Ua.y <= groundAt(_Ua.x, _Ua.z)) {
+      superCrash(u, _Ua);
+      // v32: y se hunde (superSink), frenando con deceleración constante hasta yEnd
+      u.sinking = true; u.y0 = u.pos.y; u.p0 = u.pitch; u.fallV = Math.max(u.fallV, 20);
+      u.yEnd = Math.min(u.y0, groundAt(u.pos.x, u.pos.z) - (SUPER_HULL[0] + F_.sink * (SUPER_HULL[1] - SUPER_HULL[0])) * L);
+      u.sinkA = u.fallV * u.fallV / (2 * Math.max(1, u.y0 - u.yEnd));
+    }
+  }
+  if (!u.landed) {
     // estela de humo negro (de tres puntos del casco) y llamas por todo él
     u.trailT -= dt;
     if (u.trailT <= 0) {
@@ -494,6 +506,30 @@ function superFall(u, dt, d) {
   }
   if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
   for (const k of u.kids) { superPlace(u, k); if (k.model) { k.model.position.copy(k.pos); k.model.quaternion.copy(k.q); } unitCaps(k); }
+}
+/* Morro abajo (u.pitch) y un leve balanceo (wob: 1 cayendo; se apaga al hundirse). */
+function superTilt(u, wob) {
+  u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Ux, -u.pitch)).multiply(_Uq2.setFromAxisAngle(_Uz, u.rollS * (0.06 * Math.sin(u.fallT * 0.4) * wob + u.pitch * 0.25)));
+  unitCaps(u);
+}
+/* v32: tras el choque, el casco se clava en el suelo: baja frenando (u.sinkA) hasta enterrar la mitad (SUPER_FALL.sink) y la popa cae hasta
+   quedar casi nivelado; levanta tierra y polvo a lo largo de la línea donde entra en el suelo. */
+function superSink(u, dt) {
+  const F_ = SUPER_FALL, L = u.size, span = Math.max(1, u.y0 - u.yEnd);
+  u.fallV = Math.max(F_.vEnd, u.fallV - u.sinkA * dt);
+  u.pos.y = Math.max(u.yEnd, u.pos.y - u.fallV * dt);
+  const k = clamp((u.y0 - u.pos.y) / span, 0, 1);
+  u.pitch = lerp(u.p0, F_.settle, k);
+  superTilt(u, 1 - k);
+  const n = Math.round(clamp(u.fallV / 6, 1, 12));
+  for (let i = 0; i < n; i++) {                              // polvo y terrones donde el casco toca el suelo
+    _Ub.set(rnd(-0.06, 0.06) * L, 0, rnd(-0.5, 0.5) * L).applyQuaternion(u.q).add(u.pos);
+    const gy = groundAt(_Ub.x, _Ub.z), a = Math.random() * 6.283, sp = rnd(10, 40) * (0.4 + u.fallV / 85);
+    if (Math.abs(_Ub.y - gy) > 0.1 * L) continue;
+    emit(fxSmoke, _Ub.x, gy + rnd(1, 6), _Ub.z, Math.cos(a) * sp, rnd(6, 22), Math.sin(a) * sp, rnd(2.5, 5), rnd(15, 25), rnd(50, 90), 0.42, 0.37, 0.31, 0.6, 0.5, -0.4);
+    if (Math.random() < 0.3) emit(fxSmoke, _Ub.x, gy + 2, _Ub.z, Math.cos(a) * sp * 0.6, rnd(18, 40), Math.sin(a) * sp * 0.6, rnd(1.5, 2.5), rnd(3, 6), rnd(2, 4), 0.25, 0.2, 0.16, 1, 0.1, 22);
+  }
+  if (u.pos.y <= u.yEnd + 0.01) { u.sinking = false; u.landed = true; }
 }
 /* El choque: explosiones que recorren el casco desde la proa (las lanza superCrashStep), polvo que se abre a ras de suelo y temblor. */
 function superCrash(u, at) {

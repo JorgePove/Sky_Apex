@@ -126,7 +126,7 @@ function poseArm(A, S, W, pole, hd, ht, curl, tcurl) {
 /* ---------- Por fotograma: pose según los mandos, cámara del jinete y riendas ---------- */
 function updateRider(dt) {
   const inGame = (state === 'playing' || state === 'dead') && hero.ready;
-  rider.vis = rider.ready && inGame && dragonAnim.cam < (knight.ready ? KNIGHT_SHOW_CAM : 0.5);   // con el caballero completo, los brazos solo en 1ª persona
+  rider.vis = rider.ready && inGame && dragonAnim.cam < (knight.ready ? KNIGHT_SHOW_CAM : 0.5) && !devNoRider();   // con el caballero completo, los brazos solo en 1ª persona (v32: el jinete se puede quitar en los modos de prueba)
   for (const r of rider.reins) r.mesh.visible = rider.vis;
   if (rider.collar) rider.collar.mesh.visible = rider.vis;
   const third = rider.ready && inGame && knight.ready && knight.holder.visible;   // 3ª persona: riendas y collera en el mundo, desde las manos del caballero
@@ -157,7 +157,8 @@ function updateRider(dt) {
   // cámara del jinete: en el origen. El cuerpo (y los brazos) sigue al lomo; la cámara, además, el giro de cabeza de la Z (mirar alrededor)
   camera.updateWorldMatrix(true, false);
   const camP = _rv[8]; camera.matrixWorld.decompose(camP, rider.cam.quaternion, _rv[9]);
-  rider.root.quaternion.copy(dragon.quaternion).multiply(_rq[1].identity().slerp(hero.bodyQ, RIDER_LEAN)).multiply(_rq[0].setFromAxisAngle(_rv[0].set(1, 0, 0), heroFP[2]));   // (v13) el torso del jinete acompaña en parte al cuerpo del dragón
+  rider.root.quaternion.copy(dragon.quaternion).multiply(_rq[0].setFromAxisAngle(_rv[0].set(0, 0, 1), hero.roll))   // (v32: el tonel de la esquiva, entero)
+    .multiply(_rq[1].identity().slerp(hero.leanQ, RIDER_LEAN)).multiply(_rq[0].setFromAxisAngle(_rv[0].set(1, 0, 0), heroFP[2]));   // (v13) el torso del jinete acompaña en parte al cuerpo del dragón
   rider.root.updateMatrixWorld(true);
   rider.fireLight.color.copy(hero.light.color); rider.fireLight.intensity = hero.light.intensity * 1.2;
   rider.fireLight.position.subVectors(hero.light.position, camP);

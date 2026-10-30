@@ -599,7 +599,8 @@ function drawHUD() {
 const _cp = new THREE.Vector3(), _cpA = new THREE.Vector3(), _cpH = new THREE.Vector3(), _cpQ = new THREE.Quaternion();
 const FOV_BASE = [76, 88];                                 // campo de visión vertical (°) despacio y a la velocidad de crucero (v27: con nombre, para el panel de pruebas)
 const HEAD_BASE = new THREE.Vector3(0, 1.5, -6);           // v27: base del cuello en ejes del dragón (desde ahí mira la cabeza al punto de la mira)
-let islT = 0, towerT = 0, prevFlapSin = 0, lastBeep = 0, fpsEMA = 60;
+let islT = 0, towerT = 0, lastBeep = 0, fpsEMA = 60;
+const beatSh = { a: 0, t: 0 };                             // v32: temblor del golpe de ala (fuerza y s desde el golpe)
 function updateWorld(dt) {
   const p = dragon.position;
   refreshTerrainSelection(p.x, p.y, p.z, false);
@@ -617,12 +618,25 @@ function updateWorld(dt) {
   const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
   let headAim = F.aimLocal, aimPt = null;
   if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt });
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
+    effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
     camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
     camera.rotation.z += (Math.random() - 0.5) * camShake * 0.04;   // (v13: suma; el alabeo de la cámara ya no es 0)
     camShake *= Math.exp(-dt * 4.5);
+  }
+  // v32: golpe de ala: el sonido (un trozo del aleteo al azar, programado para que su pico caiga en el golpe) y un temblor leve de cámara que
+  // se apaga en ~0,3 s (menos al planear; más lejano en 3ª persona)
+  const flapAmt = dragonAnim.flap * (1 - 0.9 * (dragonAnim.glide || 0)), nearF = lerp(1, 0.7, dragonAnim.cam);
+  if (state === 'playing' && dragonAnim.beatIn) sfx.wingBeat(flapAmt, nearF, dragonAnim.beatIn);
+  if (state === 'playing' && dragonAnim.beat && flapAmt > 0.1) { beatSh.a = flapAmt; beatSh.t = 0; }
+  if (beatSh.a > 0.005) {
+    beatSh.t += dt;
+    const e = beatSh.a * Math.exp(-beatSh.t * BEAT_SHAKE[3]), w = beatSh.t * Math.PI * 2;
+    camera.position.y += e * BEAT_SHAKE[0] * Math.sin(w * 6);
+    camera.rotation.x -= e * BEAT_SHAKE[1] * Math.sin(w * 6 + 0.6); camera.rotation.z += e * BEAT_SHAKE[2] * Math.sin(w * 9 + 1.3);
+    if (e < 0.005) beatSh.a = 0;
   }
   // boost: temblor suave (ondas de 7-11 Hz, no saltos al azar), más fuerte en el golpe al activarlo
   const bsh = F.boostFx * BOOST_SHAKE[0] + F.kickFx * BOOST_SHAKE[1] + SPEED_SHAKE * smooth(VCRUISE_MAX * 1.15, VMAX, F.speed) * (state === 'playing' ? 1 : 0);   // (v13) y un temblor leve a mucha velocidad
@@ -639,12 +653,7 @@ function updateWorld(dt) {
   fxAdd.mat.uniforms.uScale.value = sc; fxSmoke.mat.uniforms.uScale.value = sc;
   skyMat.uniforms.uTime.value = gameTime; waterMat.uniforms.uTime.value = gameTime;
   waterMesh.position.x = Math.round(p.x / 512) * 512; waterMesh.position.z = Math.round(p.z / 512) * 512;
-  // sonido y aviso de proyectiles
-  // v13: aletazo al bajar las alas y soplo al subirlas (menos al planear; más lejano en 3ª persona); viento según velocidad y aceleración
-  const s = Math.sin(dragonAnim.phase), fl = dragonAnim.flap * (1 - 0.9 * (dragonAnim.glide || 0)), nearF = lerp(1, 0.7, dragonAnim.cam);
-  if (state === 'playing' && prevFlapSin > 0 && s <= 0) sfx.flap(fl, nearF);
-  if (state === 'playing' && prevFlapSin < 0 && s >= 0) sfx.flapUp(fl, nearF);
-  prevFlapSin = s;
+  // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
   // avisos: bola guiada en camino > te están fijando > virote o bola cerca

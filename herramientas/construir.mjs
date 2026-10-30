@@ -51,6 +51,8 @@ if (!soloFuente) {
     '--extra', 'balista-glb=../modelos/artilleria_balista.glb', '--extra', 'catapulta-glb=../modelos/artilleria_catapulta.glb',
     '--extra', 'canon-glb=../modelos/artilleria_canon.glb', '--extra', 'barco-glb=../modelos/barco_naval.glb',
     '--extra', 'superdirigible-glb=../modelos/superdirigible.glb', '--extra', 'sierpe-glb=../modelos/sierpe.glb', '--extra', 'soldado-glb=../modelos/soldado.glb',
-    '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible; v29: las unidades nuevas)
+    '--extra', 'aleteo-mp3=../audio/dragon-studio-dragon-wings-flapping-478385.mp3', '--extra', 'rugido-mp3=../audio/dragon-studio-epic-dragon-roar-364481.mp3',
+    '--extra', 'llamarada-mp3=../audio/dragon-studio-dragon-breathing-fire-364475.mp3',
+    '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible; v29: las unidades nuevas; v32: los sonidos de audio/)
   process.stdout.write(execFileSync(process.execPath, args, { cwd: HERR }));
 }

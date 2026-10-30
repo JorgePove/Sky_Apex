@@ -14,8 +14,9 @@ const HERO_URL = '../modelos/tyrant_web.glb';             // solo si el HTML no 
 const HERO_SPAN = 34;                                     // envergadura con las alas abiertas (m): fija la escala del modelo
 const HERO_FP = [2.3, 0.5, -0.12], HERO_FP_BONE = 'spine_02'; // 1ª persona (jinete): altura sobre el hueso del lomo (= los ojos del caballero sentado, que mide 1,9 m), retroceso (positivo = atrás: entre las alas, para verlas mejor) y cabeceo
 let heroFP = HERO_FP;                                     // v16: la del dragón elegido (los otros dos la calculan al cargar: 5g)
-const HERO_CAM = [8, 22, -0.07], HERO_CAM_HOVER = 3;      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m
+const HERO_CAM = [5, 15, -0.07], HERO_CAM_HOVER = 3;      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m (v32: 5 y 15 m, antes 8 y 22)
 const HERO_FLAP = [0.75, 1.3], HERO_FLAP_BOOST = 2.6;     // velocidad del clip de vuelo: acelerador 0 → 1, y con boost (el doble que a todo gas: esfuerzo)
+const HERO_FLAP_EFFORT = 0.6;                             // v32: con W mantenida (intentando ganar velocidad), el aleteo va hasta un 60 % más rápido
 const HERO_TUCK = 0.45;                                   // recogida de las alas en boost (rad)
 const HERO_JAW = 0.55;                                    // apertura de la mandíbula al disparar (rad)
 const HERO_EMISSIVE = 1.6;                                // brillo de los ojos
@@ -27,35 +28,49 @@ const HERO_TAIL = ['Tail0', 'Tail1', 'Tail2', 'Tail3', 'Tail4', 'Tail5', 'Tail6'
 /* v13: sensación de vuelo (a partir del vídeo de «Dragontwin», 1:10-1:37).
    · Cuerpo: encima del rumbo de vuelo, el modelo se mueve con muelles (BODY_SPRING: frecuencia en rad/s y amortiguamiento; por debajo de 1
      se pasa un poco y vuelve: peso). Se inclina más que el rumbo al virar (BODY_ROLL: rad por rad/s de giro, y tope), adelanta el morro a
-     los cabeceos y a los giros (BODY_PITCH, BODY_YAW), sube y baja con cada aletazo (BODY_HEAVE, m) y en picado recoge las alas (HERO_DIVE_TUCK).
-     El ala de dentro del giro se recoge un poco (HERO_TURN_TUCK).
+     los cabeceos y a los giros (BODY_PITCH, BODY_YAW), sube y baja con cada aletazo (BODY_HEAVE, m) y en picado recoge las alas (v32: las
+     pliega hacia atrás, HERO_FOLD). El ala de dentro del giro se recoge un poco (HERO_TURN_TUCK).
    · Cámara: sigue al dragón con retraso (CAM_LAG, 1/s: 1ª y 3ª persona), así que al girar el dragón se escapa hacia el lado del giro y se le
      ve el costado, al subir queda por encima y al picar por debajo. El horizonte se inclina con el dragón, pero solo una parte (CAM_ROLL).
      Al acelerar la cámara se queda atrás y al frenar se acerca (CAM_PUSH: m por m/s² en 1ª y 3ª persona, y sus topes). */
 const BODY_ROLL = [0.32, 0.55], BODY_PITCH = [0.2, 0.22], BODY_YAW = [0.1, 0.16], BODY_SPRING = [6.5, 0.55], BODY_HEAVE = 0.3;
 const RIDER_LEAN = 0.6;                                   // parte del giro del cuerpo que sigue el torso del jinete en 1ª persona (los brazos)
-const HERO_DIVE_TUCK = 0.75, HERO_TURN_TUCK = [0.3, 0.35];
+const HERO_TURN_TUCK = [0.3, 0.35];
+/* v32 (petición de Jorge): en picado las alas se pliegan hacia atrás, en flecha y algo caídas: giro del brazo y del antebrazo hacia la cola
+   y bajada del brazo (rad, con el picado entero). Antes solo se recogían un poco (0,34 y 0,24 rad). */
+const HERO_FOLD = [1.24, 0.44, 0.2], H_FWD = new THREE.Vector3(0, 0, 1);
+/* v32: golpe de ala. BEAT_LEAD: s antes del golpe en que se elige y se programa el sonido (para que su pico caiga en el golpe);
+   BEAT_SHAKE: temblor de cámara de cada golpe (m arriba y abajo, rad de cabeceo y de alabeo, y 1/s en que se apaga). */
+const BEAT_LEAD = 0.3, BEAT_SHAKE = [0.07, 0.004, 0.002, 9];
 const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 5];
 /* v27: cámara de apuntado (vuelo recto, Espacio; a partir del vídeo de referencia de Jorge, «demo lanzallamas»): sale de la 1ª persona si
    hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
    punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
    pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
 const AIM_CAM = { d: 24, elev: 0.08, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };   // (v28: elev 0,26 → 0,08: más alta, la cola tapaba el impacto)
+/* v32: esquiva (A/D, updateFlight). En 3ª persona la cámara no acompaña al dragón en el desplazamiento lateral: se queda atrás hold (parte del
+   desplazamiento: 1 = entera) mientras dura y, al acabar, espera wait s y vuelve detrás de él en back s, como si le costara darse cuenta.
+   En 1ª persona la vista del jinete da la vuelta con el dragón. */
+const DODGE_CAM = { hold: 0.55, wait: 0.12, back: 0.9 };   // (con 0,55 y 25 m, el dragón acaba hacia el borde de la pantalla, aún entero; más, se sale)
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
-  bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
+  bodyQ: new THREE.Quaternion(),                           // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
+  leanQ: new THREE.Quaternion(), roll: 0, beat: { fly: 0, hover: 0 } };   // v32: el cuerpo sin el tonel de la esquiva, el tonel (rad) y el golpe de ala de cada clip (s)
 hero.wrap.rotation.set(0, Math.PI, 0);
 dragon.add(hero.wrap);
 
 /* Recursos incrustados: el base64 de un <script id=…> (vacío si el HTML no lo lleva y hay que cargar el archivo suelto). */
 function embedded(id) { const tag = document.getElementById(id), b64 = tag ? tag.textContent.replace(/\s+/g, '') : ''; return b64.length > 1000 ? b64 : ''; }
-/* Un .glb incrustado o, si no, el archivo (necesita un servidor local). */
-function loadGLB(id, url) {
+/* Los bytes de un recurso incrustado o, si no, del archivo (necesita un servidor local). v32: también los sonidos (13). */
+function loadBytes(id, url) {
   const b64 = embedded(id);
-  const src = b64
+  return b64
     ? Promise.resolve().then(() => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })
     : fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
-  return src.then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
+}
+/* Un .glb incrustado o, si no, el archivo (necesita un servidor local). */
+function loadGLB(id, url) {
+  return loadBytes(id, url).then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
 }
 /* Carga: del <script id="modelo-glb"> en base64 si lo hay; si no, del archivo .glb (necesita un servidor local). */
 function loadHero() {
@@ -99,6 +114,10 @@ function setupHero(gltf) {
   hero.act.fly.time = hero.glideT; mixer.update(0); model.updateMatrixWorld(true);
   const piv = model.worldToLocal(hero.B.spine_02.getWorldPosition(new THREE.Vector3()));
   model.position.set(-piv.x, -piv.y, -piv.z);
+  // v32: instante del golpe de ala en cada clip (cuando las puntas bajan más deprisa): ahí caen el sonido del aleteo y el temblor de cámara
+  hero.beat = { fly: clipBeat(hero.act.fly, fly.duration), hover: clipBeat(hero.act.hover, hov.duration) };
+  for (const a of Object.values(hero.act)) a.setEffectiveWeight(a === hero.act.fly ? 1 : 0);
+  hero.act.fly.time = hero.glideT; mixer.update(0); model.updateMatrixWorld(true);
   // boca y punta de la cola en ejes del dragón (pose de planeo): para los enemigos lejanos y su estela
   dragon.updateMatrixWorld(true);
   hero.mouthLocal = dragon.worldToLocal(hero.B.LipUpperMid.getWorldPosition(new THREE.Vector3()));
@@ -122,6 +141,21 @@ function setupHero(gltf) {
   model.traverse(o => { if (o.isMesh && o.material.map) tintSkinMaterial(o.material, SKIN_TINT); });   // la piel admite el color elegido
   loadColors();
   hero.ready = true;
+}
+
+/* v32: instante (s del clip) en que la punta del ala baja más deprisa respecto al lomo: el golpe de ala. Deja solo ese clip con peso. */
+function clipBeat(act, dur) {
+  const tip = hero.B.wingMiddle8_l, sp = hero.B.spine_03;
+  for (const a of Object.values(hero.act)) a.setEffectiveWeight(0);
+  act.play(); act.setEffectiveWeight(1);
+  let prev = null, best = 0, bt = 0;
+  for (let k = 0; k <= 60; k++) {
+    act.time = dur * k / 60; hero.mixer.update(0); hero.model.updateMatrixWorld(true);
+    const y = tip.getWorldPosition(_hP).y - sp.getWorldPosition(_hS).y;
+    if (prev !== null && prev - y > best) { best = prev - y; bt = dur * (k - 0.5) / 60; }
+    prev = y;
+  }
+  return bt;
 }
 
 /* ---------- Ayudantes: giros de huesos en el espacio del modelo ---------- */
@@ -150,7 +184,8 @@ function animateTyrant(R, A, dt, st) {
   A.headYaw += (clamp(Math.atan2(-a.x, -a.z) * HERO_LOOK[0] + st.yawRate * HERO_LOOK[2], -HERO_LOOK[3], HERO_LOOK[3]) - A.headYaw) * k5;
   A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -HERO_LOOK_DOWN, 0.8) - A.headPitch) * k5;   // (v27: hacia abajo, hasta HERO_LOOK_DOWN)
   A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
-  A.tuck += (Math.max(bs, (st.dive || 0) * HERO_DIVE_TUCK) * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));   // boost y (v13) picado: alas recogidas
+  A.tuck += (bs * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));                                       // boost: alas recogidas
+  A.fold = (A.fold || 0) + ((st.dive || 0) * (1 - hv) * (1 - bs) - (A.fold || 0)) * (1 - Math.exp(-dt * 3));   // v32: picado: alas plegadas hacia atrás
   A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));
   A.glide = (A.glide || 0) + (clamp((0.42 - A.flap) / 0.3, 0, 1) * (1 - hv) * (1 - bs) - (A.glide || 0)) * (1 - Math.exp(-dt * 2.5));
   A.fire += (st.fire - A.fire) * (1 - Math.exp(-dt * 14));
@@ -159,7 +194,7 @@ function animateTyrant(R, A, dt, st) {
   // 1. clips: pesos (vuelo / planeo / hover) y velocidad del aleteo (los enemigos no tienen hover)
   act.fly.setEffectiveWeight((1 - hv) * (1 - A.glide));
   act.glide.setEffectiveWeight((1 - hv) * A.glide);
-  act.fly.timeScale = lerp(lerp(HERO_FLAP[0], HERO_FLAP[1], st.throttle), HERO_FLAP_BOOST, bs);
+  act.fly.timeScale = lerp(lerp(HERO_FLAP[0], HERO_FLAP[1], st.throttle) * (1 + HERO_FLAP_EFFORT * (st.effort || 0)), HERO_FLAP_BOOST, bs);   // (v32: más rápido con W, st.effort)
   if (act.hover) { act.hover.setEffectiveWeight(hv); act.hover.timeScale = 1 + 0.25 * (st.climb || 0); }
   R.mixer.update(dt);
   // fase para el sonido del aleteo (sfx.flap cuando el seno pasa por cero bajando)
@@ -177,8 +212,11 @@ function animateTyrant(R, A, dt, st) {
   }
   rotAxis(B.Jaw0, _hRt, -A.fire * HERO_JAW);
   for (let i = 0; i < HERO_TAIL.length; i++) rotAxis(B[HERO_TAIL[i]], _hUp, A.tailYaw * 0.05 * (0.4 + i / HERO_TAIL.length));
-  if (A.tuck > 0.01 || Math.abs(A.turnTuck) > 0.01) {                    // (v13) además, el ala de dentro del giro se recoge un poco
-    for (const [L, s, tk] of [['l', 1, A.tuck + Math.max(0, A.turnTuck)], ['r', -1, A.tuck + Math.max(0, -A.turnTuck)]]) { rotAxis(B['upperarm_' + L], H_UP, s * HERO_TUCK * tk); rotAxis(B['lowerarm_' + L], H_UP, s * HERO_TUCK * 0.7 * tk); }
+  if (A.tuck > 0.01 || A.fold > 0.01 || Math.abs(A.turnTuck) > 0.01) {    // (v13) además, el ala de dentro del giro se recoge un poco
+    for (const [L, s, tk] of [['l', 1, A.tuck + Math.max(0, A.turnTuck)], ['r', -1, A.tuck + Math.max(0, -A.turnTuck)]]) {
+      rotAxis(B['upperarm_' + L], H_UP, s * (HERO_TUCK * tk + HERO_FOLD[0] * A.fold)); rotAxis(B['lowerarm_' + L], H_UP, s * (HERO_TUCK * 0.7 * tk + HERO_FOLD[1] * A.fold));
+      rotAxis(B['upperarm_' + L], H_FWD, s * HERO_FOLD[2] * A.fold);    // (v32: en picado, en flecha hacia atrás y algo caídas)
+    }
   }
 }
 /* El dragón del jugador: animación, fogonazo de la boca y cámara (1ª / 3ª persona y giro del menú). */
@@ -194,11 +232,28 @@ function animateHero(dt, st) {
   spring('bPitch', (clamp((st.pitchRate || 0) * BODY_PITCH[0], -BODY_PITCH[1], BODY_PITCH[1]) - 0.06 * (st.boost || 0)) * live);
   spring('bYaw', clamp(st.yawRate * BODY_YAW[0], -BODY_YAW[1], BODY_YAW[1]) * live);
   if (st.menu) A.bRoll = A.bRollV = A.bPitch = A.bPitchV = A.bYaw = A.bYawV = 0;
-  hero.bodyQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll, 'YXZ'));
+  // v32: el tonel de la esquiva (st.roll, rad) va entero en el cuerpo (y en el caballero y la vista de la 1ª persona); hero.leanQ, sin él,
+  // es lo que acompaña el torso del jinete
+  const dodgeRoll = st.menu ? 0 : st.roll || 0;
+  hero.leanQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll, 'YXZ')); hero.roll = dodgeRoll;
+  hero.bodyQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll + dodgeRoll, 'YXZ'));
   hero.wrap.quaternion.copy(hero.bodyQ).multiply(_kQy);
   hero.wrap.position.set(0, BODY_HEAVE * A.flap * (1 - (A.glide || 0)) * live * Math.sin(A.phase), 0);
   animateTyrant(hero, A, dt, st);
   dragonPose();                                            // v16: con otro dragón elegido, su modelo copia la pose del Tyrant
+  // v32: golpe de ala con el clip que manda (vuelo u hover): A.beatIn = s que faltan cuando pasa BEAT_LEAD s antes (se programa el sonido)
+  // y A.beat = 1 en el golpe (temblor de cámara). Los dos, solo en ese fotograma (updateWorld)
+  A.beat = A.beatIn = 0;
+  if (!st.menu) {
+    const ho = (st.hover || 0) > 0.5, ac = ho ? hero.act.hover : hero.act.fly, dur = ho ? hero.hoverDur : hero.flyDur, tb = ho ? hero.beat.hover : hero.beat.fly;
+    const ts = Math.max(0.05, ac.timeScale), t1 = ac.time, t0 = A.beatAct === ac ? A.beatT : t1;
+    const passed = x => { x = ((x % dur) + dur) % dur; return t1 >= t0 ? x > t0 && x <= t1 : x > t0 || x <= t1; };
+    if (t1 !== t0) {
+      if (passed(tb - BEAT_LEAD * ts)) A.beatIn = (((tb - t1) % dur) + dur) % dur / ts;
+      if (passed(tb)) A.beat = 1;
+    }
+    A.beatAct = ac; A.beatT = t1;
+  }
   const hv = st.hover || 0;
   // 3. fuego en la boca
   heroMouth(_hT);
@@ -210,7 +265,7 @@ function animateHero(dt, st) {
   //    3ª persona: detrás y por encima; en hover baja y mira al dragón, que está erguido.
   const seat = seatBone(); seat.updateWorldMatrix(true, false);
   dragon.worldToLocal(_hC.setFromMatrixPosition(seat.matrixWorld));
-  if (!A.fp) A.fp = _hC.clone(); else A.fp.lerp(_hC, 1 - Math.exp(-dt * 6));
+  if (!A.fp) A.fp = _hC.clone(); else A.fp.lerp(_hC, 1 - Math.exp(-dt * (dodgeRoll ? 40 : 6)));   // (v32: durante el tonel, casi sin suavizar)
   if (st.menu) {                                           // pantalla de título: giro lento alrededor del dragón, que queda abajo a la derecha
     const ang = A.time * 0.07, R = 40;
     camera.position.set(Math.sin(ang) * R, 5 + Math.sin(A.time * 0.13) * 2.5, Math.cos(ang) * R);
@@ -241,6 +296,7 @@ function animateHero(dt, st) {
   _hC.set(0, HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM[1] + push).applyQuaternion(L).applyQuaternion(rel);
   camera.position.lerpVectors(_hT, _hC, c);
   camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], HERO_CAM[2] - 0.10 * hv, c)));
+  if (dodgeRoll) camera.quaternion.multiply(_hR.setFromAxisAngle(_kZ, dodgeRoll * (1 - c)));   // v32: en 1ª persona, la vista da la vuelta con el tonel
   // v27: cámara de apuntado (AIM_CAM), mezclada encima (A.aim). st.aimPt = punto de la mira en ejes del dragón; todo en el marco con retraso (rel)
   A.aim = (A.aim || 0) + ((st.aimCam ? 1 : 0) - (A.aim || 0)) * (1 - Math.exp(-dt * AIM_CAM.blend));
   if (A.aim > 0.002 && st.aimPt) {
@@ -254,6 +310,8 @@ function animateHero(dt, st) {
     _kQa.copy(rel).multiply(_hQ.setFromEuler(_hEu.set(Math.asin(clamp(_kD.y, -1, 1)), Math.atan2(-_kD.x, -_kD.z), 0, 'YXZ')));
     camera.position.lerp(_kP.applyQuaternion(rel), A.aim); camera.quaternion.slerp(_kQa, A.aim);
   } else A.aimT = null;
+  // v32: esquiva en 3ª persona: la cámara se queda atrás lo que el dragón se ha desplazado de lado (st.dodgeOff, en el mundo; ya con DODGE_CAM)
+  if (st.dodgeOff && c > 0.001) camera.position.sub(_kA.copy(st.dodgeOff).applyQuaternion(_kRi.copy(qd).invert()).multiplyScalar(c));
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);

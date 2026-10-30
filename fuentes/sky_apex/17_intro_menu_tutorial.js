@@ -110,6 +110,10 @@ const TUTORIAL = [
     { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
       'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
+    { id: 'esquiva', title: 'Esquiva', sum: 'Un salto rápido de lado con un tonel, para el último segundo.', keys: [[['A', 'D'], 'Esquivar a la izquierda / derecha']], text: [   // v32
+      K('A') + ' y ' + K('D') + ' lanzan al dragón de golpe hacia la izquierda o la derecha de la pantalla, sin cambiar el rumbo, mientras da un tonel completo hacia ese lado.',
+      'Úsala en el último segundo: para no chocar con una torre, una isla o un dirigible que se te echa encima, o para quitarte de encima una <b>bola guiada</b>: las que vienen a por ti y están cerca pierden el blanco y siguen rectas.',
+      'En la cámara exterior, la cámara tarda un momento en seguirte (el dragón sale hacia un lado de la pantalla y luego la cámara se recoloca); en la del jinete, la vista da la vuelta con el dragón. Entre una esquiva y la siguiente hay una pequeña espera.'] },
     { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Ctrl izq.'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
       'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',

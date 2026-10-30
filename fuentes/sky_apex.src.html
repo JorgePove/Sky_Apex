@@ -362,6 +362,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto y nivelado, con la cámara de apuntado (la mira sigue al ratón: para quemar el suelo en pasadas rasantes)</dd>
       <dt><kbd>Ctrl izq.</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
+      <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>Esquiva a izquierda / derecha (con un tonel)</dd>
       <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
       <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición fija por misión)</dd>
@@ -496,6 +497,10 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <script id="soldado-glb" type="application/octet-stream"></script>
 <script id="logo-sky-png" type="application/octet-stream"></script>
 <script id="logo-apex-png" type="application/octet-stream"></script>
+<!-- v32: sonidos grabados (../audio): aleteo, rugido y llamarada -->
+<script id="aleteo-mp3" type="application/octet-stream"></script>
+<script id="rugido-mp3" type="application/octet-stream"></script>
+<script id="llamarada-mp3" type="application/octet-stream"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -1657,8 +1662,9 @@ const HERO_URL = '../modelos/tyrant_web.glb';             // solo si el HTML no 
 const HERO_SPAN = 34;                                     // envergadura con las alas abiertas (m): fija la escala del modelo
 const HERO_FP = [2.3, 0.5, -0.12], HERO_FP_BONE = 'spine_02'; // 1ª persona (jinete): altura sobre el hueso del lomo (= los ojos del caballero sentado, que mide 1,9 m), retroceso (positivo = atrás: entre las alas, para verlas mejor) y cabeceo
 let heroFP = HERO_FP;                                     // v16: la del dragón elegido (los otros dos la calculan al cargar: 5g)
-const HERO_CAM = [8, 22, -0.07], HERO_CAM_HOVER = 3;      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m
+const HERO_CAM = [5, 15, -0.07], HERO_CAM_HOVER = 3;      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m (v32: 5 y 15 m, antes 8 y 22)
 const HERO_FLAP = [0.75, 1.3], HERO_FLAP_BOOST = 2.6;     // velocidad del clip de vuelo: acelerador 0 → 1, y con boost (el doble que a todo gas: esfuerzo)
+const HERO_FLAP_EFFORT = 0.6;                             // v32: con W mantenida (intentando ganar velocidad), el aleteo va hasta un 60 % más rápido
 const HERO_TUCK = 0.45;                                   // recogida de las alas en boost (rad)
 const HERO_JAW = 0.55;                                    // apertura de la mandíbula al disparar (rad)
 const HERO_EMISSIVE = 1.6;                                // brillo de los ojos
@@ -1670,35 +1676,49 @@ const HERO_TAIL = ['Tail0', 'Tail1', 'Tail2', 'Tail3', 'Tail4', 'Tail5', 'Tail6'
 /* v13: sensación de vuelo (a partir del vídeo de «Dragontwin», 1:10-1:37).
    · Cuerpo: encima del rumbo de vuelo, el modelo se mueve con muelles (BODY_SPRING: frecuencia en rad/s y amortiguamiento; por debajo de 1
      se pasa un poco y vuelve: peso). Se inclina más que el rumbo al virar (BODY_ROLL: rad por rad/s de giro, y tope), adelanta el morro a
-     los cabeceos y a los giros (BODY_PITCH, BODY_YAW), sube y baja con cada aletazo (BODY_HEAVE, m) y en picado recoge las alas (HERO_DIVE_TUCK).
-     El ala de dentro del giro se recoge un poco (HERO_TURN_TUCK).
+     los cabeceos y a los giros (BODY_PITCH, BODY_YAW), sube y baja con cada aletazo (BODY_HEAVE, m) y en picado recoge las alas (v32: las
+     pliega hacia atrás, HERO_FOLD). El ala de dentro del giro se recoge un poco (HERO_TURN_TUCK).
    · Cámara: sigue al dragón con retraso (CAM_LAG, 1/s: 1ª y 3ª persona), así que al girar el dragón se escapa hacia el lado del giro y se le
      ve el costado, al subir queda por encima y al picar por debajo. El horizonte se inclina con el dragón, pero solo una parte (CAM_ROLL).
      Al acelerar la cámara se queda atrás y al frenar se acerca (CAM_PUSH: m por m/s² en 1ª y 3ª persona, y sus topes). */
 const BODY_ROLL = [0.32, 0.55], BODY_PITCH = [0.2, 0.22], BODY_YAW = [0.1, 0.16], BODY_SPRING = [6.5, 0.55], BODY_HEAVE = 0.3;
 const RIDER_LEAN = 0.6;                                   // parte del giro del cuerpo que sigue el torso del jinete en 1ª persona (los brazos)
-const HERO_DIVE_TUCK = 0.75, HERO_TURN_TUCK = [0.3, 0.35];
+const HERO_TURN_TUCK = [0.3, 0.35];
+/* v32 (petición de Jorge): en picado las alas se pliegan hacia atrás, en flecha y algo caídas: giro del brazo y del antebrazo hacia la cola
+   y bajada del brazo (rad, con el picado entero). Antes solo se recogían un poco (0,34 y 0,24 rad). */
+const HERO_FOLD = [1.24, 0.44, 0.2], H_FWD = new THREE.Vector3(0, 0, 1);
+/* v32: golpe de ala. BEAT_LEAD: s antes del golpe en que se elige y se programa el sonido (para que su pico caiga en el golpe);
+   BEAT_SHAKE: temblor de cámara de cada golpe (m arriba y abajo, rad de cabeceo y de alabeo, y 1/s en que se apaga). */
+const BEAT_LEAD = 0.3, BEAT_SHAKE = [0.07, 0.004, 0.002, 9];
 const CAM_LAG = [10, 4.2], CAM_ROLL = [0.6, 0.7], CAM_PUSH = [0.004, 0.1, 0.22, 5];
 /* v27: cámara de apuntado (vuelo recto, Espacio; a partir del vídeo de referencia de Jorge, «demo lanzallamas»): sale de la 1ª persona si
    hace falta y se pone detrás del dragón, algo por encima (elev, rad) y a d m, girada hacia el lado de la mira (yawK de su guiñada). Mira a un
    punto entre el dragón y el punto de la mira (mix: 0 = al dragón, 1 = a la mira), así que al apuntar abajo el dragón queda arriba de la
    pantalla y el suelo al que apuntas, debajo, sin taparlo. follow: suavizado del punto de la mira (1/s); blend: entrada y salida (1/s). */
 const AIM_CAM = { d: 24, elev: 0.08, yawK: 0.8, mix: 0.62, follow: 7, blend: 4 };   // (v28: elev 0,26 → 0,08: más alta, la cola tapaba el impacto)
+/* v32: esquiva (A/D, updateFlight). En 3ª persona la cámara no acompaña al dragón en el desplazamiento lateral: se queda atrás hold (parte del
+   desplazamiento: 1 = entera) mientras dura y, al acabar, espera wait s y vuelve detrás de él en back s, como si le costara darse cuenta.
+   En 1ª persona la vista del jinete da la vuelta con el dragón. */
+const DODGE_CAM = { hold: 0.55, wait: 0.12, back: 0.9 };   // (con 0,55 y 25 m, el dragón acaba hacia el borde de la pantalla, aún entero; más, se sale)
 
 const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, B: {}, rest: new Map(), animated: new Set(), mixer: null, act: {}, glideT: 0, flyDur: 1, hoverDur: 1, glow: null, light: null,
-  bodyQ: new THREE.Quaternion() };                         // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
+  bodyQ: new THREE.Quaternion(),                           // v13: giro del cuerpo encima del rumbo de vuelo (muelles de animateHero)
+  leanQ: new THREE.Quaternion(), roll: 0, beat: { fly: 0, hover: 0 } };   // v32: el cuerpo sin el tonel de la esquiva, el tonel (rad) y el golpe de ala de cada clip (s)
 hero.wrap.rotation.set(0, Math.PI, 0);
 dragon.add(hero.wrap);
 
 /* Recursos incrustados: el base64 de un <script id=…> (vacío si el HTML no lo lleva y hay que cargar el archivo suelto). */
 function embedded(id) { const tag = document.getElementById(id), b64 = tag ? tag.textContent.replace(/\s+/g, '') : ''; return b64.length > 1000 ? b64 : ''; }
-/* Un .glb incrustado o, si no, el archivo (necesita un servidor local). */
-function loadGLB(id, url) {
+/* Los bytes de un recurso incrustado o, si no, del archivo (necesita un servidor local). v32: también los sonidos (13). */
+function loadBytes(id, url) {
   const b64 = embedded(id);
-  const src = b64
+  return b64
     ? Promise.resolve().then(() => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })
     : fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
-  return src.then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
+}
+/* Un .glb incrustado o, si no, el archivo (necesita un servidor local). */
+function loadGLB(id, url) {
+  return loadBytes(id, url).then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
 }
 /* Carga: del <script id="modelo-glb"> en base64 si lo hay; si no, del archivo .glb (necesita un servidor local). */
 function loadHero() {
@@ -1742,6 +1762,10 @@ function setupHero(gltf) {
   hero.act.fly.time = hero.glideT; mixer.update(0); model.updateMatrixWorld(true);
   const piv = model.worldToLocal(hero.B.spine_02.getWorldPosition(new THREE.Vector3()));
   model.position.set(-piv.x, -piv.y, -piv.z);
+  // v32: instante del golpe de ala en cada clip (cuando las puntas bajan más deprisa): ahí caen el sonido del aleteo y el temblor de cámara
+  hero.beat = { fly: clipBeat(hero.act.fly, fly.duration), hover: clipBeat(hero.act.hover, hov.duration) };
+  for (const a of Object.values(hero.act)) a.setEffectiveWeight(a === hero.act.fly ? 1 : 0);
+  hero.act.fly.time = hero.glideT; mixer.update(0); model.updateMatrixWorld(true);
   // boca y punta de la cola en ejes del dragón (pose de planeo): para los enemigos lejanos y su estela
   dragon.updateMatrixWorld(true);
   hero.mouthLocal = dragon.worldToLocal(hero.B.LipUpperMid.getWorldPosition(new THREE.Vector3()));
@@ -1765,6 +1789,21 @@ function setupHero(gltf) {
   model.traverse(o => { if (o.isMesh && o.material.map) tintSkinMaterial(o.material, SKIN_TINT); });   // la piel admite el color elegido
   loadColors();
   hero.ready = true;
+}
+
+/* v32: instante (s del clip) en que la punta del ala baja más deprisa respecto al lomo: el golpe de ala. Deja solo ese clip con peso. */
+function clipBeat(act, dur) {
+  const tip = hero.B.wingMiddle8_l, sp = hero.B.spine_03;
+  for (const a of Object.values(hero.act)) a.setEffectiveWeight(0);
+  act.play(); act.setEffectiveWeight(1);
+  let prev = null, best = 0, bt = 0;
+  for (let k = 0; k <= 60; k++) {
+    act.time = dur * k / 60; hero.mixer.update(0); hero.model.updateMatrixWorld(true);
+    const y = tip.getWorldPosition(_hP).y - sp.getWorldPosition(_hS).y;
+    if (prev !== null && prev - y > best) { best = prev - y; bt = dur * (k - 0.5) / 60; }
+    prev = y;
+  }
+  return bt;
 }
 
 /* ---------- Ayudantes: giros de huesos en el espacio del modelo ---------- */
@@ -1793,7 +1832,8 @@ function animateTyrant(R, A, dt, st) {
   A.headYaw += (clamp(Math.atan2(-a.x, -a.z) * HERO_LOOK[0] + st.yawRate * HERO_LOOK[2], -HERO_LOOK[3], HERO_LOOK[3]) - A.headYaw) * k5;
   A.headPitch += (clamp(Math.atan2(a.y, Math.hypot(a.x, a.z)) * HERO_LOOK[1] + (st.pitchRate || 0) * HERO_LOOK[2] * 0.6, -HERO_LOOK_DOWN, 0.8) - A.headPitch) * k5;   // (v27: hacia abajo, hasta HERO_LOOK_DOWN)
   A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
-  A.tuck += (Math.max(bs, (st.dive || 0) * HERO_DIVE_TUCK) * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));   // boost y (v13) picado: alas recogidas
+  A.tuck += (bs * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));                                       // boost: alas recogidas
+  A.fold = (A.fold || 0) + ((st.dive || 0) * (1 - hv) * (1 - bs) - (A.fold || 0)) * (1 - Math.exp(-dt * 3));   // v32: picado: alas plegadas hacia atrás
   A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));
   A.glide = (A.glide || 0) + (clamp((0.42 - A.flap) / 0.3, 0, 1) * (1 - hv) * (1 - bs) - (A.glide || 0)) * (1 - Math.exp(-dt * 2.5));
   A.fire += (st.fire - A.fire) * (1 - Math.exp(-dt * 14));
@@ -1802,7 +1842,7 @@ function animateTyrant(R, A, dt, st) {
   // 1. clips: pesos (vuelo / planeo / hover) y velocidad del aleteo (los enemigos no tienen hover)
   act.fly.setEffectiveWeight((1 - hv) * (1 - A.glide));
   act.glide.setEffectiveWeight((1 - hv) * A.glide);
-  act.fly.timeScale = lerp(lerp(HERO_FLAP[0], HERO_FLAP[1], st.throttle), HERO_FLAP_BOOST, bs);
+  act.fly.timeScale = lerp(lerp(HERO_FLAP[0], HERO_FLAP[1], st.throttle) * (1 + HERO_FLAP_EFFORT * (st.effort || 0)), HERO_FLAP_BOOST, bs);   // (v32: más rápido con W, st.effort)
   if (act.hover) { act.hover.setEffectiveWeight(hv); act.hover.timeScale = 1 + 0.25 * (st.climb || 0); }
   R.mixer.update(dt);
   // fase para el sonido del aleteo (sfx.flap cuando el seno pasa por cero bajando)
@@ -1820,8 +1860,11 @@ function animateTyrant(R, A, dt, st) {
   }
   rotAxis(B.Jaw0, _hRt, -A.fire * HERO_JAW);
   for (let i = 0; i < HERO_TAIL.length; i++) rotAxis(B[HERO_TAIL[i]], _hUp, A.tailYaw * 0.05 * (0.4 + i / HERO_TAIL.length));
-  if (A.tuck > 0.01 || Math.abs(A.turnTuck) > 0.01) {                    // (v13) además, el ala de dentro del giro se recoge un poco
-    for (const [L, s, tk] of [['l', 1, A.tuck + Math.max(0, A.turnTuck)], ['r', -1, A.tuck + Math.max(0, -A.turnTuck)]]) { rotAxis(B['upperarm_' + L], H_UP, s * HERO_TUCK * tk); rotAxis(B['lowerarm_' + L], H_UP, s * HERO_TUCK * 0.7 * tk); }
+  if (A.tuck > 0.01 || A.fold > 0.01 || Math.abs(A.turnTuck) > 0.01) {    // (v13) además, el ala de dentro del giro se recoge un poco
+    for (const [L, s, tk] of [['l', 1, A.tuck + Math.max(0, A.turnTuck)], ['r', -1, A.tuck + Math.max(0, -A.turnTuck)]]) {
+      rotAxis(B['upperarm_' + L], H_UP, s * (HERO_TUCK * tk + HERO_FOLD[0] * A.fold)); rotAxis(B['lowerarm_' + L], H_UP, s * (HERO_TUCK * 0.7 * tk + HERO_FOLD[1] * A.fold));
+      rotAxis(B['upperarm_' + L], H_FWD, s * HERO_FOLD[2] * A.fold);    // (v32: en picado, en flecha hacia atrás y algo caídas)
+    }
   }
 }
 /* El dragón del jugador: animación, fogonazo de la boca y cámara (1ª / 3ª persona y giro del menú). */
@@ -1837,11 +1880,28 @@ function animateHero(dt, st) {
   spring('bPitch', (clamp((st.pitchRate || 0) * BODY_PITCH[0], -BODY_PITCH[1], BODY_PITCH[1]) - 0.06 * (st.boost || 0)) * live);
   spring('bYaw', clamp(st.yawRate * BODY_YAW[0], -BODY_YAW[1], BODY_YAW[1]) * live);
   if (st.menu) A.bRoll = A.bRollV = A.bPitch = A.bPitchV = A.bYaw = A.bYawV = 0;
-  hero.bodyQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll, 'YXZ'));
+  // v32: el tonel de la esquiva (st.roll, rad) va entero en el cuerpo (y en el caballero y la vista de la 1ª persona); hero.leanQ, sin él,
+  // es lo que acompaña el torso del jinete
+  const dodgeRoll = st.menu ? 0 : st.roll || 0;
+  hero.leanQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll, 'YXZ')); hero.roll = dodgeRoll;
+  hero.bodyQ.setFromEuler(_kEu.set(A.bPitch, A.bYaw, A.bRoll + dodgeRoll, 'YXZ'));
   hero.wrap.quaternion.copy(hero.bodyQ).multiply(_kQy);
   hero.wrap.position.set(0, BODY_HEAVE * A.flap * (1 - (A.glide || 0)) * live * Math.sin(A.phase), 0);
   animateTyrant(hero, A, dt, st);
   dragonPose();                                            // v16: con otro dragón elegido, su modelo copia la pose del Tyrant
+  // v32: golpe de ala con el clip que manda (vuelo u hover): A.beatIn = s que faltan cuando pasa BEAT_LEAD s antes (se programa el sonido)
+  // y A.beat = 1 en el golpe (temblor de cámara). Los dos, solo en ese fotograma (updateWorld)
+  A.beat = A.beatIn = 0;
+  if (!st.menu) {
+    const ho = (st.hover || 0) > 0.5, ac = ho ? hero.act.hover : hero.act.fly, dur = ho ? hero.hoverDur : hero.flyDur, tb = ho ? hero.beat.hover : hero.beat.fly;
+    const ts = Math.max(0.05, ac.timeScale), t1 = ac.time, t0 = A.beatAct === ac ? A.beatT : t1;
+    const passed = x => { x = ((x % dur) + dur) % dur; return t1 >= t0 ? x > t0 && x <= t1 : x > t0 || x <= t1; };
+    if (t1 !== t0) {
+      if (passed(tb - BEAT_LEAD * ts)) A.beatIn = (((tb - t1) % dur) + dur) % dur / ts;
+      if (passed(tb)) A.beat = 1;
+    }
+    A.beatAct = ac; A.beatT = t1;
+  }
   const hv = st.hover || 0;
   // 3. fuego en la boca
   heroMouth(_hT);
@@ -1853,7 +1913,7 @@ function animateHero(dt, st) {
   //    3ª persona: detrás y por encima; en hover baja y mira al dragón, que está erguido.
   const seat = seatBone(); seat.updateWorldMatrix(true, false);
   dragon.worldToLocal(_hC.setFromMatrixPosition(seat.matrixWorld));
-  if (!A.fp) A.fp = _hC.clone(); else A.fp.lerp(_hC, 1 - Math.exp(-dt * 6));
+  if (!A.fp) A.fp = _hC.clone(); else A.fp.lerp(_hC, 1 - Math.exp(-dt * (dodgeRoll ? 40 : 6)));   // (v32: durante el tonel, casi sin suavizar)
   if (st.menu) {                                           // pantalla de título: giro lento alrededor del dragón, que queda abajo a la derecha
     const ang = A.time * 0.07, R = 40;
     camera.position.set(Math.sin(ang) * R, 5 + Math.sin(A.time * 0.13) * 2.5, Math.cos(ang) * R);
@@ -1884,6 +1944,7 @@ function animateHero(dt, st) {
   _hC.set(0, HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM[1] + push).applyQuaternion(L).applyQuaternion(rel);
   camera.position.lerpVectors(_hT, _hC, c);
   camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], HERO_CAM[2] - 0.10 * hv, c)));
+  if (dodgeRoll) camera.quaternion.multiply(_hR.setFromAxisAngle(_kZ, dodgeRoll * (1 - c)));   // v32: en 1ª persona, la vista da la vuelta con el tonel
   // v27: cámara de apuntado (AIM_CAM), mezclada encima (A.aim). st.aimPt = punto de la mira en ejes del dragón; todo en el marco con retraso (rel)
   A.aim = (A.aim || 0) + ((st.aimCam ? 1 : 0) - (A.aim || 0)) * (1 - Math.exp(-dt * AIM_CAM.blend));
   if (A.aim > 0.002 && st.aimPt) {
@@ -1897,6 +1958,8 @@ function animateHero(dt, st) {
     _kQa.copy(rel).multiply(_hQ.setFromEuler(_hEu.set(Math.asin(clamp(_kD.y, -1, 1)), Math.atan2(-_kD.x, -_kD.z), 0, 'YXZ')));
     camera.position.lerp(_kP.applyQuaternion(rel), A.aim); camera.quaternion.slerp(_kQa, A.aim);
   } else A.aimT = null;
+  // v32: esquiva en 3ª persona: la cámara se queda atrás lo que el dragón se ha desplazado de lado (st.dodgeOff, en el mundo; ya con DODGE_CAM)
+  if (st.dodgeOff && c > 0.001) camera.position.sub(_kA.copy(st.dodgeOff).applyQuaternion(_kRi.copy(qd).invert()).multiplyScalar(c));
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);
@@ -2516,7 +2579,7 @@ function poseArm(A, S, W, pole, hd, ht, curl, tcurl) {
 /* ---------- Por fotograma: pose según los mandos, cámara del jinete y riendas ---------- */
 function updateRider(dt) {
   const inGame = (state === 'playing' || state === 'dead') && hero.ready;
-  rider.vis = rider.ready && inGame && dragonAnim.cam < (knight.ready ? KNIGHT_SHOW_CAM : 0.5);   // con el caballero completo, los brazos solo en 1ª persona
+  rider.vis = rider.ready && inGame && dragonAnim.cam < (knight.ready ? KNIGHT_SHOW_CAM : 0.5) && !devNoRider();   // con el caballero completo, los brazos solo en 1ª persona (v32: el jinete se puede quitar en los modos de prueba)
   for (const r of rider.reins) r.mesh.visible = rider.vis;
   if (rider.collar) rider.collar.mesh.visible = rider.vis;
   const third = rider.ready && inGame && knight.ready && knight.holder.visible;   // 3ª persona: riendas y collera en el mundo, desde las manos del caballero
@@ -2547,7 +2610,8 @@ function updateRider(dt) {
   // cámara del jinete: en el origen. El cuerpo (y los brazos) sigue al lomo; la cámara, además, el giro de cabeza de la Z (mirar alrededor)
   camera.updateWorldMatrix(true, false);
   const camP = _rv[8]; camera.matrixWorld.decompose(camP, rider.cam.quaternion, _rv[9]);
-  rider.root.quaternion.copy(dragon.quaternion).multiply(_rq[1].identity().slerp(hero.bodyQ, RIDER_LEAN)).multiply(_rq[0].setFromAxisAngle(_rv[0].set(1, 0, 0), heroFP[2]));   // (v13) el torso del jinete acompaña en parte al cuerpo del dragón
+  rider.root.quaternion.copy(dragon.quaternion).multiply(_rq[0].setFromAxisAngle(_rv[0].set(0, 0, 1), hero.roll))   // (v32: el tonel de la esquiva, entero)
+    .multiply(_rq[1].identity().slerp(hero.leanQ, RIDER_LEAN)).multiply(_rq[0].setFromAxisAngle(_rv[0].set(1, 0, 0), heroFP[2]));   // (v13) el torso del jinete acompaña en parte al cuerpo del dragón
   rider.root.updateMatrixWorld(true);
   rider.fireLight.color.copy(hero.light.color); rider.fireLight.intensity = hero.light.intensity * 1.2;
   rider.fireLight.position.subVectors(hero.light.position, camP);
@@ -2709,7 +2773,7 @@ function knightToGame() {
 function updateKnight() {
   if (!knight.ready || knight.holder.parent !== dragon) return;
   const A = dragonAnim;
-  knight.holder.visible = (state === 'playing' || state === 'dead') && hero.ready && !!A.fp && A.cam > KNIGHT_SHOW_CAM;
+  knight.holder.visible = (state === 'playing' || state === 'dead') && hero.ready && !!A.fp && A.cam > KNIGHT_SHOW_CAM && !devNoRider();   // (v32: sin jinete en los modos de prueba)
   if (!knight.holder.visible) return;
   const e = knight.eyes;
   knight.holder.position.set(e.x, heroFP[0] - e.y, heroFP[1] + e.z).applyQuaternion(hero.bodyQ).add(A.fp);   // (v13) sobre el lomo, que se inclina
@@ -3432,9 +3496,40 @@ function updateTowerAI(dt) {
   }
 }
 
-/* ---------- Sonido procedural (Web Audio) ---------- */
+/* ---------- Sonido procedural (Web Audio) ----------
+   v32: y tres sonidos grabados de la carpeta audio/ (incrustados en sky_apex.html por construir.mjs; la fuente los carga sueltos): el aleteo
+   (un archivo con varios golpes de ala separados por silencios: se cortan solos en trozos, audioSegments, y cada golpe de ala suena uno al
+   azar), el rugido y la llamarada (al activar el lanzallamas; la llamarada en bucle mientras dura). Si no cargan, suena lo procedural. */
+const SFX_FILES = {                                        // [id del recurso incrustado, archivo]
+  wings: ['aleteo-mp3', '../audio/dragon-studio-dragon-wings-flapping-478385.mp3'],
+  roar: ['rugido-mp3', '../audio/dragon-studio-epic-dragon-roar-364481.mp3'],
+  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3']
+};
+const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1 };        // volumen de cada uno (antes del de «Opciones»)
+const FIRE_LOOP = [0.33, 1.5, 5.5], ROAR_GAP = 2;          // llamarada: empieza en (s; antes hay silencio) y bucle de… a… (s); rugido: como mucho uno cada ROAR_GAP s
+/* Trozos de un sonido separados por silencios: [{ s, len, pk (s del inicio al pico), k (ganancia: iguala un poco los flojos) }]. Envolvente
+   RMS en ventanas de 10 ms; umbral: el 4 % del pico; silencios de menos de 120 ms no cortan; los trozos de menos de 80 ms se descartan. */
+function audioSegments(buf) {
+  const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * 0.01), env = [];
+  for (let i = 0; i + win <= d.length; i += win) { let s = 0; for (let j = 0; j < win; j++) s += d[i + j] * d[i + j]; env.push(Math.sqrt(s / win)); }
+  const top = Math.max(...env), thr = top * 0.04, out = [];
+  let a = -1, b = -1;
+  const close = () => {
+    if (a < 0 || b - a < 8) return;
+    let p = a; for (let i = a; i <= b; i++) if (env[i] > env[p]) p = i;
+    const s = Math.max(0, (a - 2) * 0.01);
+    out.push({ s, len: Math.min(buf.duration, (b + 8) * 0.01) - s, pk: p * 0.01 - s, peak: env[p] });
+  };
+  for (let i = 0; i < env.length; i++) if (env[i] > thr) { if (a >= 0 && i - b <= 12) b = i; else { close(); a = b = i; } }
+  close();
+  const best = Math.max(...out.map(o => o.peak));
+  for (const o of out) o.k = clamp(Math.sqrt(best / o.peak), 1, 1.6);
+  return out;
+}
 const sfx = (() => {
   let ctx = null, master = null, noiseBuf = null, whiteBuf = null, wind = null, rumble = null, brn = null, muted = false;
+  const smp = {}, segs = [], fireS = { src: null, g: null, roar: -99 };   // v32: sonidos grabados (buffers), trozos del aleteo y la llamarada que suena
+  let lastSeg = -1;
   const S = {
     get ready() { return !!ctx; }, get muted() { return muted; },
     init() {
@@ -3480,6 +3575,46 @@ const sfx = (() => {
       const esg = ctx.createGain(); esg.gain.value = 2.2; es.connect(esf); esf.connect(esg); esg.connect(eg); es.start();
       const tr = ctx.createOscillator(); tr.frequency.value = 31; const trG = ctx.createGain(); trG.gain.value = 0; tr.connect(trG); trG.connect(eg.gain); tr.start();
       brn = { f: bf, g: bg, eg, ef, trG };
+      // v32: los sonidos grabados (aleteo, rugido, llamarada)
+      for (const [k, [id, url]] of Object.entries(SFX_FILES)) {
+        loadBytes(id, url).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)))
+          .then(buf => { smp[k] = buf; if (k === 'wings') segs.push(...audioSegments(buf)); })
+          .catch(err => console.warn('Sonido «' + k + '» no cargado (suena el procedural):', err));
+      }
+    },
+    get samples() { return { loaded: Object.keys(smp), wingSegs: segs.map(o => [+o.s.toFixed(2), +o.len.toFixed(2), +o.pk.toFixed(2), +o.k.toFixed(2)]) }; },   // (para las pruebas)
+    /* v32: un sonido grabado (buffer) desde from s durante len s, que empieza when (tiempo del contexto), con volumen vol y un fundido corto al final */
+    play(buf, when, from, len, vol) {
+      const s = ctx.createBufferSource(); s.buffer = buf;
+      const g = ctx.createGain(), end = when + len;
+      g.gain.setValueAtTime(vol, when); g.gain.setValueAtTime(vol, Math.max(when, end - 0.06)); g.gain.linearRampToValueAtTime(0.0001, end);
+      s.connect(g); g.connect(master); s.start(when, from, len + 0.02);
+      return s;
+    },
+    /* v32: golpe de ala dentro de inSec s: un trozo del aleteo al azar (nunca el mismo dos veces seguidas), con su pico justo en el golpe.
+       amount: fuerza (0-1); near: 1 en 1ª persona, menos en 3ª. Sin el archivo, el aletazo procedural. */
+    wingBeat(amount, near, inSec) {
+      if (!ctx || amount < 0.08) return;
+      const a = amount * (near == null ? 1 : near);
+      if (!smp.wings || !segs.length) { setTimeout(() => this.flap(amount, near), Math.max(0, inSec) * 1000); return; }
+      let i = Math.floor(Math.random() * segs.length); if (i === lastSeg && segs.length > 1) i = (i + 1) % segs.length;
+      lastSeg = i;
+      const o = segs[i], lead = Math.max(0, inSec - o.pk), skip = Math.max(0, o.pk - inSec);   // (si ya no da tiempo, empieza más adentro)
+      this.play(smp.wings, ctx.currentTime + lead, o.s + skip, o.len - skip, SFX_VOL.wings * a * o.k);
+    },
+    /* v32: esquiva: un soplo que barre de grave a agudo y un aletazo fuerte */
+    dodge() { this.noise(0.55, 'bandpass', 380, 2600, 0.5, 0.8); this.wingBeat(1, 1, 0.12); },
+    /* v32: llamarada grabada: al empezar, el rugido (como mucho uno cada ROAR_GAP s) y la llamarada, que sigue en bucle hasta soltar */
+    fireSample(on) {
+      const t = ctx.currentTime;
+      if (on && !fireS.src) {
+        if (smp.roar && t - fireS.roar > ROAR_GAP) { this.play(smp.roar, t, 0, smp.roar.duration, SFX_VOL.roar); fireS.roar = t; }
+        const s = fireS.src = ctx.createBufferSource(); s.buffer = smp.fire; s.loop = true; s.loopStart = FIRE_LOOP[1]; s.loopEnd = Math.min(FIRE_LOOP[2], smp.fire.duration);
+        const g = fireS.g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(SFX_VOL.fire, t + 0.06);
+        s.connect(g); g.connect(master); s.start(t, FIRE_LOOP[0]);
+      } else if (!on && fireS.src) {
+        fireS.g.gain.cancelScheduledValues(t); fireS.g.gain.setTargetAtTime(0, t, 0.1); fireS.src.stop(t + 0.6); fireS.src = fireS.g = null;
+      }
     },
     toggleMute() { muted = !muted; this.applyVolume(); return muted; },
     applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; },   // volumen de efectos de «Opciones»
@@ -3530,8 +3665,6 @@ const sfx = (() => {
       for (let i = 0; i < 4; i++) { const ti = t + 0.03 + i * 0.035; wg.gain.setValueAtTime(0.05 * a * (1 - i * 0.2), ti); wg.gain.setValueAtTime(0, ti + 0.012); }
       w.connect(wf); wf.connect(wg); wg.connect(master); w.start(t, Math.random()); w.stop(t + 0.25);
     },
-    /* subida de las alas: un soplo más suave (el aire que se aparta) */
-    flapUp(amount, near) { if (amount > 0.05) this.noise(0.38, 'bandpass', 700, 300, 0.16 * amount * (near == null ? 1 : near), 0.9); },
     /* en pausa y fuera de partida: el viento, en silencio */
     quiet() { if (!ctx) return; const t = ctx.currentTime; for (const L of [wind.lo, wind.hiL, wind.hiR, wind.wh]) L.g.gain.setTargetAtTime(0, t, 0.1); for (const d of wind.gusts.slice(0, 3)) d.gain.setTargetAtTime(0, t, 0.1); },
     fire(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(0.65, 'bandpass', 2200, 260, 0.55 * v, 0.9); this.tone('sawtooth', 150, 48, 0.5, 0.16 * v); },
@@ -3572,11 +3705,12 @@ const sfx = (() => {
       setTimeout(() => { this.noise(1.3, 'lowpass', 3000, 120, 0.9, 0.7); this.tone('sawtooth', 110, 40, 0.9, 0.25); this.tone('sine', 70, 28, 1.1, 0.7); }, 380);
     },
     laserOff() { this.tone('sine', 900, 90, 0.7, 0.12); this.noise(0.8, 'bandpass', 2400, 200, 0.3, 1); },
-    /* fl, la: intensidad de la llamarada y del rayo (0-1) */
+    /* fl, la: intensidad de la llamarada y del rayo (0-1). v32: la llamarada, grabada si está (fireSample) */
     breath(fl, la) {
       if (!ctx) return;
       const t = ctx.currentTime;
-      brn.g.gain.setTargetAtTime(0.55 * fl, t, 0.06);
+      if (smp.fire) this.fireSample(fl > 0);
+      brn.g.gain.setTargetAtTime(smp.fire ? 0 : 0.55 * fl, t, 0.06);
       brn.eg.gain.setTargetAtTime(0.2 * la, t, la ? 0.08 : 0.15);
       brn.trG.gain.setTargetAtTime(0.05 * la, t, 0.08);
     }
@@ -5432,27 +5566,39 @@ function updSuper(u, dt, P, d) {
 }
 function superDie(u) {
   toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2);
-  u.fallT = 0; u.fallV = 0; u.pitch = 0; u.landed = false; u.wreckT = 0; u.trailT = 0; u.rollS = Math.random() < 0.5 ? -1 : 1;
+  u.fallT = 0; u.fallV = 0; u.pitch = 0; u.landed = u.sinking = false; u.wreckT = 0; u.trailT = 0; u.rollS = Math.random() < 0.5 ? -1 : 1;
   for (let i = 0; i < 5; i++) { _Ua.copy(u.caps[0].a).lerp(u.caps[0].b, Math.random()); explode(_Ua.x + rnd(-25, 25), _Ua.y + rnd(-15, 15), _Ua.z + rnd(-25, 25), rnd(2, 3.5)); }
 }
 /* v31 (petición de Jorge): al destruirlo ya no estalla en el aire con tres explosiones de energía: se ennegrece, arde y cae (cada vez más
    deprisa, hasta SUPER_FALL.vmax), con el morro bajando y un leve balanceo, dejando una estela de humo negro (fxTrail, aparte: es muy larga)
    y llamas por el casco; al tocar el suelo con la proa, explosiones a lo largo del casco, polvo y temblor, y los restos se quedan ardiendo
    en el suelo (SUPER_FALL.wreck s de humo). Las torretas caen con él. */
-const SUPER_FALL = { g: 7, vmax: 85, pitch: 0.32, pitchRate: 0.035, wreck: 90 };   // m/s², m/s, morro abajo (rad) y su ritmo (rad/s), s de humo en el suelo
+const SUPER_FALL = { g: 7, vmax: 85, pitch: 0.32, pitchRate: 0.035, wreck: 90, sink: 0.5, settle: 0.06, vEnd: 4 };   // m/s², m/s, morro abajo (rad) y su ritmo (rad/s), s de humo en el suelo; v32: hundimiento (abajo)
+/* v32 (petición de Jorge): al tocar el suelo ya no se para en seco (lo primero que tocaba era el mástil de abajo o la proa): sigue hundiéndose,
+   frenando de su velocidad de caída a vEnd m/s, y la popa baja hasta quedar casi nivelado (settle rad de morro abajo), hasta enterrar en el
+   terreno la parte sink del casco (0,5 = la mitad). SUPER_HULL: alto del casco sin los mástiles (fracción del largo, medido en el modelo). */
+const SUPER_HULL = [-0.06, 0.045];
 const fxTrail = makeParticles(1800, false);
 function superFall(u, dt, d) {
   const L = u.size, F_ = SUPER_FALL, c = u.caps[0];
   u.fallT += dt;
   if (u.mats) charUnit(u, Math.min(1, u.fallT / 2));
-  if (!u.landed) {
+  if (u.sinking) superSink(u, dt);
+  else if (!u.landed) {
     u.fallV = Math.min(F_.vmax, u.fallV + F_.g * dt); u.pos.y -= u.fallV * dt;
     u.pitch = Math.min(F_.pitch, u.pitch + F_.pitchRate * dt);
-    u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Ux, -u.pitch)).multiply(_Uq2.setFromAxisAngle(_Uz, u.rollS * (0.06 * Math.sin(u.fallT * 0.4) + u.pitch * 0.25)));
-    unitCaps(u);
+    superTilt(u, 1);
     // ¿toca el suelo? (la proa, que va por delante y más baja)
     _Ua.set(0, -0.045 * L, -0.48 * L).applyQuaternion(u.q).add(u.pos);
-    if (_Ua.y <= groundAt(_Ua.x, _Ua.z)) { u.landed = true; superCrash(u, _Ua); }
+    if (_Ua.y <= groundAt(_Ua.x, _Ua.z)) {
+      superCrash(u, _Ua);
+      // v32: y se hunde (superSink), frenando con deceleración constante hasta yEnd
+      u.sinking = true; u.y0 = u.pos.y; u.p0 = u.pitch; u.fallV = Math.max(u.fallV, 20);
+      u.yEnd = Math.min(u.y0, groundAt(u.pos.x, u.pos.z) - (SUPER_HULL[0] + F_.sink * (SUPER_HULL[1] - SUPER_HULL[0])) * L);
+      u.sinkA = u.fallV * u.fallV / (2 * Math.max(1, u.y0 - u.yEnd));
+    }
+  }
+  if (!u.landed) {
     // estela de humo negro (de tres puntos del casco) y llamas por todo él
     u.trailT -= dt;
     if (u.trailT <= 0) {
@@ -5481,6 +5627,30 @@ function superFall(u, dt, d) {
   }
   if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
   for (const k of u.kids) { superPlace(u, k); if (k.model) { k.model.position.copy(k.pos); k.model.quaternion.copy(k.q); } unitCaps(k); }
+}
+/* Morro abajo (u.pitch) y un leve balanceo (wob: 1 cayendo; se apaga al hundirse). */
+function superTilt(u, wob) {
+  u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Ux, -u.pitch)).multiply(_Uq2.setFromAxisAngle(_Uz, u.rollS * (0.06 * Math.sin(u.fallT * 0.4) * wob + u.pitch * 0.25)));
+  unitCaps(u);
+}
+/* v32: tras el choque, el casco se clava en el suelo: baja frenando (u.sinkA) hasta enterrar la mitad (SUPER_FALL.sink) y la popa cae hasta
+   quedar casi nivelado; levanta tierra y polvo a lo largo de la línea donde entra en el suelo. */
+function superSink(u, dt) {
+  const F_ = SUPER_FALL, L = u.size, span = Math.max(1, u.y0 - u.yEnd);
+  u.fallV = Math.max(F_.vEnd, u.fallV - u.sinkA * dt);
+  u.pos.y = Math.max(u.yEnd, u.pos.y - u.fallV * dt);
+  const k = clamp((u.y0 - u.pos.y) / span, 0, 1);
+  u.pitch = lerp(u.p0, F_.settle, k);
+  superTilt(u, 1 - k);
+  const n = Math.round(clamp(u.fallV / 6, 1, 12));
+  for (let i = 0; i < n; i++) {                              // polvo y terrones donde el casco toca el suelo
+    _Ub.set(rnd(-0.06, 0.06) * L, 0, rnd(-0.5, 0.5) * L).applyQuaternion(u.q).add(u.pos);
+    const gy = groundAt(_Ub.x, _Ub.z), a = Math.random() * 6.283, sp = rnd(10, 40) * (0.4 + u.fallV / 85);
+    if (Math.abs(_Ub.y - gy) > 0.1 * L) continue;
+    emit(fxSmoke, _Ub.x, gy + rnd(1, 6), _Ub.z, Math.cos(a) * sp, rnd(6, 22), Math.sin(a) * sp, rnd(2.5, 5), rnd(15, 25), rnd(50, 90), 0.42, 0.37, 0.31, 0.6, 0.5, -0.4);
+    if (Math.random() < 0.3) emit(fxSmoke, _Ub.x, gy + 2, _Ub.z, Math.cos(a) * sp * 0.6, rnd(18, 40), Math.sin(a) * sp * 0.6, rnd(1.5, 2.5), rnd(3, 6), rnd(2, 4), 0.25, 0.2, 0.16, 1, 0.1, 22);
+  }
+  if (u.pos.y <= u.yEnd + 0.01) { u.sinking = false; u.landed = true; }
 }
 /* El choque: explosiones que recorren el casco desde la proa (las lanza superCrashStep), polvo que se abre a ras de suelo y temblor. */
 function superCrash(u, at) {
@@ -6139,7 +6309,7 @@ function updateArrows(dt) {
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
-   · Q/E alabeo · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
+   · Q/E alabeo · A/D esquiva (v32) · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
    v26: Espacio mantenido = vuelo recto (la mira sigue libre y el cuello la sigue) · F mantenida = cámara hacia el blanco fijado · R escudo.
    Armas (ver «Armas del jugador»): clic izq. = fuego rápido; mantenido sobre el círculo rojo = bola guiada; clic dcho. = llamarada;
    izq. + dcho. a la vez = rayo de fuego; clic central = fijar objetivo.
@@ -6161,7 +6331,9 @@ const F = {
   steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0,  // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
   straight: false, straightT: 0, holdDir: new THREE.Vector3(0, 0, -1),   // v26: vuelo recto (Espacio: s mantenido y dirección fijada)
   aimPt: new THREE.Vector3(0, 0, -1400),                                 // v27: punto de la mira en el mundo (lo que toca el rayo de la mira desde la cámara; updateAttacks)
-  tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0                  // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
+  tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0,                 // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
+  effort: 0, diveT: 0, spreadT: 0,                                      // v32: esfuerzo con W (aleteo más rápido), s en picado y s que quedan con las alas desplegadas al remontar
+  roll: 0, dodgeCam: new THREE.Vector3()                                // v32: tonel de la esquiva (rad) y lo que la cámara de 3ª persona se queda atrás (m, en el mundo)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
 const VMIN = 33;
@@ -6185,6 +6357,7 @@ const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (r
 const SPEED_SHAKE = 0.0022;                             // v13: temblor por encima de la velocidad de crucero (picados), hasta este tope a VMAX
 const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
 const STRAIGHT_SETTLE = 0.3;                            // v26, vuelo recto: s que tarda en frenar el giro que traía antes de fijar la trayectoria
+let PULLUP_SPREAD = 2; const PULLUP_MIN = 0.4;          // v32: tras un picado de al menos PULLUP_MIN s, al remontar, s con las alas desplegadas del todo antes de volver a batir
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion(), _sc = new THREE.Vector3();
 
 /* ---------- Entrada ---------- */
@@ -6197,6 +6370,7 @@ window.addEventListener('keydown', e => {
   if (e.repeat) { keys[e.code] = true; return; }
   keys[e.code] = true;
   if (e.code === 'ControlLeft') { if (state === 'playing' && !cine.on) toggleHover(); }   // v26: el hover pasa de Espacio a Ctrl izquierdo
+  else if (e.code === 'KeyA' || e.code === 'KeyD') startDodge(e.code === 'KeyD' ? 1 : -1);   // v32: esquiva
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyR') { if (!cine.on) activateShield(); }   // v26: el escudo pasa de F a R (F = cámara al objetivo; nivelar, a la X)
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
@@ -6329,6 +6503,7 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
+  dodgeReset();                                            // (v32)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
   if (pump) for (let i = 0, t0 = performance.now(); i < 400 && pumpTerrain(30) > 0 && performance.now() - t0 < 4000; i++) { }   // (en el menú se genera poco a poco)
@@ -6362,6 +6537,7 @@ function startGame() {
   F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
+  devHoverStart();                                         // v32: en los modos de prueba se empieza en hover
   resetWeapons(true);
   requestLock(); canvasGL.focus();
   missionStart();                                          // objetivos, eventos, radio y área (y el aviso de inicio)
@@ -6409,6 +6585,11 @@ function leaveSelect(toGame) {
 }
 document.getElementById('back').addEventListener('click', () => leaveSelect(false));
 document.getElementById('start').addEventListener('click', () => leaveSelect(true));
+/* v32 (petición de Jorge): en los modos de prueba (Dev Test y galería) se empieza parado, en hover. */
+function devHoverStart() {
+  if (!mission.dev) return;
+  F.hover = true; F.hoverK = 1; F.speed = 0; F.prevSpeed = 0; F.sink = 0;
+}
 /* Hover: se frena del todo y se queda aleteando; al salir se reanuda el vuelo con un impulso de alas. */
 function toggleHover() {
   if (state !== 'playing') return;
@@ -6433,6 +6614,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
+  dodgeReset(); devHoverStart();                           // (v32: en los modos de prueba, también al reaparecer)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -6968,6 +7150,47 @@ function updateAim(dt, auto) {
   F.aimLocal.copy(F.aimWorld).applyQuaternion(_iq).normalize();
 }
 
+/* ---------- v32: esquiva (A / D) ----------
+   Petición de Jorge: un desplazamiento lateral rápido (strafe) hacia la izquierda o la derecha de la pantalla, con un tonel de 360° hacia ese
+   lado, para esquivar o despistar bolas guiadas en el último segundo o no chocar con una torre o un pilar. El rumbo no cambia: el dragón sale
+   de lado deprisa y frena al final (DG.s), y el tonel va en el cuerpo (F.roll → animateHero). En 3ª persona la cámara no le acompaña de lado
+   hasta que acaba (DODGE_CAM, 5c). Al empezar, las bolas guiadas enemigas a menos de DODGE_MSL m pierden el blanco. Distancia, duración,
+   espera entre esquivas y DODGE_MSL son stats del dragón (Excel, «Esquiva»: applyHeroStats). */
+let DODGE_DIST = 25, DODGE_T = 0.6, DODGE_COOL = 1, DODGE_MSL = 400;
+const DG = { on: false, t: 0, s: 0, dir: 0, cool: 0, back: -1, side: new THREE.Vector3(), off: new THREE.Vector3() };   // back: s desde que acabó (la cámara vuelve); -1 = nada
+function dodgeReset() { DG.on = false; DG.cool = 0; DG.back = -1; DG.off.set(0, 0, 0); F.roll = 0; F.dodgeCam.set(0, 0, 0); }
+function startDodge(dir) {
+  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open) return;
+  _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
+  camera.getWorldQuaternion(_iq); DG.side.set(1, 0, 0).applyQuaternion(_iq);       // la derecha de la pantalla, en perpendicular al rumbo
+  DG.side.addScaledVector(_f, -DG.side.dot(_f));
+  if (DG.side.lengthSq() < 0.1) DG.side.set(1, 0, 0).applyQuaternion(dragon.quaternion);   // (mirando a un lado con la Z: la derecha del dragón)
+  DG.side.normalize();
+  if (DODGE_CAM.hold > 0.01) DG.off.copy(F.dodgeCam).divideScalar(DODGE_CAM.hold); else DG.off.set(0, 0, 0);   // (si la cámara aún volvía de la anterior, sigue desde ahí)
+  DG.on = true; DG.t = 0; DG.s = 0; DG.dir = dir; DG.back = -1;
+  for (const f of fireballs) if (f.kind === 'emsl' && !f.lost && f.pos.distanceTo(dragon.position) < DODGE_MSL) f.lost = true;
+  sfx.dodge();
+}
+function updateDodge(dt) {
+  DG.cool = Math.max(0, DG.cool - dt);
+  if (DG.on) {
+    DG.t += dt;
+    const u = Math.min(1, DG.t / Math.max(0.05, DODGE_T)), s = 1 - Math.pow(1 - u, 3), d = (s - DG.s) * DODGE_DIST * DG.dir;
+    DG.s = s; dragon.position.addScaledVector(DG.side, d); DG.off.addScaledVector(DG.side, d);
+    const r = Math.min(1, u / 0.9);
+    F.roll = -DG.dir * Math.PI * 2 * r * r * (3 - 2 * r);           // (+ = ala derecha arriba: hacia la derecha baja primero la derecha)
+    if (u >= 1) { DG.on = false; F.roll = 0; DG.cool = DODGE_COOL; DG.back = 0; }
+  }
+  let k = DODGE_CAM.hold;                                         // la cámara de 3ª persona: atrás mientras dura; al acabar, espera y vuelve
+  if (DG.back >= 0) {
+    DG.back += dt;
+    const v = clamp((DG.back - DODGE_CAM.wait) / Math.max(0.05, DODGE_CAM.back), 0, 1);
+    k *= 1 - v * v * (3 - 2 * v);
+    if (v >= 1) { DG.back = -1; DG.off.set(0, 0, 0); }
+  }
+  F.dodgeCam.copy(DG.off).multiplyScalar(k);
+}
+
 /* ---------- Vuelo ---------- */
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
@@ -7089,6 +7312,7 @@ function updateFlight(dt, auto) {
   _f.set(0, 0, -1).applyQuaternion(q);
   dragonVel.copy(_f).multiplyScalar(F.speed); dragonVel.y -= F.sink; dragonVel.y += F.hvy;
   pos.addScaledVector(dragonVel, dt);
+  if (!auto) updateDodge(dt);                              // v32: esquiva (desplazamiento lateral y tonel), antes de los choques
   // colisión con el terreno o el agua
   const g = Math.max(heightAt(pos.x, pos.z), WL);
   if (!auto && pos.y < g + 2.2) {
@@ -7110,7 +7334,12 @@ function updateFlight(dt, auto) {
   }
   // aleteo: más potente con el acelerador, planeo en picado
   const dive = smooth(0.1, 0.55, -_f.y), climb = smooth(0.15, 0.5, _f.y);
-  F.flapTarget = hov ? 1 : clamp((0.25 + F.throttle * 0.75 + climb * 0.25) * (1 - 0.85 * dive) + 0.4 * F.boostFx, 0.04, 1);
+  // v32: con W mantenida (intentando ganar velocidad) aletea más deprisa y más fuerte (F.effort; animateTyrant). Tras un picado, al remontar,
+  // las alas se quedan desplegadas del todo (planeo) PULLUP_SPREAD s antes de volver a batir; otro picado, el hover o el boost lo cortan
+  F.effort += ((thr > 0 ? 1 : 0) - F.effort) * (1 - Math.exp(-dt * (thr > 0 ? 4 : 1.5)));
+  if (dive > 0.6) F.diveT += dt; else if (dive < 0.2) { if (F.diveT > PULLUP_MIN && !auto) F.spreadT = PULLUP_SPREAD; F.diveT = 0; }
+  F.spreadT = dive > 0.3 || hov || boosting ? 0 : Math.max(0, F.spreadT - dt);
+  F.flapTarget = hov ? 1 : F.spreadT > 0 ? 0.04 : clamp((0.25 + F.throttle * 0.75 + climb * 0.25 + 0.3 * F.effort) * (1 - 0.85 * dive) + 0.4 * F.boostFx, 0.04, 1);
   // hover cerca del suelo o del agua: las alas levantan polvo / espuma
   if (F.hoverK > 0.5 && pos.y - g < 55) {
     const st = 1 - (pos.y - g) / 55, water = heightAt(pos.x, pos.z) < WL;
@@ -7725,7 +7954,8 @@ function drawHUD() {
 const _cp = new THREE.Vector3(), _cpA = new THREE.Vector3(), _cpH = new THREE.Vector3(), _cpQ = new THREE.Quaternion();
 const FOV_BASE = [76, 88];                                 // campo de visión vertical (°) despacio y a la velocidad de crucero (v27: con nombre, para el panel de pruebas)
 const HEAD_BASE = new THREE.Vector3(0, 1.5, -6);           // v27: base del cuello en ejes del dragón (desde ahí mira la cabeza al punto de la mira)
-let islT = 0, towerT = 0, prevFlapSin = 0, lastBeep = 0, fpsEMA = 60;
+let islT = 0, towerT = 0, lastBeep = 0, fpsEMA = 60;
+const beatSh = { a: 0, t: 0 };                             // v32: temblor del golpe de ala (fuerza y s desde el golpe)
 function updateWorld(dt) {
   const p = dragon.position;
   refreshTerrainSelection(p.x, p.y, p.z, false);
@@ -7743,12 +7973,25 @@ function updateWorld(dt) {
   const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
   let headAim = F.aimLocal, aimPt = null;
   if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt });
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
+    effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
     camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
     camera.rotation.z += (Math.random() - 0.5) * camShake * 0.04;   // (v13: suma; el alabeo de la cámara ya no es 0)
     camShake *= Math.exp(-dt * 4.5);
+  }
+  // v32: golpe de ala: el sonido (un trozo del aleteo al azar, programado para que su pico caiga en el golpe) y un temblor leve de cámara que
+  // se apaga en ~0,3 s (menos al planear; más lejano en 3ª persona)
+  const flapAmt = dragonAnim.flap * (1 - 0.9 * (dragonAnim.glide || 0)), nearF = lerp(1, 0.7, dragonAnim.cam);
+  if (state === 'playing' && dragonAnim.beatIn) sfx.wingBeat(flapAmt, nearF, dragonAnim.beatIn);
+  if (state === 'playing' && dragonAnim.beat && flapAmt > 0.1) { beatSh.a = flapAmt; beatSh.t = 0; }
+  if (beatSh.a > 0.005) {
+    beatSh.t += dt;
+    const e = beatSh.a * Math.exp(-beatSh.t * BEAT_SHAKE[3]), w = beatSh.t * Math.PI * 2;
+    camera.position.y += e * BEAT_SHAKE[0] * Math.sin(w * 6);
+    camera.rotation.x -= e * BEAT_SHAKE[1] * Math.sin(w * 6 + 0.6); camera.rotation.z += e * BEAT_SHAKE[2] * Math.sin(w * 9 + 1.3);
+    if (e < 0.005) beatSh.a = 0;
   }
   // boost: temblor suave (ondas de 7-11 Hz, no saltos al azar), más fuerte en el golpe al activarlo
   const bsh = F.boostFx * BOOST_SHAKE[0] + F.kickFx * BOOST_SHAKE[1] + SPEED_SHAKE * smooth(VCRUISE_MAX * 1.15, VMAX, F.speed) * (state === 'playing' ? 1 : 0);   // (v13) y un temblor leve a mucha velocidad
@@ -7765,12 +8008,7 @@ function updateWorld(dt) {
   fxAdd.mat.uniforms.uScale.value = sc; fxSmoke.mat.uniforms.uScale.value = sc;
   skyMat.uniforms.uTime.value = gameTime; waterMat.uniforms.uTime.value = gameTime;
   waterMesh.position.x = Math.round(p.x / 512) * 512; waterMesh.position.z = Math.round(p.z / 512) * 512;
-  // sonido y aviso de proyectiles
-  // v13: aletazo al bajar las alas y soplo al subirlas (menos al planear; más lejano en 3ª persona); viento según velocidad y aceleración
-  const s = Math.sin(dragonAnim.phase), fl = dragonAnim.flap * (1 - 0.9 * (dragonAnim.glide || 0)), nearF = lerp(1, 0.7, dragonAnim.cam);
-  if (state === 'playing' && prevFlapSin > 0 && s <= 0) sfx.flap(fl, nearF);
-  if (state === 'playing' && prevFlapSin < 0 && s >= 0) sfx.flapUp(fl, nearF);
-  prevFlapSin = s;
+  // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
   // avisos: bola guiada en camino > te están fijando > virote o bola cerca
@@ -7901,6 +8139,10 @@ const TUTORIAL = [
     { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
       'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
+    { id: 'esquiva', title: 'Esquiva', sum: 'Un salto rápido de lado con un tonel, para el último segundo.', keys: [[['A', 'D'], 'Esquivar a la izquierda / derecha']], text: [   // v32
+      K('A') + ' y ' + K('D') + ' lanzan al dragón de golpe hacia la izquierda o la derecha de la pantalla, sin cambiar el rumbo, mientras da un tonel completo hacia ese lado.',
+      'Úsala en el último segundo: para no chocar con una torre, una isla o un dirigible que se te echa encima, o para quitarte de encima una <b>bola guiada</b>: las que vienen a por ti y están cerca pierden el blanco y siguen rectas.',
+      'En la cámara exterior, la cámara tarda un momento en seguirte (el dragón sale hacia un lado de la pantalla y luego la cámara se recoloca); en la del jinete, la vista da la vuelta con el dragón. Entre una esquiva y la siguiente hay una pequeña espera.'] },
     { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Ctrl izq.'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
       'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',
@@ -8920,7 +9162,12 @@ const STATS_SCHEMA = {
     ['boost_aceleracion', 'Aceleración del boost', 's', 3, 'Segundos en pasar de la velocidad máxima a la de boost.'],
     ['boost_espera', 'Espera para recargar el boost', 's', 2, 'Segundos sin usarlo antes de que empiece a recargarse.'],
     ['boost_recarga', 'Recarga boost', '%/s', 2, 'Lo que se recarga cada segundo (con 2 %/s, de 0 a 100 % en 50 s).'],
-    ['giro_radio', 'Radio de giro', 'm', 110, 'El del giro más cerrado a la velocidad máxima (medido en el juego; el de antes de la v24). Más despacio gira más cerrado; con boost, mucho más abierto.']
+    ['giro_radio', 'Radio de giro', 'm', 110, 'El del giro más cerrado a la velocidad máxima (medido en el juego; el de antes de la v24). Más despacio gira más cerrado; con boost, mucho más abierto.'],
+    { sec: 'Esquiva (A / D)' },                            // v32
+    ['esquiva_distancia', 'Distancia de la esquiva', 'm', 25, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
+    ['esquiva_duracion', 'Duración de la esquiva', 's', 0.6, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
+    ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
+    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -9203,7 +9450,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":1500,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":80,"soldados_max":300,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"sierpe":{"vida":3000,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":150,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":25,"esquiva_duracion":0.6,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":25,"esquiva_duracion":0.6,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":25,"esquiva_duracion":0.6,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":25,"esquiva_duracion":0.6,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":25,"esquiva_duracion":0.6,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
@@ -9234,7 +9481,8 @@ function applyHeroStats() {
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
-  heroPools = { hp: S.vida, armor: ARMOR_MAX, ammo: GUN_AMMO, msl: MSL_AMMO, shield: SHIELD_MAX };
+  DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
+  heroPools ={ hp: S.vida, armor: ARMOR_MAX, ammo: GUN_AMMO, msl: MSL_AMMO, shield: SHIELD_MAX };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);
     F.health = fit(F.health, 'hp', heroHpMax()); F.armor = fit(F.armor, 'armor', ARMOR_MAX); W.ammo = Math.round(fit(W.ammo, 'ammo', GUN_AMMO));
@@ -9338,11 +9586,13 @@ function statText(s) {
      «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
 const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
-  fire: true, serpentFly: true };                          // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  fire: true, serpentFly: true,                            // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  rider: true };                                           // v32: jinete visible (caballero en 3ª persona, brazos y riendas en 1ª)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
 function devCheat(k) { return !!(mission.dev && DEV[k]); }
+function devNoRider() { return !!(mission.dev && !DEV.rider); }   // v32: sin jinete (solo en los modos de prueba)
 /* applyStats llama aquí cada vez que llegan stats que no son del panel. */
 function devStatsSnap() { devStats.base = JSON.parse(JSON.stringify(STATS)); if (DEV.open) devBuildStats(); }
 
@@ -9420,6 +9670,7 @@ function devBuild() {
   devCheck(t, 'Escudos infinitos', 'shield');
   devCheck(t, 'Sin sobrecalentamiento', 'heat');
   devCheck(t, 'Rayo siempre listo', 'ult');
+  devCheck(t, 'Jinete (caballero, brazos y riendas)', 'rider');   // v32
   // v29: enemigos y galería
   const en = devSection('Enemigos', !!mission.gallery);
   devCheck(en, 'Los enemigos disparan', 'fire');
@@ -9509,7 +9760,15 @@ const devFeel = [
   { key: 'AIM_CAM.yawK', label: 'Giro hacia el lado de la mira', get: () => AIM_CAM.yawK, set: x => AIM_CAM.yawK = x, min: 0, max: 1, step: 0.05 },
   { key: 'AIM_CAM.follow', label: 'Suavizado (1/s)', get: () => AIM_CAM.follow, set: x => AIM_CAM.follow = x, min: 1, max: 20, step: 0.5 },
   { key: 'AIM_CAM.blend', label: 'Entrada y salida (1/s)', get: () => AIM_CAM.blend, set: x => AIM_CAM.blend = x, min: 1, max: 12, step: 0.5 },
-  { key: 'HERO_LOOK_DOWN', label: 'Cabeza hacia abajo, máximo (°)', get: () => HERO_LOOK_DOWN * devDeg, set: x => HERO_LOOK_DOWN = x / devDeg, min: 30, max: 95, step: 1 }
+  { key: 'HERO_LOOK_DOWN', label: 'Cabeza hacia abajo, máximo (°)', get: () => HERO_LOOK_DOWN * devDeg, set: x => HERO_LOOK_DOWN = x / devDeg, min: 30, max: 95, step: 1 },
+  'Esquiva (A / D): cámara en 3ª persona',                 // v32 (distancia, duración y recarga: en el Excel)
+  { key: 'DODGE_CAM.hold', label: 'Se queda atrás (0 = nada, 1 = todo)', get: () => DODGE_CAM.hold, set: x => DODGE_CAM.hold = x, min: 0, max: 1, step: 0.05 },
+  { key: 'DODGE_CAM.wait', label: 'Espera antes de volver (s)', get: () => DODGE_CAM.wait, set: x => DODGE_CAM.wait = x, min: 0, max: 1, step: 0.02 },
+  { key: 'DODGE_CAM.back', label: 'Tiempo en volver (s)', get: () => DODGE_CAM.back, set: x => DODGE_CAM.back = x, min: 0.1, max: 3, step: 0.05 },
+  'Aleteo',                                                // v32
+  { key: 'PULLUP_SPREAD', label: 'Alas desplegadas al remontar (s)', get: () => PULLUP_SPREAD, set: x => PULLUP_SPREAD = x, min: 0, max: 6, step: 0.1 },
+  { key: 'BEAT_SHAKE[0]', label: 'Temblor de cada aleteo (m)', get: () => BEAT_SHAKE[0], set: x => BEAT_SHAKE[0] = x, min: 0, max: 0.5, step: 0.01 },
+  { key: 'BEAT_SHAKE[1]', label: 'Cabeceo de cada aleteo (°)', get: () => BEAT_SHAKE[1] * devDeg, set: x => BEAT_SHAKE[1] = x / devDeg, min: 0, max: 2, step: 0.05 }
 ];
 const devFeelBase = {}; for (const d of devFeel) if (typeof d !== 'string') devFeelBase[d.key] = d.get();
 
@@ -9578,7 +9837,7 @@ function galleryGo(fn) {
   _devAx.set(s.at[0] - s.x, s.at[1] - s.y, s.at[2] - s.z).normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _devAx, UP));
   F.aimWorld.copy(_devAx); F.aimPt.copy(_devAx).multiplyScalar(1400).add(dragon.position); F.steer.set(0, 0, -1);
-  F.speed = 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null;
+  F.speed = F.hover ? 0 : 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null; dodgeReset();   // (v32: en hover, parado)
   const P = dragon.position; refreshTerrainSelection(P.x, P.y, P.z, true); updateTowerStreaming(P.x, P.z);
   devPanel(false);
 }

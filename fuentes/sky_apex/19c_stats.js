@@ -55,7 +55,12 @@ const STATS_SCHEMA = {
     ['boost_aceleracion', 'Aceleración del boost', 's', 3, 'Segundos en pasar de la velocidad máxima a la de boost.'],
     ['boost_espera', 'Espera para recargar el boost', 's', 2, 'Segundos sin usarlo antes de que empiece a recargarse.'],
     ['boost_recarga', 'Recarga boost', '%/s', 2, 'Lo que se recarga cada segundo (con 2 %/s, de 0 a 100 % en 50 s).'],
-    ['giro_radio', 'Radio de giro', 'm', 110, 'El del giro más cerrado a la velocidad máxima (medido en el juego; el de antes de la v24). Más despacio gira más cerrado; con boost, mucho más abierto.']
+    ['giro_radio', 'Radio de giro', 'm', 110, 'El del giro más cerrado a la velocidad máxima (medido en el juego; el de antes de la v24). Más despacio gira más cerrado; con boost, mucho más abierto.'],
+    { sec: 'Esquiva (A / D)' },                            // v32
+    ['esquiva_distancia', 'Distancia de la esquiva', 'm', 25, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
+    ['esquiva_duracion', 'Duración de la esquiva', 's', 0.6, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
+    ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
+    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -369,7 +374,8 @@ function applyHeroStats() {
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
-  heroPools = { hp: S.vida, armor: ARMOR_MAX, ammo: GUN_AMMO, msl: MSL_AMMO, shield: SHIELD_MAX };
+  DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
+  heroPools ={ hp: S.vida, armor: ARMOR_MAX, ammo: GUN_AMMO, msl: MSL_AMMO, shield: SHIELD_MAX };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);
     F.health = fit(F.health, 'hp', heroHpMax()); F.armor = fit(F.armor, 'armor', ARMOR_MAX); W.ammo = Math.round(fit(W.ammo, 'ammo', GUN_AMMO));

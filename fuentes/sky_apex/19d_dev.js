@@ -17,11 +17,13 @@
      «Restaurar galería» (todo vuelve a estar en pie) y viajar a cada grupo. Las hitboxes incluyen las cápsulas de las unidades nuevas.
    ============================================================ */
 const DEV = { open: false, god: true, noCrash: true, ammo: true, msl: true, boost: true, shield: true, heat: true, ult: true, fps: false, hitbox: false, unit: '',
-  fire: true, serpentFly: true };                          // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  fire: true, serpentFly: true,                            // (v30: en la galería, la sierpe patrulla en círculo)                         // v29: «Los enemigos disparan» y la sierpe en vuelo circular (galería)
+  rider: true };                                           // v32: jinete visible (caballero en 3ª persona, brazos y riendas en 1ª)
 const DEV_SRC = 'panel de pruebas';
 const devEl = document.getElementById('dev');
 const devStats = { base: null };                           // stats tal como llegaron del Excel (o de la copia): para marcar y copiar los cambios
 function devCheat(k) { return !!(mission.dev && DEV[k]); }
+function devNoRider() { return !!(mission.dev && !DEV.rider); }   // v32: sin jinete (solo en los modos de prueba)
 /* applyStats llama aquí cada vez que llegan stats que no son del panel. */
 function devStatsSnap() { devStats.base = JSON.parse(JSON.stringify(STATS)); if (DEV.open) devBuildStats(); }
 
@@ -99,6 +101,7 @@ function devBuild() {
   devCheck(t, 'Escudos infinitos', 'shield');
   devCheck(t, 'Sin sobrecalentamiento', 'heat');
   devCheck(t, 'Rayo siempre listo', 'ult');
+  devCheck(t, 'Jinete (caballero, brazos y riendas)', 'rider');   // v32
   // v29: enemigos y galería
   const en = devSection('Enemigos', !!mission.gallery);
   devCheck(en, 'Los enemigos disparan', 'fire');
@@ -188,7 +191,15 @@ const devFeel = [
   { key: 'AIM_CAM.yawK', label: 'Giro hacia el lado de la mira', get: () => AIM_CAM.yawK, set: x => AIM_CAM.yawK = x, min: 0, max: 1, step: 0.05 },
   { key: 'AIM_CAM.follow', label: 'Suavizado (1/s)', get: () => AIM_CAM.follow, set: x => AIM_CAM.follow = x, min: 1, max: 20, step: 0.5 },
   { key: 'AIM_CAM.blend', label: 'Entrada y salida (1/s)', get: () => AIM_CAM.blend, set: x => AIM_CAM.blend = x, min: 1, max: 12, step: 0.5 },
-  { key: 'HERO_LOOK_DOWN', label: 'Cabeza hacia abajo, máximo (°)', get: () => HERO_LOOK_DOWN * devDeg, set: x => HERO_LOOK_DOWN = x / devDeg, min: 30, max: 95, step: 1 }
+  { key: 'HERO_LOOK_DOWN', label: 'Cabeza hacia abajo, máximo (°)', get: () => HERO_LOOK_DOWN * devDeg, set: x => HERO_LOOK_DOWN = x / devDeg, min: 30, max: 95, step: 1 },
+  'Esquiva (A / D): cámara en 3ª persona',                 // v32 (distancia, duración y recarga: en el Excel)
+  { key: 'DODGE_CAM.hold', label: 'Se queda atrás (0 = nada, 1 = todo)', get: () => DODGE_CAM.hold, set: x => DODGE_CAM.hold = x, min: 0, max: 1, step: 0.05 },
+  { key: 'DODGE_CAM.wait', label: 'Espera antes de volver (s)', get: () => DODGE_CAM.wait, set: x => DODGE_CAM.wait = x, min: 0, max: 1, step: 0.02 },
+  { key: 'DODGE_CAM.back', label: 'Tiempo en volver (s)', get: () => DODGE_CAM.back, set: x => DODGE_CAM.back = x, min: 0.1, max: 3, step: 0.05 },
+  'Aleteo',                                                // v32
+  { key: 'PULLUP_SPREAD', label: 'Alas desplegadas al remontar (s)', get: () => PULLUP_SPREAD, set: x => PULLUP_SPREAD = x, min: 0, max: 6, step: 0.1 },
+  { key: 'BEAT_SHAKE[0]', label: 'Temblor de cada aleteo (m)', get: () => BEAT_SHAKE[0], set: x => BEAT_SHAKE[0] = x, min: 0, max: 0.5, step: 0.01 },
+  { key: 'BEAT_SHAKE[1]', label: 'Cabeceo de cada aleteo (°)', get: () => BEAT_SHAKE[1] * devDeg, set: x => BEAT_SHAKE[1] = x / devDeg, min: 0, max: 2, step: 0.05 }
 ];
 const devFeelBase = {}; for (const d of devFeel) if (typeof d !== 'string') devFeelBase[d.key] = d.get();
 
@@ -257,7 +268,7 @@ function galleryGo(fn) {
   _devAx.set(s.at[0] - s.x, s.at[1] - s.y, s.at[2] - s.z).normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _devAx, UP));
   F.aimWorld.copy(_devAx); F.aimPt.copy(_devAx).multiplyScalar(1400).add(dragon.position); F.steer.set(0, 0, -1);
-  F.speed = 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null;
+  F.speed = F.hover ? 0 : 80; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; dragonAnim.camQ = null; dodgeReset();   // (v32: en hover, parado)
   const P = dragon.position; refreshTerrainSelection(P.x, P.y, P.z, true); updateTowerStreaming(P.x, P.z);
   devPanel(false);
 }

@@ -393,9 +393,40 @@ function updateTowerAI(dt) {
   }
 }
 
-/* ---------- Sonido procedural (Web Audio) ---------- */
+/* ---------- Sonido procedural (Web Audio) ----------
+   v32: y tres sonidos grabados de la carpeta audio/ (incrustados en sky_apex.html por construir.mjs; la fuente los carga sueltos): el aleteo
+   (un archivo con varios golpes de ala separados por silencios: se cortan solos en trozos, audioSegments, y cada golpe de ala suena uno al
+   azar), el rugido y la llamarada (al activar el lanzallamas; la llamarada en bucle mientras dura). Si no cargan, suena lo procedural. */
+const SFX_FILES = {                                        // [id del recurso incrustado, archivo]
+  wings: ['aleteo-mp3', '../audio/dragon-studio-dragon-wings-flapping-478385.mp3'],
+  roar: ['rugido-mp3', '../audio/dragon-studio-epic-dragon-roar-364481.mp3'],
+  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3']
+};
+const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1 };        // volumen de cada uno (antes del de «Opciones»)
+const FIRE_LOOP = [0.33, 1.5, 5.5], ROAR_GAP = 2;          // llamarada: empieza en (s; antes hay silencio) y bucle de… a… (s); rugido: como mucho uno cada ROAR_GAP s
+/* Trozos de un sonido separados por silencios: [{ s, len, pk (s del inicio al pico), k (ganancia: iguala un poco los flojos) }]. Envolvente
+   RMS en ventanas de 10 ms; umbral: el 4 % del pico; silencios de menos de 120 ms no cortan; los trozos de menos de 80 ms se descartan. */
+function audioSegments(buf) {
+  const d = buf.getChannelData(0), win = Math.round(buf.sampleRate * 0.01), env = [];
+  for (let i = 0; i + win <= d.length; i += win) { let s = 0; for (let j = 0; j < win; j++) s += d[i + j] * d[i + j]; env.push(Math.sqrt(s / win)); }
+  const top = Math.max(...env), thr = top * 0.04, out = [];
+  let a = -1, b = -1;
+  const close = () => {
+    if (a < 0 || b - a < 8) return;
+    let p = a; for (let i = a; i <= b; i++) if (env[i] > env[p]) p = i;
+    const s = Math.max(0, (a - 2) * 0.01);
+    out.push({ s, len: Math.min(buf.duration, (b + 8) * 0.01) - s, pk: p * 0.01 - s, peak: env[p] });
+  };
+  for (let i = 0; i < env.length; i++) if (env[i] > thr) { if (a >= 0 && i - b <= 12) b = i; else { close(); a = b = i; } }
+  close();
+  const best = Math.max(...out.map(o => o.peak));
+  for (const o of out) o.k = clamp(Math.sqrt(best / o.peak), 1, 1.6);
+  return out;
+}
 const sfx = (() => {
   let ctx = null, master = null, noiseBuf = null, whiteBuf = null, wind = null, rumble = null, brn = null, muted = false;
+  const smp = {}, segs = [], fireS = { src: null, g: null, roar: -99 };   // v32: sonidos grabados (buffers), trozos del aleteo y la llamarada que suena
+  let lastSeg = -1;
   const S = {
     get ready() { return !!ctx; }, get muted() { return muted; },
     init() {
@@ -441,6 +472,46 @@ const sfx = (() => {
       const esg = ctx.createGain(); esg.gain.value = 2.2; es.connect(esf); esf.connect(esg); esg.connect(eg); es.start();
       const tr = ctx.createOscillator(); tr.frequency.value = 31; const trG = ctx.createGain(); trG.gain.value = 0; tr.connect(trG); trG.connect(eg.gain); tr.start();
       brn = { f: bf, g: bg, eg, ef, trG };
+      // v32: los sonidos grabados (aleteo, rugido, llamarada)
+      for (const [k, [id, url]] of Object.entries(SFX_FILES)) {
+        loadBytes(id, url).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)))
+          .then(buf => { smp[k] = buf; if (k === 'wings') segs.push(...audioSegments(buf)); })
+          .catch(err => console.warn('Sonido «' + k + '» no cargado (suena el procedural):', err));
+      }
+    },
+    get samples() { return { loaded: Object.keys(smp), wingSegs: segs.map(o => [+o.s.toFixed(2), +o.len.toFixed(2), +o.pk.toFixed(2), +o.k.toFixed(2)]) }; },   // (para las pruebas)
+    /* v32: un sonido grabado (buffer) desde from s durante len s, que empieza when (tiempo del contexto), con volumen vol y un fundido corto al final */
+    play(buf, when, from, len, vol) {
+      const s = ctx.createBufferSource(); s.buffer = buf;
+      const g = ctx.createGain(), end = when + len;
+      g.gain.setValueAtTime(vol, when); g.gain.setValueAtTime(vol, Math.max(when, end - 0.06)); g.gain.linearRampToValueAtTime(0.0001, end);
+      s.connect(g); g.connect(master); s.start(when, from, len + 0.02);
+      return s;
+    },
+    /* v32: golpe de ala dentro de inSec s: un trozo del aleteo al azar (nunca el mismo dos veces seguidas), con su pico justo en el golpe.
+       amount: fuerza (0-1); near: 1 en 1ª persona, menos en 3ª. Sin el archivo, el aletazo procedural. */
+    wingBeat(amount, near, inSec) {
+      if (!ctx || amount < 0.08) return;
+      const a = amount * (near == null ? 1 : near);
+      if (!smp.wings || !segs.length) { setTimeout(() => this.flap(amount, near), Math.max(0, inSec) * 1000); return; }
+      let i = Math.floor(Math.random() * segs.length); if (i === lastSeg && segs.length > 1) i = (i + 1) % segs.length;
+      lastSeg = i;
+      const o = segs[i], lead = Math.max(0, inSec - o.pk), skip = Math.max(0, o.pk - inSec);   // (si ya no da tiempo, empieza más adentro)
+      this.play(smp.wings, ctx.currentTime + lead, o.s + skip, o.len - skip, SFX_VOL.wings * a * o.k);
+    },
+    /* v32: esquiva: un soplo que barre de grave a agudo y un aletazo fuerte */
+    dodge() { this.noise(0.55, 'bandpass', 380, 2600, 0.5, 0.8); this.wingBeat(1, 1, 0.12); },
+    /* v32: llamarada grabada: al empezar, el rugido (como mucho uno cada ROAR_GAP s) y la llamarada, que sigue en bucle hasta soltar */
+    fireSample(on) {
+      const t = ctx.currentTime;
+      if (on && !fireS.src) {
+        if (smp.roar && t - fireS.roar > ROAR_GAP) { this.play(smp.roar, t, 0, smp.roar.duration, SFX_VOL.roar); fireS.roar = t; }
+        const s = fireS.src = ctx.createBufferSource(); s.buffer = smp.fire; s.loop = true; s.loopStart = FIRE_LOOP[1]; s.loopEnd = Math.min(FIRE_LOOP[2], smp.fire.duration);
+        const g = fireS.g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(SFX_VOL.fire, t + 0.06);
+        s.connect(g); g.connect(master); s.start(t, FIRE_LOOP[0]);
+      } else if (!on && fireS.src) {
+        fireS.g.gain.cancelScheduledValues(t); fireS.g.gain.setTargetAtTime(0, t, 0.1); fireS.src.stop(t + 0.6); fireS.src = fireS.g = null;
+      }
     },
     toggleMute() { muted = !muted; this.applyVolume(); return muted; },
     applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; },   // volumen de efectos de «Opciones»
@@ -491,8 +562,6 @@ const sfx = (() => {
       for (let i = 0; i < 4; i++) { const ti = t + 0.03 + i * 0.035; wg.gain.setValueAtTime(0.05 * a * (1 - i * 0.2), ti); wg.gain.setValueAtTime(0, ti + 0.012); }
       w.connect(wf); wf.connect(wg); wg.connect(master); w.start(t, Math.random()); w.stop(t + 0.25);
     },
-    /* subida de las alas: un soplo más suave (el aire que se aparta) */
-    flapUp(amount, near) { if (amount > 0.05) this.noise(0.38, 'bandpass', 700, 300, 0.16 * amount * (near == null ? 1 : near), 0.9); },
     /* en pausa y fuera de partida: el viento, en silencio */
     quiet() { if (!ctx) return; const t = ctx.currentTime; for (const L of [wind.lo, wind.hiL, wind.hiR, wind.wh]) L.g.gain.setTargetAtTime(0, t, 0.1); for (const d of wind.gusts.slice(0, 3)) d.gain.setTargetAtTime(0, t, 0.1); },
     fire(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(0.65, 'bandpass', 2200, 260, 0.55 * v, 0.9); this.tone('sawtooth', 150, 48, 0.5, 0.16 * v); },
@@ -533,11 +602,12 @@ const sfx = (() => {
       setTimeout(() => { this.noise(1.3, 'lowpass', 3000, 120, 0.9, 0.7); this.tone('sawtooth', 110, 40, 0.9, 0.25); this.tone('sine', 70, 28, 1.1, 0.7); }, 380);
     },
     laserOff() { this.tone('sine', 900, 90, 0.7, 0.12); this.noise(0.8, 'bandpass', 2400, 200, 0.3, 1); },
-    /* fl, la: intensidad de la llamarada y del rayo (0-1) */
+    /* fl, la: intensidad de la llamarada y del rayo (0-1). v32: la llamarada, grabada si está (fireSample) */
     breath(fl, la) {
       if (!ctx) return;
       const t = ctx.currentTime;
-      brn.g.gain.setTargetAtTime(0.55 * fl, t, 0.06);
+      if (smp.fire) this.fireSample(fl > 0);
+      brn.g.gain.setTargetAtTime(smp.fire ? 0 : 0.55 * fl, t, 0.06);
       brn.eg.gain.setTargetAtTime(0.2 * la, t, la ? 0.08 : 0.15);
       brn.trG.gain.setTargetAtTime(0.05 * la, t, 0.08);
     }

@@ -1,7 +1,7 @@
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
-   · Q/E alabeo · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
+   · Q/E alabeo · A/D esquiva (v32) · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
    v26: Espacio mantenido = vuelo recto (la mira sigue libre y el cuello la sigue) · F mantenida = cámara hacia el blanco fijado · R escudo.
    Armas (ver «Armas del jugador»): clic izq. = fuego rápido; mantenido sobre el círculo rojo = bola guiada; clic dcho. = llamarada;
    izq. + dcho. a la vez = rayo de fuego; clic central = fijar objetivo.
@@ -23,7 +23,9 @@ const F = {
   steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0,  // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
   straight: false, straightT: 0, holdDir: new THREE.Vector3(0, 0, -1),   // v26: vuelo recto (Espacio: s mantenido y dirección fijada)
   aimPt: new THREE.Vector3(0, 0, -1400),                                 // v27: punto de la mira en el mundo (lo que toca el rayo de la mira desde la cámara; updateAttacks)
-  tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0                  // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
+  tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0,                 // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
+  effort: 0, diveT: 0, spreadT: 0,                                      // v32: esfuerzo con W (aleteo más rápido), s en picado y s que quedan con las alas desplegadas al remontar
+  roll: 0, dodgeCam: new THREE.Vector3()                                // v32: tonel de la esquiva (rad) y lo que la cámara de 3ª persona se queda atrás (m, en el mundo)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
 const VMIN = 33;
@@ -47,6 +49,7 @@ const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (r
 const SPEED_SHAKE = 0.0022;                             // v13: temblor por encima de la velocidad de crucero (picados), hasta este tope a VMAX
 const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
 const STRAIGHT_SETTLE = 0.3;                            // v26, vuelo recto: s que tarda en frenar el giro que traía antes de fijar la trayectoria
+let PULLUP_SPREAD = 2; const PULLUP_MIN = 0.4;          // v32: tras un picado de al menos PULLUP_MIN s, al remontar, s con las alas desplegadas del todo antes de volver a batir
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion(), _sc = new THREE.Vector3();
 
 /* ---------- Entrada ---------- */
@@ -59,6 +62,7 @@ window.addEventListener('keydown', e => {
   if (e.repeat) { keys[e.code] = true; return; }
   keys[e.code] = true;
   if (e.code === 'ControlLeft') { if (state === 'playing' && !cine.on) toggleHover(); }   // v26: el hover pasa de Espacio a Ctrl izquierdo
+  else if (e.code === 'KeyA' || e.code === 'KeyD') startDodge(e.code === 'KeyD' ? 1 : -1);   // v32: esquiva
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyR') { if (!cine.on) activateShield(); }   // v26: el escudo pasa de F a R (F = cámara al objetivo; nivelar, a la X)
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
@@ -191,6 +195,7 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
+  dodgeReset();                                            // (v32)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
   if (pump) for (let i = 0, t0 = performance.now(); i < 400 && pumpTerrain(30) > 0 && performance.now() - t0 < 4000; i++) { }   // (en el menú se genera poco a poco)
@@ -224,6 +229,7 @@ function startGame() {
   F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
+  devHoverStart();                                         // v32: en los modos de prueba se empieza en hover
   resetWeapons(true);
   requestLock(); canvasGL.focus();
   missionStart();                                          // objetivos, eventos, radio y área (y el aviso de inicio)
@@ -271,6 +277,11 @@ function leaveSelect(toGame) {
 }
 document.getElementById('back').addEventListener('click', () => leaveSelect(false));
 document.getElementById('start').addEventListener('click', () => leaveSelect(true));
+/* v32 (petición de Jorge): en los modos de prueba (Dev Test y galería) se empieza parado, en hover. */
+function devHoverStart() {
+  if (!mission.dev) return;
+  F.hover = true; F.hoverK = 1; F.speed = 0; F.prevSpeed = 0; F.sink = 0;
+}
 /* Hover: se frena del todo y se queda aleteando; al salir se reanuda el vuelo con un impulso de alas. */
 function toggleHover() {
   if (state !== 'playing') return;
@@ -295,6 +306,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
+  dodgeReset(); devHoverStart();                           // (v32: en los modos de prueba, también al reaparecer)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -830,6 +842,47 @@ function updateAim(dt, auto) {
   F.aimLocal.copy(F.aimWorld).applyQuaternion(_iq).normalize();
 }
 
+/* ---------- v32: esquiva (A / D) ----------
+   Petición de Jorge: un desplazamiento lateral rápido (strafe) hacia la izquierda o la derecha de la pantalla, con un tonel de 360° hacia ese
+   lado, para esquivar o despistar bolas guiadas en el último segundo o no chocar con una torre o un pilar. El rumbo no cambia: el dragón sale
+   de lado deprisa y frena al final (DG.s), y el tonel va en el cuerpo (F.roll → animateHero). En 3ª persona la cámara no le acompaña de lado
+   hasta que acaba (DODGE_CAM, 5c). Al empezar, las bolas guiadas enemigas a menos de DODGE_MSL m pierden el blanco. Distancia, duración,
+   espera entre esquivas y DODGE_MSL son stats del dragón (Excel, «Esquiva»: applyHeroStats). */
+let DODGE_DIST = 25, DODGE_T = 0.6, DODGE_COOL = 1, DODGE_MSL = 400;
+const DG = { on: false, t: 0, s: 0, dir: 0, cool: 0, back: -1, side: new THREE.Vector3(), off: new THREE.Vector3() };   // back: s desde que acabó (la cámara vuelve); -1 = nada
+function dodgeReset() { DG.on = false; DG.cool = 0; DG.back = -1; DG.off.set(0, 0, 0); F.roll = 0; F.dodgeCam.set(0, 0, 0); }
+function startDodge(dir) {
+  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open) return;
+  _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
+  camera.getWorldQuaternion(_iq); DG.side.set(1, 0, 0).applyQuaternion(_iq);       // la derecha de la pantalla, en perpendicular al rumbo
+  DG.side.addScaledVector(_f, -DG.side.dot(_f));
+  if (DG.side.lengthSq() < 0.1) DG.side.set(1, 0, 0).applyQuaternion(dragon.quaternion);   // (mirando a un lado con la Z: la derecha del dragón)
+  DG.side.normalize();
+  if (DODGE_CAM.hold > 0.01) DG.off.copy(F.dodgeCam).divideScalar(DODGE_CAM.hold); else DG.off.set(0, 0, 0);   // (si la cámara aún volvía de la anterior, sigue desde ahí)
+  DG.on = true; DG.t = 0; DG.s = 0; DG.dir = dir; DG.back = -1;
+  for (const f of fireballs) if (f.kind === 'emsl' && !f.lost && f.pos.distanceTo(dragon.position) < DODGE_MSL) f.lost = true;
+  sfx.dodge();
+}
+function updateDodge(dt) {
+  DG.cool = Math.max(0, DG.cool - dt);
+  if (DG.on) {
+    DG.t += dt;
+    const u = Math.min(1, DG.t / Math.max(0.05, DODGE_T)), s = 1 - Math.pow(1 - u, 3), d = (s - DG.s) * DODGE_DIST * DG.dir;
+    DG.s = s; dragon.position.addScaledVector(DG.side, d); DG.off.addScaledVector(DG.side, d);
+    const r = Math.min(1, u / 0.9);
+    F.roll = -DG.dir * Math.PI * 2 * r * r * (3 - 2 * r);           // (+ = ala derecha arriba: hacia la derecha baja primero la derecha)
+    if (u >= 1) { DG.on = false; F.roll = 0; DG.cool = DODGE_COOL; DG.back = 0; }
+  }
+  let k = DODGE_CAM.hold;                                         // la cámara de 3ª persona: atrás mientras dura; al acabar, espera y vuelve
+  if (DG.back >= 0) {
+    DG.back += dt;
+    const v = clamp((DG.back - DODGE_CAM.wait) / Math.max(0.05, DODGE_CAM.back), 0, 1);
+    k *= 1 - v * v * (3 - 2 * v);
+    if (v >= 1) { DG.back = -1; DG.off.set(0, 0, 0); }
+  }
+  F.dodgeCam.copy(DG.off).multiplyScalar(k);
+}
+
 /* ---------- Vuelo ---------- */
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
@@ -951,6 +1004,7 @@ function updateFlight(dt, auto) {
   _f.set(0, 0, -1).applyQuaternion(q);
   dragonVel.copy(_f).multiplyScalar(F.speed); dragonVel.y -= F.sink; dragonVel.y += F.hvy;
   pos.addScaledVector(dragonVel, dt);
+  if (!auto) updateDodge(dt);                              // v32: esquiva (desplazamiento lateral y tonel), antes de los choques
   // colisión con el terreno o el agua
   const g = Math.max(heightAt(pos.x, pos.z), WL);
   if (!auto && pos.y < g + 2.2) {
@@ -972,7 +1026,12 @@ function updateFlight(dt, auto) {
   }
   // aleteo: más potente con el acelerador, planeo en picado
   const dive = smooth(0.1, 0.55, -_f.y), climb = smooth(0.15, 0.5, _f.y);
-  F.flapTarget = hov ? 1 : clamp((0.25 + F.throttle * 0.75 + climb * 0.25) * (1 - 0.85 * dive) + 0.4 * F.boostFx, 0.04, 1);
+  // v32: con W mantenida (intentando ganar velocidad) aletea más deprisa y más fuerte (F.effort; animateTyrant). Tras un picado, al remontar,
+  // las alas se quedan desplegadas del todo (planeo) PULLUP_SPREAD s antes de volver a batir; otro picado, el hover o el boost lo cortan
+  F.effort += ((thr > 0 ? 1 : 0) - F.effort) * (1 - Math.exp(-dt * (thr > 0 ? 4 : 1.5)));
+  if (dive > 0.6) F.diveT += dt; else if (dive < 0.2) { if (F.diveT > PULLUP_MIN && !auto) F.spreadT = PULLUP_SPREAD; F.diveT = 0; }
+  F.spreadT = dive > 0.3 || hov || boosting ? 0 : Math.max(0, F.spreadT - dt);
+  F.flapTarget = hov ? 1 : F.spreadT > 0 ? 0.04 : clamp((0.25 + F.throttle * 0.75 + climb * 0.25 + 0.3 * F.effort) * (1 - 0.85 * dive) + 0.4 * F.boostFx, 0.04, 1);
   // hover cerca del suelo o del agua: las alas levantan polvo / espuma
   if (F.hoverK > 0.5 && pos.y - g < 55) {
     const st = 1 - (pos.y - g) / 55, water = heightAt(pos.x, pos.z) < WL;
