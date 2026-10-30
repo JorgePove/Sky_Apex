@@ -18,6 +18,8 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 - Editar solo los módulos de `fuentes/sky_apex/` (`NN_*.html|css|js`, en ese orden; misiones en `18_misiones_datos.js` y `19_misiones_motor.js`).
 - `node herramientas/construir.mjs` junta los módulos y genera `fuentes/sky_apex.src.html` (para probar con servidor) y `sky_apex.html` (para jugar, con los modelos incrustados y una copia de las stats del Excel). Con `--solo-fuente`, solo la fuente.
 - Stats de las unidades (desde la v24): en `datos/sky_apex_stats.xlsx`, que edita Jorge y el juego lee solo. Ningún valor de balance fijo en el código: se añade a `STATS_SCHEMA` (`19c_stats.js`), se usa en `applyStats`/`applyHeroStats` y se amplía el Excel con `node herramientas/stats_excel.mjs` (conserva los valores de Jorge). `Jugar.bat` abre el juego con servidor local para que lea el Excel al momento.
+- Para cambiar un valor del Excel cuando Jorge lo pida: `node herramientas/stats_excel.mjs --poner unidad.clave=valor` (con el Excel cerrado; conserva los demás).
+- Enemigos nuevos (desde la v29: artillería, batallones, barcos navales, superdirigible, sierpe) en `14e_unidades.js`, `14f_sierpe.js` y `14g_batallones.js`; se colocan con la receta `units` y se prueban en el modo Galería de enemigos. Sus modelos se preparan con `herramientas/blender/enemigos/`.
 - Nunca editar ni leer entero un HTML generado: lleva líneas base64 de varios MB.
 - Fuera del HTML, junto a él: `musica/`, `tutorial/`, `imagenes/` y `datos/`. Modelos procesados en `modelos/`.
 - Servidores de prueba en `.claude/launch.json`; el habitual es `sky-apex-2` (8767): `http://localhost:8767/fuentes/sky_apex.src.html`.
