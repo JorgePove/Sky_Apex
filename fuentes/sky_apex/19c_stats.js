@@ -57,8 +57,8 @@ const STATS_SCHEMA = {
     ['boost_recarga', 'Recarga boost', '%/s', 2, 'Lo que se recarga cada segundo (con 2 %/s, de 0 a 100 % en 50 s).'],
     ['giro_radio', 'Radio de giro', 'm', 110, 'El del giro más cerrado a la velocidad máxima (medido en el juego; el de antes de la v24). Más despacio gira más cerrado; con boost, mucho más abierto.'],
     { sec: 'Esquiva (A / D)' },                            // v32
-    ['esquiva_distancia', 'Distancia de la esquiva', 'm', 25, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
-    ['esquiva_duracion', 'Duración de la esquiva', 's', 0.6, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
+    ['esquiva_distancia', 'Distancia de la esquiva', 'm', 30, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
+    ['esquiva_duracion', 'Duración de la esquiva', 's', 1.5, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
     ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
     ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).']
   ],

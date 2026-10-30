@@ -45,6 +45,7 @@ const DRAGONS = {
     name: 'Ventoscuro', desc: 'Wyvern negro como la obsidiana: lento, pero una fortaleza con alas de aliento devastador.',
     embed: 'drogon-glb', url: '../modelos/drogon_web.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'Bip002-Spine3',
     showClip: 'reposo',                                     // plataforma: su propio reposo de combate
+    fold: [0.8, 0, 0.15],                                   // v33: picado: sus dedos apenas siguen a los del Tyrant, así que el brazo se va más atrás (HERO_FOLD, 5c)
     rider: { path: [['Bip002-Neck', 'Bip002-Neck1', 0.35], ['Bip002-Neck', 'Bip002-Neck1', 0.75]], collar: ['Bip002-Neck1', 'Bip002-Neck2', 0.4] },
     map: [
       ['Bip002-Pelvis', 'pelvis'], ['Bip002-Spine', 'pelvis'], ['Bip002-Spine1', 'spine_02'], ['Bip002-Spine2', 'spine_03'], ['Bip002-Spine3', 'spine_04'], ['Bip002-Neck', 'spine_04'],

@@ -848,7 +848,7 @@ function updateAim(dt, auto) {
    de lado deprisa y frena al final (DG.s), y el tonel va en el cuerpo (F.roll → animateHero). En 3ª persona la cámara no le acompaña de lado
    hasta que acaba (DODGE_CAM, 5c). Al empezar, las bolas guiadas enemigas a menos de DODGE_MSL m pierden el blanco. Distancia, duración,
    espera entre esquivas y DODGE_MSL son stats del dragón (Excel, «Esquiva»: applyHeroStats). */
-let DODGE_DIST = 25, DODGE_T = 0.6, DODGE_COOL = 1, DODGE_MSL = 400;
+let DODGE_DIST = 30, DODGE_T = 1.5, DODGE_COOL = 1, DODGE_MSL = 400;
 const DG = { on: false, t: 0, s: 0, dir: 0, cool: 0, back: -1, side: new THREE.Vector3(), off: new THREE.Vector3() };   // back: s desde que acabó (la cámara vuelve); -1 = nada
 function dodgeReset() { DG.on = false; DG.cool = 0; DG.back = -1; DG.off.set(0, 0, 0); F.roll = 0; F.dodgeCam.set(0, 0, 0); }
 function startDodge(dir) {

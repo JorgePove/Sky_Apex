@@ -36,9 +36,13 @@ const HERO_TAIL = ['Tail0', 'Tail1', 'Tail2', 'Tail3', 'Tail4', 'Tail5', 'Tail6'
 const BODY_ROLL = [0.32, 0.55], BODY_PITCH = [0.2, 0.22], BODY_YAW = [0.1, 0.16], BODY_SPRING = [6.5, 0.55], BODY_HEAVE = 0.3;
 const RIDER_LEAN = 0.6;                                   // parte del giro del cuerpo que sigue el torso del jinete en 1ª persona (los brazos)
 const HERO_TURN_TUCK = [0.3, 0.35];
-/* v32 (petición de Jorge): en picado las alas se pliegan hacia atrás, en flecha y algo caídas: giro del brazo y del antebrazo hacia la cola
-   y bajada del brazo (rad, con el picado entero). Antes solo se recogían un poco (0,34 y 0,24 rad). */
-const HERO_FOLD = [1.24, 0.44, 0.2], H_FWD = new THREE.Vector3(0, 0, 1);
+/* v32 (petición de Jorge): en picado las alas se recogen hacia atrás, en flecha y algo caídas. HERO_FOLD: giro del brazo y del antebrazo
+   hacia la cola y bajada del brazo (rad, con el picado entero); un dragón puede traer el suyo (DRAGONS[id].fold, 5g).
+   v33: con el brazo muy atrás (1,24 rad) las alas se cruzaban por detrás del dragón: ahora el brazo va menos atrás y son los dedos los que
+   cierran el abanico hacia la cola (HERO_FOLD_FINGERS: el primero, el del borde de ataque, el que más; los dos últimos, un poco hacia
+   fuera para no juntarse con la cola). Medido en el Tyrant: las puntas quedan a 11,5 m del eje (planeo: 18,5) y las de atrás, a más de 3,5. */
+const HERO_FOLD = [0.5, 0, 0.15], H_FWD = new THREE.Vector3(0, 0, 1);
+const HERO_FOLD_FINGERS = [['wingFirst1', 1.1], ['wingIndex1', 0.85], ['wingMiddle1', 0.5], ['wingRing1', 0.05], ['wingPinky1', -0.3]];
 /* v32: golpe de ala. BEAT_LEAD: s antes del golpe en que se elige y se programa el sonido (para que su pico caiga en el golpe);
    BEAT_SHAKE: temblor de cámara de cada golpe (m arriba y abajo, rad de cabeceo y de alabeo, y 1/s en que se apaga). */
 const BEAT_LEAD = 0.3, BEAT_SHAKE = [0.07, 0.004, 0.002, 9];
@@ -213,9 +217,13 @@ function animateTyrant(R, A, dt, st) {
   rotAxis(B.Jaw0, _hRt, -A.fire * HERO_JAW);
   for (let i = 0; i < HERO_TAIL.length; i++) rotAxis(B[HERO_TAIL[i]], _hUp, A.tailYaw * 0.05 * (0.4 + i / HERO_TAIL.length));
   if (A.tuck > 0.01 || A.fold > 0.01 || Math.abs(A.turnTuck) > 0.01) {    // (v13) además, el ala de dentro del giro se recoge un poco
+    const fd = (R === hero && alt.D && alt.D.fold) || HERO_FOLD;
     for (const [L, s, tk] of [['l', 1, A.tuck + Math.max(0, A.turnTuck)], ['r', -1, A.tuck + Math.max(0, -A.turnTuck)]]) {
-      rotAxis(B['upperarm_' + L], H_UP, s * (HERO_TUCK * tk + HERO_FOLD[0] * A.fold)); rotAxis(B['lowerarm_' + L], H_UP, s * (HERO_TUCK * 0.7 * tk + HERO_FOLD[1] * A.fold));
-      rotAxis(B['upperarm_' + L], H_FWD, s * HERO_FOLD[2] * A.fold);    // (v32: en picado, en flecha hacia atrás y algo caídas)
+      rotAxis(B['upperarm_' + L], H_UP, s * (HERO_TUCK * tk + fd[0] * A.fold)); rotAxis(B['lowerarm_' + L], H_UP, s * (HERO_TUCK * 0.7 * tk + fd[1] * A.fold));
+      if (A.fold > 0.01) {                                                 // (v32: en picado, hacia atrás y algo caídas; v33: los dedos cierran el abanico)
+        rotAxis(B['upperarm_' + L], H_FWD, s * fd[2] * A.fold);
+        for (const [f, a] of HERO_FOLD_FINGERS) rotAxis(B[f + '_' + L], H_UP, s * a * A.fold);
+      }
     }
   }
 }
