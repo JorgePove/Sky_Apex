@@ -86,6 +86,20 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #area .a-title{letter-spacing:.24em;text-transform:uppercase;font-size:clamp(15px,2.1vw,22px)}
 #area .a-count{font-size:clamp(44px,6.5vw,72px);line-height:1.05}
 #area .a-hint{font-family:var(--f-data);font-weight:400;font-size:13px;letter-spacing:.14em;color:var(--bone);opacity:.9}
+/* v26: entrada de cine al empezar una misión: bandas negras arriba y abajo que se retiran despacio, el nombre de la misión en la de arriba
+   y el HUD oculto hasta que se toma el control (la radio queda por encima de la banda de abajo, como un subtítulo) */
+#cine{position:fixed;inset:0;z-index:3;pointer-events:none;display:none}
+#cine.show{display:block}
+#cine .cine-bar{position:absolute;left:0;right:0;height:max(56px,12vh);background:#000;transition:transform 1.8s cubic-bezier(.5,0,.3,1)}
+#cine .top{top:0;transform:translateY(-101%)}#cine .bottom{bottom:0;transform:translateY(101%)}
+#cine.on .cine-bar{transform:none}
+#cine .cine-title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;opacity:0;transition:opacity .9s ease}
+#cine.title .cine-title{opacity:1}
+#cine .c-name{font-family:var(--f-display);font-weight:700;font-size:clamp(15px,2.3vw,23px);letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+#cine .c-sub{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--bone-dim)}
+#cine.snap .cine-bar,#cine.snap .cine-title,#hud.snap{transition:none}
+#hud{transition:opacity 1.4s ease}#hud.cine{opacity:0}
+@media (prefers-reduced-motion:reduce){#cine .cine-bar{transition-duration:.4s}}
 #pause .p-btns{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:10px}
 #pause .p-btns .mbtn{width:min(280px,72vw)}
 .vic.fail h2{color:var(--danger);text-shadow:0 0 30px rgba(255,74,58,.45)}
@@ -102,7 +116,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #menu{flex-direction:column;justify-content:center;background:#000}
 .title{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:0 16px}
 /* logo «Sky Apex»: dos mitades (SKY y APEX) del mismo tamaño que se superponen; la intro las trae desde los bordes */
-.logo-stage{position:relative;width:min(64vw,150vh,880px);aspect-ratio:1734/633;margin:0 0 1vh;z-index:2}   /* v14: logo nuevo en una línea (1734×633) */
+.logo-stage{position:relative;width:min(64vw,150vh,880px);aspect-ratio:1737/611;margin:0 0 1vh;z-index:2}   /* v14: logo en una línea; v26: el recortado con transparencia (1737×611) */
 .logo-stage img{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;will-change:transform;
   filter:drop-shadow(0 6px 18px rgba(0,0,0,.7))}
 /* intro: pantalla negra → las palabras entran → estallido → aparece el resto del menú */
@@ -284,6 +298,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <div id="toast"></div>
 <div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
 <div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
+<div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"></div></div>   <!-- v26: entrada de cine -->
 
 <section class="overlay intro" id="menu">
   <div id="introBlack"></div>
@@ -320,15 +335,17 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <dt><kbd>Ratón</kbd></dt><dd>Dirección y puntería (el dragón gira hacia la mira)</dd>
       <dt><kbd>W</kbd><kbd>S</kbd></dt><dd>Acelerar / frenar · en hover, subir / bajar</dd>
       <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta y se recarga)</dd>
-      <dt><kbd>Espacio</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
+      <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto (el dragón sigue su trayectoria; la mira, el ratón: para disparar al suelo en vuelo rasante)</dd>
+      <dt><kbd>Ctrl izq.</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
-      <dt><kbd>R</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
+      <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
       <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición fija por misión)</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
       <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
-      <dt><kbd>F</kbd></dt><dd>Escudo: unos segundos sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
+      <dt><kbd>R</kbd></dt><dd>Escudo: unos segundos sin daño de proyectiles (cargas: rayas azules bajo la mira)</dd>
+      <dt><kbd>F</kbd></dt><dd>Mantener: la cámara mira al blanco fijado (si no hay, fija el mejor a la vista)</dd>
       <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
       <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
       <dt><kbd>M</kbd></dt><dd>Silenciar el sonido</dd>
@@ -3488,6 +3505,12 @@ const ENEMY_SCALE = 1.5;              // tamaño respecto al dragón del jugador
 const ENEMY_TINT = new THREE.Color(1.7, 1.25, 0.18), ENEMY_EYES = 0xff2418;  // piel amarilla (por encima de 1: compensa la luz azulada del cielo) y ojos rojos
 const ENEMY_ANIM_LOD = [700, 1800];   // animación en cada fotograma hasta 700 m, uno de cada dos hasta 1800 m y uno de cada tres más lejos
 const ENEMY_BREAK = 230;              // a esta distancia rompen la pasada
+/* v26: giro máximo (rad/s) despacio y a su velocidad máxima, el TOTAL (guiñada y cabeceo juntos: steerEnemy). Sale de su radio de giro (Excel:
+   giro_radio; applyStats): radio = velocidad / giro. Antes cada eje tenía su tope por separado y, sumados, giraban hasta 1,34 rad/s (~104 m a
+   500 km/h): más que el jugador (110 m a 600 km/h ≈ 1,5 rad/s), así que al perseguirlos la espiral no acababa nunca. Medido con 130: 130-131 m. */
+const ENEMY_TURN = [1.97, 1.07];
+const ALLY_TURN = [1.75, 0.95];       // Lance (6e) gira como los enemigos antes de la v26 (cada eje con su tope)
+let ENEMY_EVADE_DIST = 1800, ENEMY_EVADE_T = [10, 18];   // v26, huida: distancia a la que se siente perseguido (m) y tiempo de huida antes de volver a atacar (s)
 const ENEMY_HIT_R = 13 * ENEMY_SCALE, PLAYER_HIT_R = 10;   // radios de impacto (m)
 const ENEMY_RESPAWN = [6, 10];        // segundos hasta que aparece un sustituto
 const TRAIL_LEN = 1100;               // longitud de la estela amarilla (m); se desvanece a lo largo de ella
@@ -3619,6 +3642,7 @@ function makeEnemy() {
     mode: 'patrol', t: 0, alert: 0, far: 0, fireCool: 1.5, fireFlash: 0, hitFlash: 0, ramT: 0, avoidT: 0, animAcc: 0, frame: 0,
     wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
     aimLocal: new THREE.Vector3(0, 0, -1),
+    chase: 0, evT: 0, ev: { kind: '', t: 0, dur: 0, h0: 0, p0: 0, s: 1, A: 0, T: 1, w: 0 },   // v26: huida (cuánto tiempo lleva perseguido y la maniobra en curso)
     kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
@@ -3720,6 +3744,55 @@ function setEnemyMode(e, m) {
     _Eef.set(0, 0, -1).applyQuaternion(e.q); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize();
     rotY(_Eef, rnd(-0.7, 0.7)); e.extDir.copy(_Eef); e.extDir.y = rnd(-0.10, 0.30); e.extDir.normalize();
   } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
+  else if (m === 'evade') { e.evT = rnd(ENEMY_EVADE_T[0], ENEMY_EVADE_T[1]); e.ev.kind = ''; evadePick(e); }
+  else if (m === 'patrol') e.chase = 0;
+}
+/* ---------- v26: huida ----------
+   Antes, con el jugador pegado a su cola, el dragón giraba al máximo para ponerse a su espalda y, con el mismo radio de giro, los dos
+   acababan dando vueltas sin fin (la «espiral de la muerte»). Ahora, si el jugador lo persigue (detrás de él, apuntándole y a menos de
+   ENEMY_EVADE_DIST), huye hacia delante encadenando maniobras amplias, al estilo de Ace Combat: recta con un leve vaivén, eses, curvas
+   abiertas, tirabuzón, subida y picado (radios de 250-550 m: el jugador puede cerrar y apuntar). Pasados ENEMY_EVADE_T s, o si deja de
+   perseguirlo, da la vuelta con una curva abierta hacia el jugador y vuelve a atacar. Cerca del borde del área, las maniobras llevan hacia
+   dentro. Rumbos como en la brújula: dirección (sin h, 0, -cos h); h crece hacia la derecha. */
+const wrapAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+const EVADE_MOVES = [['recta', 2], ['ese', 3], ['curva', 2.5], ['tirabuzon', 1.5], ['subida', 1.2], ['picado', 1.2]];
+function evadePick(e) {
+  const v = e.ev, P = e.pos, f = _Eef.set(0, 0, -1).applyQuaternion(e.q), agl = P.y - groundAt(P.x, P.z);
+  const opts = EVADE_MOVES.map(([k, w]) => [k, k === v.kind ? 0 : k === 'subida' && agl > 1400 ? w * 0.25 : k === 'picado' && agl < 600 ? 0 : w]);
+  let r = Math.random() * opts.reduce((s, o) => s + o[1], 0), kind = 'ese';
+  for (const [k, w] of opts) if (w > 0 && (r -= w) <= 0) { kind = k; break; }
+  v.t = 0; v.h0 = Math.atan2(f.x, -f.z); v.p0 = Math.asin(clamp(f.y, -1, 1)); v.s = Math.random() < 0.5 ? -1 : 1;
+  const A = mission.area;
+  if (A && !inMissionArea(P.x, P.z, 2500)) {               // cerca del borde: hacia el centro del área
+    const dh = wrapAng(Math.atan2(A.x - P.x, -(A.z - P.z)) - v.h0);
+    v.s = dh >= 0 ? 1 : -1; if (Math.abs(dh) > 0.6) kind = 'curva';
+  }
+  v.kind = kind;
+  if (kind === 'recta') { v.dur = rnd(3, 5); v.A = rnd(0.08, 0.18); v.T = rnd(3.5, 5); }
+  else if (kind === 'ese') { v.T = rnd(6, 9); v.dur = v.T; v.A = rnd(0.5, 0.85); }
+  else if (kind === 'curva') { v.w = rnd(0.25, 0.45); v.dur = rnd(4, 7); }
+  else if (kind === 'tirabuzon') { v.T = rnd(3.5, 4.5); v.dur = v.T * rnd(1, 1.5); v.A = rnd(0.28, 0.4); }
+  else if (kind === 'subida') { v.dur = rnd(3.5, 5); v.A = rnd(0.32, 0.5); }
+  else { v.dur = rnd(3, 4.5); v.A = rnd(0.3, 0.45); }    // picado
+}
+/* Fin de la huida: curva abierta hacia el jugador (lo que le falta para encararlo, a 0,4 rad/s) y luego, pasada de ataque. */
+function evadeTurnBack(e) {
+  const v = e.ev, f = _Eef.set(0, 0, -1).applyQuaternion(e.q), P = dragon.position;
+  v.t = 0; v.kind = 'vuelta'; v.h0 = Math.atan2(f.x, -f.z); v.p0 = 0; v.w = 0.4;
+  const dh = wrapAng(Math.atan2(P.x - e.pos.x, -(P.z - e.pos.z)) - v.h0);
+  v.s = dh >= 0 ? 1 : -1; v.dur = clamp(Math.abs(dh) / v.w, 1, 8);
+}
+/* Dirección que quiere llevar según la maniobra en curso (out, en el mundo). */
+function evadeWant(e, dt, out) {
+  const v = e.ev, t = v.t += dt, TAU = Math.PI * 2;
+  let h = v.h0, p = 0;
+  if (v.kind === 'recta') { h += v.A * v.s * Math.sin(t * TAU / v.T); p = v.p0 * Math.max(0, 1 - t / 1.5); }
+  else if (v.kind === 'ese') h += v.A * v.s * Math.sin(t * TAU / v.T);
+  else if (v.kind === 'curva' || v.kind === 'vuelta') h += v.w * v.s * Math.min(t, v.dur);
+  else if (v.kind === 'tirabuzon') { const a = t * TAU / v.T, r = v.A * Math.min(1, t / 0.8); h += r * v.s * Math.sin(a); p = r * Math.cos(a); }
+  else if (v.kind === 'subida') { h += 0.08 * v.s * t; p = v.A * smooth(0, 1, t) * (1 - smooth(v.dur - 1.5, v.dur, t)); }
+  else { h += 0.08 * v.s * t; p = -v.A * smooth(0, 0.8, t) * (1 - smooth(v.dur - 1.6, v.dur, t)); }   // picado
+  return out.set(Math.sin(h) * Math.cos(p), Math.sin(p), -Math.cos(h) * Math.cos(p));
 }
 function newWaypoint(e) {
   const ship = escorting() && randomAirship();
@@ -3761,7 +3834,7 @@ function enemyShoot(e) {
 }
 /* ---------- Bolas guiadas enemigas ----------
    Los dragones (desde la v10, solo ellos) fijan al jugador (EMSL_LOCK s seguidos con línea de visión y entre EMSL_RANGE m) y le lanzan una bola guiada. Cada tirador,
-   como mucho una cada EMSL_CD s; entre dos lanzamientos de cualquiera, al menos EMSL_GAP s. El escudo (F) las anula. El guiado es imperfecto a propósito (steerEnemyMissile):
+   como mucho una cada EMSL_CD s; entre dos lanzamientos de cualquiera, al menos EMSL_GAP s. El escudo (R) las anula. El guiado es imperfecto a propósito (steerEnemyMissile):
    maniobrando se puede hacer que pase de largo, que se pierda o que choque con el terreno, una isla o una torre.
    Avisos: mientras alguien fija al jugador, «TE ESTÁN FIJANDO» y un pitido doble; con una bola en camino, «¡PROYECTIL APROXIMÁNDOSE!»,
    pitidos rápidos y flechas rojas hacia cada bola (drawMissileWarn). */
@@ -3799,6 +3872,12 @@ function thinkEnemy(e, dt, playing) {
     e.far = dist > ENEMY_LOSE ? e.far + dt : 0;
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
+  // v26: ¿le persigue el jugador? (lo tiene detrás, a menos de ENEMY_EVADE_DIST, y el jugador le apunta: ±35°). e.chase sube mientras
+  // tanto y baja despacio después; con más de 0,6 s y perseguido ahora mismo, deja lo que hacía y huye
+  _Epf.set(0, 0, -1).applyQuaternion(dragon.quaternion);
+  const chased = playing && dist < ENEMY_EVADE_DIST && dotF < -0.2 && -_Epf.dot(_Etn) > 0.82;
+  e.chase = chased ? Math.min(3, e.chase + dt) : Math.max(0, e.chase - dt * 0.5);
+  if (chased && e.chase > 0.6 && (e.mode === 'pass' || e.mode === 'extend' || e.mode === 'reposition')) setEnemyMode(e, 'evade');
   if (e.mode === 'patrol') {
     const esc = escorting();
     if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
@@ -3820,12 +3899,21 @@ function thinkEnemy(e, dt, playing) {
   } else if (e.mode === 'extend') {
     want.copy(e.extDir); tSpeed = ENEMY_VMAX;
     if ((e.t > 2.0 && dist > 700) || e.t > 6) setEnemyMode(e, 'reposition');
-  } else {                                               // reposition: ponerse a la espalda del jugador
+  } else if (e.mode === 'reposition') {                  // ponerse a la espalda del jugador
     _Epf.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Epf.y = 0; if (_Epf.lengthSq() < 1e-4) _Epf.set(0, 0, -1); _Epf.normalize();
     _Elead.copy(P).addScaledVector(_Epf, -900); _Elead.x += -_Epf.z * e.side * 300; _Elead.z += _Epf.x * e.side * 300; _Elead.y = P.y + e.repY;
     want.subVectors(_Elead, e.pos).normalize(); tSpeed = ENEMY_VMAX;
     const behind = -_Etn.dot(_Epf) < -0.55;               // el dragón está a las 5-7 del jugador
     if ((behind && dist < 1400 && e.t > 1.5) || e.t > 11) setEnemyMode(e, 'pass');
+  }
+  if (e.mode === 'evade') {                                // v26: huida
+    const v = e.ev;
+    if (v.t >= v.dur) {                                    // maniobra acabada: otra; o, cumplido el tiempo o sin perseguidor, la vuelta
+      if (v.kind === 'vuelta') setEnemyMode(e, 'pass');
+      else if (e.t > e.evT || e.chase <= 0) evadeTurnBack(e);
+      else evadePick(e);
+    }
+    if (e.mode === 'evade') { evadeWant(e, dt, want); tSpeed = ENEMY_VMAX; }
   }
   return tSpeed;
 }
@@ -3872,8 +3960,10 @@ function steerEnemy(e, tSpeed, dt) {
   // tasas de giro hacia la dirección deseada
   _Eiq.copy(q).invert(); _Esl.copy(d).applyQuaternion(_Eiq);
   const yawErr = Math.atan2(_Esl.x, -_Esl.z), pitErr = Math.atan2(_Esl.y, Math.hypot(_Esl.x, _Esl.z));
-  const sn = clamp((e.speed - VMIN) / (ENEMY_VMAX - VMIN), 0, 1), maxRate = lerp(1.75, 0.95, sn);   // (v24: su velocidad, no la del dragón del jugador)
-  const tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
+  const TR = e.kind === 'ally' ? ALLY_TURN : ENEMY_TURN;  // (v26: el de los enemigos sale de su radio de giro; Lance, el de antes)
+  const sn = clamp((e.speed - VMIN) / (ENEMY_VMAX - VMIN), 0, 1), maxRate = lerp(TR[0], TR[1], sn);   // (v24: su velocidad, no la del dragón del jugador)
+  let tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
+  if (e.kind !== 'ally') { const m = Math.hypot(tYaw, tPit); if (m > maxRate) { tYaw *= maxRate / m; tPit *= maxRate / m; } }   // v26: el tope es del giro total
   _Esr.set(1, 0, 0).applyQuaternion(q); _Esu.set(0, 1, 0).applyQuaternion(q);
   const rollAng = Math.atan2(_Esr.y, _Esu.y) - e.bank;
   const tRoll = -clamp(rollAng * 2.4, -1.5, 1.5) * (1 - smooth(0.9, 0.99, Math.abs(_Esf.y)));
@@ -4574,7 +4664,8 @@ function allyFlame(e, mouth, dt) {
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
-   · Q/E alabeo · Shift boost · Espacio hover · R nivelar · C cámara · M sonido.
+   · Q/E alabeo · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
+   v26: Espacio mantenido = vuelo recto (la mira sigue libre y el cuello la sigue) · F mantenida = cámara hacia el blanco fijado · R escudo.
    Armas (ver «Armas del jugador»): clic izq. = fuego rápido; mantenido sobre el círculo rojo = bola guiada; clic dcho. = llamarada;
    izq. + dcho. a la vez = rayo de fuego; clic central = fijar objetivo.
    El dragón se orienta con un cuaternión: pitch/yaw/roll son siempre ejes LOCALES,
@@ -4592,7 +4683,9 @@ const F = {
   bank: 0,                                              // alabeo automático (rad, mismo signo que el roll: + = ala derecha arriba)
   boost: 1, boostDelay: 0, boostExhausted: false, boosting: false, boostFx: 0, boostKick: 0, kickFx: 0,   // kick: golpe al activar el boost
   hover: false, hoverK: 0, hvy: 0,                       // hvy: velocidad vertical en hover (W/S)
-  steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0   // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
+  steer: new THREE.Vector3(0, 0, -1), prevSpeed: 0, accS: 0,  // v13: dirección que sigue el dragón (la mira con un poco de retraso) y aceleración suavizada (sonido, cámara)
+  straight: false, straightT: 0, holdDir: new THREE.Vector3(0, 0, -1),   // v26: vuelo recto (Espacio: s mantenido y dirección fijada)
+  tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0                  // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
 const VMIN = 33;
@@ -4615,17 +4708,20 @@ const SPEED_FOV = 8;                                    // y algo más según la
 const BOOST_SHAKE = [0.0035, 0.009];                    // temblor de cámara (rad): continuo con boost y del golpe al activarlo
 const SPEED_SHAKE = 0.0022;                             // v13: temblor por encima de la velocidad de crucero (picados), hasta este tope a VMAX
 const HOVER_BRAKE = 2.6, HOVER_EXIT_SPEED = 28, HOVER_VSPEED = 26;
+const STRAIGHT_SETTLE = 0.3;                            // v26, vuelo recto: s que tarda en frenar el giro que traía antes de fijar la trayectoria
 const _f = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _l = new THREE.Vector3(), _ax = new THREE.Vector3(), _dq = new THREE.Quaternion(), _iq = new THREE.Quaternion();
 
 /* ---------- Entrada ---------- */
 const hudEl = document.getElementById('hud');
 window.addEventListener('keydown', e => {
-  if (e.code === 'Space' && (state === 'playing' || state === 'paused')) e.preventDefault();   // evita el scroll / activar botones
+  const inGame = state === 'playing' || state === 'paused';
+  if (e.code === 'Space' && inGame) e.preventDefault();   // evita el scroll / activar botones
+  if (e.ctrlKey && inGame && e.code !== 'ControlLeft') e.preventDefault();   // v26: Ctrl es el hover; que Ctrl + tecla no dispare atajos del navegador (Ctrl+W no se puede parar: ver beforeunload)
   if (e.repeat) { keys[e.code] = true; return; }
   keys[e.code] = true;
-  if (e.code === 'Space') { if (state === 'playing') toggleHover(); }
+  if (e.code === 'ControlLeft') { if (state === 'playing' && !cine.on) toggleHover(); }   // v26: el hover pasa de Espacio a Ctrl izquierdo
   else if (e.code === 'KeyC') F.third = !F.third;
-  else if (e.code === 'KeyF') activateShield();
+  else if (e.code === 'KeyR') { if (!cine.on) activateShield(); }   // v26: el escudo pasa de F a R (F = cámara al objetivo; nivelar, a la X)
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
   else if (e.code === 'Escape' && state === 'menu') {      // (con el vídeo del tutorial ampliado, primero lo reduce; v22: sin paneles, de los modos de juego al menú)
     if (!tutEscape()) { if (document.querySelector('.mpanel:not([hidden])')) closePanels(); else if (playMenuOpen()) showPlayMenu(false); }
@@ -4636,6 +4732,10 @@ window.addEventListener('keydown', e => {
   }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
+/* v26: con Ctrl como tecla de juego, Ctrl+W (o Ctrl+Mayús+W) cerraría la pestaña en plena partida, y el navegador no deja anularlo: en partida
+   pide confirmación antes de salir de la página. Ctrl + rueda tampoco amplía la página. */
+window.addEventListener('beforeunload', e => { if (state === 'playing' || state === 'paused') { e.preventDefault(); e.returnValue = ''; } });
+window.addEventListener('wheel', e => { if (e.ctrlKey && (state === 'playing' || state === 'paused')) e.preventDefault(); }, { passive: false });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; W.lmb = W.rmb = false; });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state === 'playing') setPaused(true); });
 window.addEventListener('mousemove', e => {
@@ -4644,7 +4744,7 @@ window.addEventListener('mousemove', e => {
 });
 /* Ratón en partida: izquierdo = fuego rápido / bola guiada, derecho = llamarada, los dos casi a la vez = rayo, central = fijar objetivo. */
 canvasGL.addEventListener('mousedown', e => {
-  if (state !== 'playing') return;
+  if (state !== 'playing' || cine.on) return;              // (v26: en la entrada de cine, sin armas)
   if (e.button === 1) { e.preventDefault(); cycleTarget(); return; }   // clic central: fijar el siguiente dragón enemigo a la vista
   const t = performance.now() / 1000;
   if (e.button === 0) {
@@ -4710,7 +4810,7 @@ const RUN = { towers: { total: TOWER_TOTAL, zone: TOWER_ZONE.slice(), islands: T
 const vicEl = document.getElementById('victory'), byeEl = document.getElementById('bye');
 const fmtClock = t => Math.floor(t / 60) + ':' + String(Math.floor(t % 60)).padStart(2, '0');
 function showResult(win, why) {
-  state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet();
+  state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet(); cineEnd(true);
   deadEl.hidden = pauseEl.hidden = true; toastEl.classList.remove('on');
   if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
   music.game.stop(2); music.menu.play(2.5);
@@ -4745,6 +4845,7 @@ function resetRun(pump) {
   boltsClear();
   dragon.position.copy(START.pos); dragon.quaternion.copy(START.q); F.aimWorld.copy(START.dir);
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; dragonVel.set(0, 0, 0);
+  F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
@@ -4752,7 +4853,7 @@ function resetRun(pump) {
   updateTowerStreaming(P.x, P.z); updateIslandStreaming(P.x, P.z); pumpIslands(4000);
 }
 function backToMenu() {
-  vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels();
+  vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true);
   MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.game.stop(1.5); music.menu.play(1.5);
@@ -4782,6 +4883,35 @@ function startGame() {
   resetWeapons(true);
   requestLock(); canvasGL.focus();
   missionStart();                                          // objetivos, eventos, radio y área (y el aviso de inicio)
+}
+/* ---------- v26: entrada de cine ----------
+   Al empezar (o reintentar) cualquier misión, el dragón vuela solo unos segundos recto, nivelado y hacia delante (updateAim; solo sube si
+   hay terreno o una isla delante), con bandas negras de película arriba y abajo, el nombre de la misión en la de arriba y sin HUD, mientras
+   llegan los primeros mensajes de la radio. Luego las bandas se retiran despacio (1,8 s, en el CSS), vuelve el HUD y el jugador toma el
+   control con la mira delante del morro. Duración: «intro» en la receta (s; 0 = sin entrada) o CINE_T. Mientras dura: sin armas, hover,
+   escudo, vuelo recto, cámara al objetivo ni daño; Esc pausa, C cambia la cámara y M silencia. La llama missionStart. */
+const CINE_T = 7;
+const cine = { on: false, t: 0, dur: CINE_T, dir: new THREE.Vector3(0, 0, -1) };
+const cineEl = document.getElementById('cine'), cineNameEl = document.getElementById('cineName'), cineSubEl = document.getElementById('cineSub');
+function cineStart(dur, name, sub) {
+  cine.on = true; cine.t = 0; cine.dur = dur;
+  cine.dir.set(0, 0, -1).applyQuaternion(dragon.quaternion); cine.dir.y = 0; if (cine.dir.lengthSq() < 1e-4) cine.dir.set(0, 0, -1); cine.dir.normalize();
+  cineNameEl.textContent = name || ''; cineSubEl.textContent = sub || '';
+  cineEl.classList.remove('title'); cineEl.classList.add('show', 'on', 'snap'); hudEl.classList.add('cine', 'snap');   // de golpe: ya están al aparecer
+  void cineEl.offsetWidth; cineEl.classList.remove('snap'); hudEl.classList.remove('snap');
+}
+function cineUpdate(dt) {
+  cine.t += dt;
+  cineEl.classList.toggle('title', cine.t > 0.6 && cine.t < cine.dur - 1);
+  if (cine.t >= cine.dur) cineEnd(false);
+}
+/* Fin: las bandas se retiran y vuelve el HUD (instant: de golpe, al salir de la partida). El control vuelve con la mira delante del morro. */
+function cineEnd(instant) {
+  if (cine.on) { F.aimWorld.set(0, 0, -1).applyQuaternion(dragon.quaternion); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; }
+  cine.on = false;
+  if (instant) { cineEl.classList.add('snap'); hudEl.classList.add('snap'); }
+  cineEl.classList.remove('on', 'title'); hudEl.classList.remove('cine');
+  if (instant) { void cineEl.offsetWidth; cineEl.classList.remove('snap', 'show'); hudEl.classList.remove('snap'); }
 }
 /* Menú → «Elige tu dragón» → partida (o de vuelta al menú con «← Menú» o Esc). */
 const selEl = document.getElementById('select');
@@ -4819,13 +4949,14 @@ function respawn() {
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
-  F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
+  F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
 function boltsClear() { for (const b of bolts) scene.remove(b.mesh); bolts.length = 0; }
 /* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. v24: el daño se lo lleva primero la armadura y lo que sobra, la vida. */
 function hurtDragon(n, why, light) {
+  if (cine.on) return;                                     // v26: la entrada de cine no se interrumpe
   F.lastHit = gameTime; stats.dmgTaken += n;
   const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
@@ -4961,7 +5092,7 @@ function tryLaser() {
   sfx.laserOn(); toast('¡RAYO DE FUEGO!');
   return true;
 }
-/* ---------- Escudo (F) ----------
+/* ---------- Escudo (R; F hasta la v25) ----------
    Esfera de energía azul alrededor del dragón durante SHIELD_T s: anula el daño de bolas de fuego, bolas guiadas y virotes, que revientan
    contra ella (no el de los choques). SHIELD_MAX cargas, marcadas con rayas azules bajo la mira (la usada se vacía y queda negra); solo se
    recargan derribando dragones (+1 cada uno). En su último SHIELD_BLINK s parpadea y luego se disipa. */
@@ -5238,22 +5369,55 @@ const _qa = new THREE.Quaternion();
 /* Mirar alrededor (Z mantenida): el ratón mueve la mirada y no la mira. En 1ª persona gira la cabeza del jinete (hasta LOOK_FP_YAW a cada
    lado); en 3ª, la cámara orbita 360° alrededor del dragón. Al soltar, vuelve sola al frente (por el camino corto). La aplica animateHero. */
 const LOOK_FP_YAW = 170 * Math.PI / 180, LOOK_FP_PITCH = [-1.1, 1.0], LOOK_TP_PITCH = [-0.9, 1.1], LOOK_RETURN = 5;
+/* v26: cámara al objetivo (F mantenida), como en Ace Combat: la vista gira hacia el blanco fijado y lo sigue; al soltar vuelve sola al frente.
+   El giro va con un muelle amortiguado (TARGET_CAM_W, 1/s): arranca y llega suave, sin pasarse (media vuelta, ~0,8 s). Usa el mismo giro que
+   mirar alrededor: en 1ª persona, la cabeza del jinete (hasta LOOK_FP_YAW); en 3ª, la cámara orbita y deja al dragón delante, entre ella y el
+   blanco. El ratón sigue moviendo la mira (puede salirse de la pantalla). Sin blanco fijado, al pulsar fija el mejor a la vista
+   (cycleTarget); si no hay ninguno, no hace nada. La Z manda sobre la F. */
+const TARGET_CAM_W = 6;
+const _tq = new THREE.Quaternion();
 function updateLook(dt) {
-  F.lookHeld = !!keys.KeyZ && state === 'playing';
+  F.lookHeld = !!keys.KeyZ && state === 'playing' && !cine.on;
+  const tgt = !F.lookHeld && !!keys.KeyF && state === 'playing' && !cine.on;
+  if (tgt && !F.tgtCam && (!enemyLock.e || enemyLock.e.dead)) cycleTarget();   // al pulsar, sin blanco: el mejor a la vista
+  F.tgtCam = tgt;
+  const T = tgt && enemyLock.e && !enemyLock.e.dead ? enemyLock.e : null;
+  if (T) F.tgtBack = true; else if (F.lookHeld) F.tgtBack = false;   // tras la F, la vuelta al frente también con el muelle
   if (F.lookHeld) {
     const k = 0.0021 * F.sens;
-    F.lookYaw -= F.pdx * k; F.lookPit -= F.pdy * k; F.pdx = F.pdy = 0;
+    F.lookYaw -= F.pdx * k; F.lookPit -= F.pdy * k; F.pdx = F.pdy = 0; F.lookVY = F.lookVP = 0;
+  } else if (F.tgtBack) {
+    // hacia el blanco: su dirección en el marco de la cámara (el del dragón con su retraso, dragonAnim.camQ), en el giro (cabeceo, guiñada) de la Z
+    let wy = 0, wp = 0;
+    if (T) { _l.subVectors(T.pos, dragon.position).normalize().applyQuaternion(_tq.copy(dragonAnim.camQ || dragon.quaternion).invert()); wy = Math.atan2(-_l.x, -_l.z); wp = Math.asin(clamp(_l.y, -1, 1)); }
+    const w = TARGET_CAM_W, dy = Math.atan2(Math.sin(wy - F.lookYaw), Math.cos(wy - F.lookYaw));   // (por el camino corto)
+    F.lookVY += (w * w * dy - 2 * w * F.lookVY) * dt; F.lookVP += (w * w * (wp - F.lookPit) - 2 * w * F.lookVP) * dt;
+    F.lookYaw += F.lookVY * dt; F.lookPit += F.lookVP * dt;
+    if (!T && Math.abs(dy) + Math.abs(F.lookPit) < 0.003) { F.tgtBack = false; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; }
   } else {
     F.lookYaw = Math.atan2(Math.sin(F.lookYaw), Math.cos(F.lookYaw));
     const r = Math.exp(-dt * LOOK_RETURN); F.lookYaw *= r; F.lookPit *= r;
   }
+  const y0 = F.lookYaw, p0 = F.lookPit;
   if (F.third) F.lookPit = clamp(F.lookPit, LOOK_TP_PITCH[0], LOOK_TP_PITCH[1]);
   else { F.lookYaw = clamp(F.lookYaw, -LOOK_FP_YAW, LOOK_FP_YAW); F.lookPit = clamp(F.lookPit, LOOK_FP_PITCH[0], LOOK_FP_PITCH[1]); }
+  if (F.lookYaw !== y0) F.lookVY = 0; if (F.lookPit !== p0) F.lookVP = 0;   // (en el tope, sin inercia)
 }
 function updateAim(dt, auto) {
   const q = dragon.quaternion;
   if (!auto) updateLook(dt);
-  if (auto) {
+  if (!auto && cine.on) {
+    // v26: entrada de cine: rumbo de salida y nivelado (solo sube si hay terreno o una isla delante); el ratón no mueve la mira
+    const p = dragon.position, hx = cine.dir.x, hz = cine.dir.z;
+    let wantY = Math.max(heightAt(p.x, p.z), WL) + 120;
+    for (const d of [200, 500, 900, 1400, 2000]) wantY = Math.max(wantY, heightAt(p.x + hx * d, p.z + hz * d) + 160);
+    for (const d of [0, 150, 400, 800, 1300]) {
+      const isl = islandColumn(p.x + hx * d, p.z + hz * d, p.y - 60, p.y + 60, 60);
+      if (isl) { wantY = Math.max(wantY, isl.yMax + 150); break; }
+    }
+    const pit = clamp(Math.atan2(wantY - p.y, 1000), 0, 0.3);   // (mira lejos: sube pronto y poco a poco)
+    F.aimWorld.set(hx * Math.cos(pit), Math.sin(pit), hz * Math.cos(pit)); F.pdx = F.pdy = 0;
+  } else if (auto) {
     // piloto automático del menú: rumbo suave y altura segura sobre el terreno
     _f.set(0, 0, -1).applyQuaternion(q); const h = Math.hypot(_f.x, _f.z) || 1;
     const hx = _f.x / h, hz = _f.z / h, p = dragon.position;
@@ -5272,11 +5436,12 @@ function updateAim(dt, auto) {
     let yaw = Math.atan2(_l.x, -_l.z), pit = Math.asin(clamp(_l.y, -1, 1));
     const k = 0.0021 * F.sens;
     yaw += F.pdx * k; pit -= F.pdy * k; F.pdx = F.pdy = 0;
-    // en hover el cuerpo no cabecea: el marcador sí puede subir/bajar (cabeza y bolas de fuego lo siguen) dentro de un rango
-    yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : clamp(pit, -0.78, 0.78);
+    // en hover el cuerpo no cabecea: el marcador sí puede subir/bajar (cabeza y bolas de fuego lo siguen) dentro de un rango.
+    // v26: en vuelo recto (Espacio), algo más hacia abajo, para barrer el suelo en vuelo rasante
+    yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
     _l.set(Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit));
     F.aimWorld.copy(_l).applyQuaternion(q);
-  } else if (!F.lookHeld) {                                // (sin puntero bloqueado y mirando alrededor, la mira se queda donde estaba)
+  } else if (!F.lookHeld && !F.tgtCam) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
     const t = Math.tan(camera.fov * Math.PI / 360);
     _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize().applyQuaternion(camera.quaternion).applyQuaternion(q);
     F.aimWorld.copy(_l);
@@ -5288,10 +5453,12 @@ function updateAim(dt, auto) {
 /* ---------- Vuelo ---------- */
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
+  if (!auto && cine.on) cineUpdate(dt);                    // v26: entrada de cine (sin control hasta que acaba)
+  const ctl = !auto && !cine.on;                           // las teclas de vuelo cuentan
   const hov = !auto && F.hover;
   F.hoverK += ((hov ? 1 : 0) - F.hoverK) * (1 - Math.exp(-dt * 3));
   // acelerador (en hover W/S no hacen nada)
-  const thr = (auto || hov) ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0));
+  const thr = (auto || hov || !ctl) ? 0 : ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0));
   F.throttle = clamp(F.throttle + thr * 0.5 * dt, 0, 1);
   if (auto) F.throttle += (0.55 - F.throttle) * dt;
   // hover: W sube y S baja (suave); se frena ante el suelo, el agua o la roca de una isla
@@ -5303,7 +5470,7 @@ function updateFlight(dt, auto) {
     if (F.hvy > 0 && islandAt(pos.x, pos.y + 9, pos.z, 0)) F.hvy = 0;
   } else F.hvy = 0;
   // boost: la barra se gasta mientras se mantiene Shift; 2 s después de soltarlo empieza a recargarse
-  const shift = !auto && !hov && (keys.ShiftLeft || keys.ShiftRight);
+  const shift = ctl && !hov && (keys.ShiftLeft || keys.ShiftRight);
   let boosting = false;
   if (shift) {
     F.boostDelay = BOOST_DELAY;
@@ -5349,7 +5516,23 @@ function updateFlight(dt, auto) {
   const sn = clamp((F.speed - VMIN) / (VCRUISE_MAX - VMIN), 0, 1);
   const maxRate = lerp(TURN_RATE[0], TURN_RATE[1], sn), steer = lerp(1, BOOST_STEER, F.boostFx);   // (v24: TURN_RATE sale del radio de giro del dragón)
   F.steer.lerp(F.aimLocal, 1 - Math.exp(-dt * STEER_LAG)).normalize();   // v13: el dragón persigue la mira con un poco de retraso
-  const a = F.steer;
+  let a = F.steer;
+  // v26: vuelo recto (Espacio mantenido): el dragón deja de seguir a la mira y mantiene la dirección que llevaba (rumbo y pendiente del morro).
+  // Los primeros STRAIGHT_SETTLE s solo frena el giro que traía; después fija esa dirección y levanta el morro lo justo para compensar el leve
+  // hundimiento (sink): la trayectoria va justo hacia donde apuntaba el morro, así que en vuelo nivelado no pierde altura. La mira sigue al
+  // ratón; el cuello y los ataques la siguen (animateTyrant).
+  const straight = ctl && !!keys.Space;
+  if (straight) {
+    if (!F.straight) F.straightT = 0;
+    F.straightT += dt;
+    if (hov || F.straightT < STRAIGHT_SETTLE) {             // (en hover: sin girar hacia la mira, el morro se queda donde está)
+      F.holdDir.set(0, 0, -1).applyQuaternion(q); if (hov) F.holdDir.y = 0;
+      F.holdDir.normalize();
+    }
+    _l.copy(F.holdDir); if (!hov && F.straightT >= STRAIGHT_SETTLE) _l.y += clamp(F.sink / Math.max(F.speed, 1), 0, 0.3);
+    a = _l.normalize().applyQuaternion(_iq.copy(q).invert());
+  }
+  F.straight = straight;
   const yawErr = Math.atan2(a.x, -a.z), pitErr = Math.atan2(a.y, Math.hypot(a.x, a.z));
   const tYaw = -clamp(yawErr * STEER_GAIN * steer, -maxRate * steer, maxRate * steer);
   let tPit = clamp(pitErr * STEER_GAIN * steer, -maxRate * steer, maxRate * steer) - lack * 0.9;
@@ -5363,8 +5546,8 @@ function updateFlight(dt, auto) {
     tRoll = -clamp(rollAng * 3.0, -1.8, 1.8) * (1 - smooth(0.9, 0.99, Math.abs(_f.y)));
   } else {
     tRoll = ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 1.9;
-    if (auto) tRoll = 0;
-    if (keys.KeyR || auto) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);
+    if (!ctl) tRoll = 0;
+    if ((ctl && keys.KeyX) || !ctl) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);   // v26: nivelar pasa de la R a la X (la R es el escudo); en la entrada de cine, solo
   }
   const k = 1 - Math.exp(-dt * lerp(RATE_RESP[0], RATE_RESP[1], F.boostFx));
   F.rate.y += (tYaw - F.rate.y) * k; F.rate.p += (tPit - F.rate.p) * k; F.rate.r += (tRoll - F.rate.r) * k;
@@ -5482,8 +5665,9 @@ function drawLadder(fwd) {
 function drawMarkers(fwd) {
   const p = {};
   if (proj(_camP.x + fwd.x * 1000, _camP.y + fwd.y * 1000, _camP.z + fwd.z * 1000, p)) {
-    hctx.strokeStyle = C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;
+    hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
     hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
+    if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
     _sp.x = p.x; _sp.y = p.y;
   } else { _sp.x = HW / 2; _sp.y = HH / 2; }
   const a = {};
@@ -6107,20 +6291,22 @@ document.getElementById('mQuit').addEventListener('click', quitGame);
 const K = (...k) => k.map(x => `<kbd>${x}</kbd>`).join('');
 const TUTORIAL = [
   { cat: 'Vuelo', items: [
-    { id: 'direccion', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella']], text: [
+    { id: 'direccion', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella'], [['Espacio'], 'Mantener: vuelo recto']], text: [
       'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde apunta el morro en ese momento; cuando los dos coinciden, vuelas recto.',
       'Cuanto más lejos del morro pongas la mira, más cerrado será el giro. A poca velocidad el dragón gira más deprisa; a mucha, los giros son más abiertos.',
-      'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.'] },
-    { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['R'], 'Mantener: nivelar el horizonte']], text: [
+      'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.',
+      'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira y mantiene la trayectoria que llevaba, sin perder altura, mientras la mira sigue al ratón y la cabeza del dragón la sigue. Sirve, por ejemplo, para barrer el suelo con la llamarada en un vuelo rasante sin bajar más. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira.'] },
+    { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
-      'Mantén ' + K('R') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
-    { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Espacio'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
-      'Pulsa ' + K('Espacio') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
+      'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
+    { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Ctrl izq.'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
+      'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',
-      'Pulsa ' + K('Espacio') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
-    { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor']], text: [
+      'Pulsa ' + K('Ctrl izq.') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
+    { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor'], [['F'], 'Mantener: mirar al blanco fijado']], text: [
       K('C') + ' cambia entre la vista del jinete, sobre el lomo del dragón, y la cámara exterior, detrás de él.',
-      'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.'] }
+      'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.',
+      'Mantén ' + K('F') + ' y la cámara gira despacio hacia el blanco fijado y lo sigue, como en Ace Combat: así ves dónde está para ir a por él. Si no tienes ninguno fijado, fija el mejor a la vista. El ratón sigue moviendo la mira. Al soltar ' + K('F') + ', la vista vuelve sola al frente.'] }
   ] },
   { cat: 'Velocidad', items: [
     { id: 'acelerar', title: 'Acelerar y frenar', sum: 'W abre el acelerador y S lo cierra.', keys: [[['W', 'S'], 'Acelerar / frenar']], text: [
@@ -6154,11 +6340,11 @@ const TUTORIAL = [
       'Pulsa los dos botones a la vez: la energía se concentra en la boca y sale un rayo de hasta {rayo_alcance} km que sigue a la mira durante {rayo_duracion} s y quema todo lo que cruza ({rayo_dano} de daño por segundo). Mientras dura, las demás armas no funcionan.'] }
   ] },
   { cat: 'Defensa', items: [
-    { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['F'], 'Activar el escudo']], text: [
-      K('F') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo y de los dirigibles) revientan contra ella sin hacerte daño. No te protege de los choques.',
+    { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['R'], 'Activar el escudo']], text: [
+      K('R') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo y de los dirigibles) revientan contra ella sin hacerte daño. No te protege de los choques.',
       'Tienes {escudos} cargas: las rayas azules bajo la mira. La que está en uso se vacía mientras dura y las gastadas quedan negras. Cuando el escudo parpadea, está a punto de apagarse.',
       'Guárdalo para cuando veas <b>¡PROYECTIL APROXIMÁNDOSE!</b> y no puedas esquivarlo.'] },
-    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['F'], 'Usar una carga']], text: [
+    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['R'], 'Usar una carga']], text: [
       'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
       'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
     { id: 'recarga_guiadas', title: 'Munición guiada', sum: 'No se recargan: administra las de la misión.', keys: [], text: [
@@ -6175,10 +6361,11 @@ const TUTORIAL = [
     { id: 'dragones', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
       'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Sobre cada uno, un triángulo rojo marca su distancia y, si está herido, su vida ({enemigo.vida}).',
       'Patrullan hasta que te detectan (a unos {enemigo.deteccion} m). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan a {enemigo.velocidad} km/h.',
+      'Si te pegas a su cola, huyen hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzones, subidas y picados): síguelos y apunta. Al rato dan la vuelta con una curva abierta para volver a atacarte.',
       'Hay 20 en toda la partida, como mucho 6 a la vez. En el radar son triángulos rojos.'] },
-    { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['F'], 'Escudo, si no hay escapatoria']], text: [
+    { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['R'], 'Escudo, si no hay escapatoria']], text: [
       'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño) y aparece <b>¡PROYECTIL APROXIMÁNDOSE!</b>, con un rombo rojo y su distancia (o una flecha roja si viene por detrás).',
-      'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('F') + ').'] },
+      'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('R') + ').'] },
     { id: 'torres', title: 'Torres antiaéreas', sum: '30 torres fijas que disparan ráfagas.', keys: [], text: [
       'Hay 30 torres repartidas alrededor del punto de partida; en cada partida, entre 10 y 15 de ellas están sobre islas flotantes. Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está en una isla).',
       'A menos de {torre.aa_alcance} m te disparan ráfagas antiaéreas de {torre.aa_rafaga} proyectiles ({torre.aa_dano} de daño cada uno). Aguantan {torre.vida} de daño y destruirlas da {torre.puntos} puntos. No se pueden atravesar: rodéalas o pasa por encima.'] },
@@ -6283,10 +6470,11 @@ const logoEls = [document.getElementById('logoSky'), document.getElementById('lo
 const fxBack = document.getElementById('fxBack'), fxFront = document.getElementById('fxFront'), fxB = fxBack.getContext('2d'), fxF = fxFront.getContext('2d');
 
 const LOGO_FILES = ['../imagenes/logo_sky.png', '../imagenes/logo_apex.png'], LOGO_IDS = ['logo-sky-png', 'logo-apex-png'];
-/* v14: logo nuevo en una sola línea (imagenes/logo_v2.jpg, fondo blanco) separado con herramientas/separar_logo_blanco.mjs en dos PNG de 1734×633:
-   SKY a la izquierda y APEX a la derecha. LOGO_BOX: caja de cada palabra (por si no se pueden leer los píxeles); LOGO_HIT: punto del choque
-   (entre la Y y la A), en fracción del logo. */
-const LOGO_W = 1734, LOGO_H = 633, LOGO_BOX = [[37, 38, 763, 561], [688, 106, 1723, 594]], LOGO_HIT = [0.418, 0.473];
+/* v14: logo en una sola línea, separado en dos PNG del mismo tamaño: SKY a la izquierda y APEX a la derecha. LOGO_BOX: caja de cada palabra
+   (por si no se pueden leer los píxeles); LOGO_HIT: punto del choque (entre la Y y la A), en fracción del logo.
+   v26: logo nuevo de Jorge, recortado y con transparencia de verdad (imagenes/logo_v3.webp), separado con herramientas/separar_logo_alfa.mjs
+   en dos PNG de 1737×611 (los de la v14, de logo_v2.jpg con fondo blanco, quedan como logo_*_v2.png). */
+const LOGO_W = 1737, LOGO_H = 611, LOGO_BOX = [[25, 25, 751, 548], [676, 95, 1710, 583]], LOGO_HIT = [0.411, 0.469];
 function fireSprite(stops) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -6465,6 +6653,8 @@ function updateIntro(now) {
    · start (v19): punto de partida. { x, z, heading, height } en metros: heading = rumbo en grados como en la brújula (0 = norte, 90 = este;
      null = hacia donde más relieve hay), height = metros sobre el suelo (o el agua). Con y, la altitud absoluta en lugar de height (nunca
      a menos de 40 m del suelo). Si cae dentro de una isla, se sube por encima. Las coordenadas se leen en vuelo con el modo diseño (º).
+   · intro (v26): segundos de entrada de cine al empezar: el dragón vuela solo, recto y nivelado, con bandas negras, el nombre de la misión y los
+     primeros mensajes de la radio; luego las bandas se retiran y se toma el control. Sin intro, 7 (CINE_T); 0 = sin entrada.
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
    · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
@@ -6515,6 +6705,7 @@ const MISSIONS = {
     name: 'Misión 1: la flota', place: 'Valle de las Torres', callsign: 'Percival',
     world: { seed: 777, biome: 'valle' },
     start: { x: 9176, z: 2459, heading: 285, height: 750 },
+    intro: 9,                                              // v26: Lance y el primer mensaje del Mando, con las bandas
     area: { x: 0, z: 0, r: 11000 },
     death: 'fail',
     timeLimit: null,
@@ -6555,6 +6746,7 @@ const MISSIONS = {
     name: 'Misión de prueba', place: 'Valle de las Torres',
     world: { seed: 777, biome: 'valle' },                  // v19: siempre el mismo valle (el de los vídeos del tutorial)
     start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 7,
     area: { x: 0, z: 0, r: 10500 },
     death: 'fail',
     timeLimit: null,
@@ -6586,6 +6778,7 @@ const MISSIONS = {
     name: 'Prueba de objetivos', place: 'Valle de las Torres',
     world: { seed: 777, biome: 'valle' },                  // el mismo valle que la misión de prueba (no hay que regenerar)
     start: { x: 0, z: 0, heading: null, height: 300 },
+    intro: 7,
     area: { x: 0, z: 0, r: 8000 },
     death: 'fail',
     timeLimit: null,
@@ -6621,6 +6814,7 @@ const MISSIONS = {
     name: 'Combate libre', place: 'Mundo abierto', free: true,
     world: { seed: null, biome: 'valle' },
     start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 4,                                              // (sin radio: solo el objetivo en la banda)
     area: null,
     death: 'respawn',
     timeLimit: null,
@@ -6692,7 +6886,9 @@ function missionStart() {
   missionHideHUD();
   allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
-  toast(mission.free ? 'Objetivo: ' + goal : mission.name);
+  const intro = mission.intro != null ? mission.intro : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
+  if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
+  else toast(mission.free ? 'Objetivo: ' + goal : mission.name);
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
@@ -7010,7 +7206,7 @@ const STATS_SCHEMA = {
     ['armadura', 'Puntos de armadura', 'puntos', 50, 'Barra amarilla encima de la de vida. El daño la gasta primero a ella y, cuando llega a 0, a la vida.'],
     ['armadura_espera', 'Espera para regenerar la armadura', 's', 5, 'Segundos sin recibir daño antes de que la armadura empiece a rellenarse.'],
     ['armadura_regen', 'Regeneración de armadura', 'puntos/s', 5, 'Lo que se rellena cada segundo, hasta el máximo.'],
-    ['escudos', 'Slots de escudo', 'cargas', 2, 'Cargas del escudo (F) al empezar; también es el máximo.'],
+    ['escudos', 'Slots de escudo', 'cargas', 2, 'Cargas del escudo (R) al empezar; también es el máximo.'],
     ['escudo_duracion', 'Duración del escudo', 's', 5, 'Segundos que dura cada carga.', 1],
     ['escudo_por_derribo', 'Escudo por dragón derribado', 'cargas', 1, 'Cargas que devuelve cada dragón que derribas tú (0 = no se recargan).', 1],
     { sec: 'Disparo básico (clic izquierdo)' },
@@ -7049,9 +7245,14 @@ const STATS_SCHEMA = {
     { sec: 'Vida y vuelo' },
     ['vida', 'Puntos de vida', 'puntos', 100, ''],
     ['velocidad', 'Velocidad máxima', 'km/h', 550, ''],
+    ['giro_radio', 'Radio de giro', 'm', 130, 'El del giro más cerrado a su velocidad máxima: cuanto más grande, más abiertos sus giros. Si es mayor que el tuyo (Base: 110 m), al perseguirlo puedes cerrar el giro y apuntarle (v26: 130; antes, unos 104 m).'],
     ['deteccion', 'Distancia de detección', 'm', 2000, 'A esta distancia te detecta y empieza sus pasadas.'],
     ['perder', 'Distancia a la que te pierde', 'm', 3800, ''],
     ['puntos', 'Puntos al derribarlo', 'puntos', 300, ''],
+    { sec: 'Huida (cuando le persigues)' },
+    ['huida_distancia', 'Distancia a la que se siente perseguido', 'm', 1800, 'Con el jugador detrás, apuntándole y más cerca que esto, huye hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzón, subidas y picados).', 1],
+    ['huida_min', 'Tiempo de huida (mínimo)', 's', 10, 'Pasado este tiempo (entre el mínimo y el máximo) da la vuelta con una curva abierta y vuelve a atacar.', 1],
+    ['huida_max', 'Tiempo de huida (máximo)', 's', 18, '', 1],
     { sec: 'Bola de fuego' },
     ['bola_dano', 'Daño bola de fuego', 'puntos', 15, ''],
     ['bola_alcance', 'Alcance', 'm', 1000, ''],
@@ -7215,7 +7416,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"deteccion":2000,"perder":3500,"puntos":300,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":3,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1500,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":2000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
@@ -7261,6 +7462,8 @@ function applyStats(vals, src) {
   if (r.miss.length) console.warn('Stats: faltan en el Excel (uso la Base o el valor de antes):\n  ' + r.miss.join('\n  '));
   const E = STATS.enemigo;
   ENEMY_HP = E.vida; ENEMY_VMAX = E.velocidad / 3.6; ENEMY_DETECT = E.deteccion; ENEMY_LOSE = E.perder; ENEMY_SCORE = E.puntos;
+  ENEMY_TURN[1] = ENEMY_VMAX / Math.max(20, E.giro_radio); ENEMY_TURN[0] = ENEMY_TURN[1] * 1.75 / 0.95;   // (v26: el giro total; despacio, más cerrado, como el jugador)
+  ENEMY_EVADE_DIST = E.huida_distancia; ENEMY_EVADE_T[0] = E.huida_min; ENEMY_EVADE_T[1] = Math.max(E.huida_min, E.huida_max);
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
   EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(EMSL_SPEED[0], E.guiada_vel / 3.6); EMSL_TURN = deg(E.guiada_giro);

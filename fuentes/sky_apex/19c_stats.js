@@ -22,7 +22,7 @@ const STATS_SCHEMA = {
     ['armadura', 'Puntos de armadura', 'puntos', 50, 'Barra amarilla encima de la de vida. El daño la gasta primero a ella y, cuando llega a 0, a la vida.'],
     ['armadura_espera', 'Espera para regenerar la armadura', 's', 5, 'Segundos sin recibir daño antes de que la armadura empiece a rellenarse.'],
     ['armadura_regen', 'Regeneración de armadura', 'puntos/s', 5, 'Lo que se rellena cada segundo, hasta el máximo.'],
-    ['escudos', 'Slots de escudo', 'cargas', 2, 'Cargas del escudo (F) al empezar; también es el máximo.'],
+    ['escudos', 'Slots de escudo', 'cargas', 2, 'Cargas del escudo (R) al empezar; también es el máximo.'],
     ['escudo_duracion', 'Duración del escudo', 's', 5, 'Segundos que dura cada carga.', 1],
     ['escudo_por_derribo', 'Escudo por dragón derribado', 'cargas', 1, 'Cargas que devuelve cada dragón que derribas tú (0 = no se recargan).', 1],
     { sec: 'Disparo básico (clic izquierdo)' },
@@ -61,9 +61,14 @@ const STATS_SCHEMA = {
     { sec: 'Vida y vuelo' },
     ['vida', 'Puntos de vida', 'puntos', 100, ''],
     ['velocidad', 'Velocidad máxima', 'km/h', 550, ''],
+    ['giro_radio', 'Radio de giro', 'm', 130, 'El del giro más cerrado a su velocidad máxima: cuanto más grande, más abiertos sus giros. Si es mayor que el tuyo (Base: 110 m), al perseguirlo puedes cerrar el giro y apuntarle (v26: 130; antes, unos 104 m).'],
     ['deteccion', 'Distancia de detección', 'm', 2000, 'A esta distancia te detecta y empieza sus pasadas.'],
     ['perder', 'Distancia a la que te pierde', 'm', 3800, ''],
     ['puntos', 'Puntos al derribarlo', 'puntos', 300, ''],
+    { sec: 'Huida (cuando le persigues)' },
+    ['huida_distancia', 'Distancia a la que se siente perseguido', 'm', 1800, 'Con el jugador detrás, apuntándole y más cerca que esto, huye hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzón, subidas y picados).', 1],
+    ['huida_min', 'Tiempo de huida (mínimo)', 's', 10, 'Pasado este tiempo (entre el mínimo y el máximo) da la vuelta con una curva abierta y vuelve a atacar.', 1],
+    ['huida_max', 'Tiempo de huida (máximo)', 's', 18, '', 1],
     { sec: 'Bola de fuego' },
     ['bola_dano', 'Daño bola de fuego', 'puntos', 15, ''],
     ['bola_alcance', 'Alcance', 'm', 1000, ''],
@@ -273,6 +278,8 @@ function applyStats(vals, src) {
   if (r.miss.length) console.warn('Stats: faltan en el Excel (uso la Base o el valor de antes):\n  ' + r.miss.join('\n  '));
   const E = STATS.enemigo;
   ENEMY_HP = E.vida; ENEMY_VMAX = E.velocidad / 3.6; ENEMY_DETECT = E.deteccion; ENEMY_LOSE = E.perder; ENEMY_SCORE = E.puntos;
+  ENEMY_TURN[1] = ENEMY_VMAX / Math.max(20, E.giro_radio); ENEMY_TURN[0] = ENEMY_TURN[1] * 1.75 / 0.95;   // (v26: el giro total; despacio, más cerrado, como el jugador)
+  ENEMY_EVADE_DIST = E.huida_distancia; ENEMY_EVADE_T[0] = E.huida_min; ENEMY_EVADE_T[1] = Math.max(E.huida_min, E.huida_max);
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
   EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(EMSL_SPEED[0], E.guiada_vel / 3.6); EMSL_TURN = deg(E.guiada_giro);

@@ -2,7 +2,7 @@
 
 Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho hasta ahora: qué es el juego, cómo funciona por dentro, qué se pidió y en qué orden, qué se probó, qué se aprendió y por dónde seguir.
 
-Fecha de este resumen: 28 de octubre de 2026, v24 (la primera versión es del 16 de octubre).
+Fecha de este resumen: 30 de octubre de 2026, v26 (la primera versión es del 16 de octubre).
 
 > **v15 (26-oct): empieza la campaña «Ace Combat con dragones»** (sección 7d). La fuente ya no es un solo archivo: se edita por módulos en `fuentes/sky_apex/` y `herramientas/construir.mjs` genera `fuentes/sky_apex.src.html` y `sky_apex.html`. Hay un motor de misiones por datos (recetas en `18_misiones_datos.js`), una «Misión de prueba» y el «Combate libre» de la v14. Jugada por Jorge: «todo parece funcionar correctamente».
 > **v16 (26-oct): tres dragones** (sección 7c, «v16»): en «Elige tu dragón», botones arriba a la izquierda para elegir entre tres dragones, cada uno con sus colores. Los otros dos copian en cada fotograma la pose del Tyrant (`09b_dragones.js`). Jorge: Drogon salía roto y el rojo mal en la plataforma.
@@ -13,6 +13,7 @@ Fecha de este resumen: 28 de octubre de 2026, v24 (la primera versión es del 16
 > **27-oct (chat nuevo): repositorio de GitHub** `JorgePove/Sky_Apex`, público, con la web en GitHub Pages desde `main` (sección 13 y `CLAUDE.md`). Commit y push al terminar cada entrega; las versiones son etiquetas de git.
 > **v23 (27-oct): Misión 1 «la flota» y el compañero Lance** (sección 7c, «v23»): Fase 1 empezada. Diez dirigibles en formación huyen hacia el borde (si sale uno, se falla) con 15 dragones de escolta; Lance, aliado con IA, vuela en formación y luego ataca protegiendo al jugador (Percival). Entregada, sin jugar aún.
 > **v25 (28-oct): valores de Jorge, sin guiadas a costa de vida y armadura como marco** (sección 7c, «v25»): Jorge cambió a mano los valores de los enemigos en el Excel; se quitó lanzar guiadas sin munición a costa de vida máxima («mantenerlo simple») y la armadura pasa a ser un marco amarillo alrededor de la barra de vida, según su boceto. Entregada, sin jugar aún.
+> **v26 (30-oct): logo nuevo, enemigos que huyen, vuelo recto, cámara al objetivo y entrada de cine** (sección 7c, «v26»): logo recortado de Jorge con transparencia; los dragones enemigos giran con 130 m de radio (tope del giro total) y, si los persigues, huyen hacia delante con maniobras amplias; controles nuevos (**Espacio** mantenido = vuelo recto con la mira libre, **Ctrl izq.** = hover, **F** mantenida = cámara al blanco fijado, **R** = escudo, **X** = nivelar); al empezar cada misión, unos segundos de vuelo automático con bandas negras de cine. Entregada, sin jugar aún.
 > **v24 (28-oct): stats en un Excel** (sección 7c, «v24»): Jorge jugó la v23 («la misión funciona»; flota destruida en 3 min, pero en medio de todo te acribillan; el balance de misiones irá más adelante). Rediseño de las stats del jugador (vida sin regeneración, **armadura** amarilla que se regenera, 2 escudos, guiadas fijas por misión que cuestan vida máxima, llamarada 15/s y 300 m, rayo 50/s, 5 s y 8 km, 600/1000 km/h, boost de 10 s) y todas las stats en **`datos/sky_apex_stats.xlsx`** (Base, una pestaña por dragón, Comparativa, enemigos y Lance), que el juego lee solo; **`Jugar.bat`** abre el juego con servidor local para que lea el Excel al momento. Entregada, sin jugar aún.
 > **v21 (27-oct): objetivos genéricos y dirigibles** (sección 7c, «v21»): marca TGT, etiquetas, sitios fijos, escuadrones por eventos y fijar cualquier blanco; dirigibles quietos que disparan por los costados y estallan en una explosión de energía; misión nueva «Prueba de objetivos». Entregada, sin jugar aún.
 > **27-oct, al cerrar el chat:** v20 corregida tras jugarla Jorge (el jinete de Fulgor flotaba muy atrás y la 1ª persona iba muy atrás y baja); sin nueva respuesta suya aún. Blender enlazado al proyecto (sección 8.3).
@@ -78,7 +79,7 @@ Lo que ya existía y sigue sirviendo:
 | `fuentes/sky_apex/` | (v15) Módulos de la línea activa (`NN_*.html`, `.css`, `.js`): **aquí se edita**. `herramientas/construir.mjs` los junta y genera los HTML |
 | `fuentes/*.src.html` | `sky_apex.src.html` (desde la v15, generado a partir de los módulos: no editar) y `alas_de_brasa_humanoide.src.html` (editable). Cargan los modelos desde `../modelos/` |
 | `modelos/` | (v20: `syrax_web.glb`, 4,5 MB, Fulgor, exportado desde Blender) `tyrant_web.glb` (5,7 MB), `brazos_jinete.glb` (1 MB, brazos riggeados del caballero), `caballero.glb` (0,76 MB, el caballero entero riggeado, 1,9 m), `dragon_01_web.glb` (5,1 MB), `dragon_01.glb` (original, 444 MB). Desde la v16: `dragon_rojo.glb` (7 MB, de `red_dragon.glb` con `herramientas/preparar_dragon_rojo.mjs`) y `drogon_web.glb` (3,1 MB, de `Drogon/Drogon/Dragon.fbx` con `herramientas/preparar_drogon.mjs`) |
-| `imagenes/` | `logo_sky.png` y `logo_apex.png`: las dos palabras del logo, del mismo tamaño para superponerlas (v14: 1734×633, sacadas de `logo_v2.jpg`, el logo nuevo de Jorge; las del logo anterior, de `menu_logo.png`, quedan como `logo_*_v1.png`) |
+| `imagenes/` | `logo_sky.png` y `logo_apex.png`: las dos palabras del logo, del mismo tamaño para superponerlas (v26: 1737×611, sacadas de `logo_v3.webp`, el logo recortado de Jorge con transparencia, con `herramientas/blender/imagen_a_png.py` + `herramientas/separar_logo_alfa.mjs`; las de la v14, de `logo_v2.jpg` con fondo blanco, quedan como `logo_*_v2.png`, y las del primer logo, de `menu_logo.png`, como `logo_*_v1.png`) |
 | `musica/` | `musica_menu.mp3` («Dragon's Ascent») y `musica_game.mp3` («Course de Ciel»). El juego busca `musica/musica_menu` y `musica/musica_game` con extensión mp3, ogg, m4a, wav, aac, flac, opus o webm: Jorge puede cambiar las canciones dejando otro archivo con ese nombre |
 | `menu_logo.png` | Logo «Sky Apex» original de Jorge (PNG con transparencia) |
 | `Knighty.fbx` / `Knighty.obj` | Caballero de Jorge (23-oct): 1,5 M de triángulos en 129 piezas, **sin esqueleto, sin UV ni materiales**, en pose A, unas 556 unidades de alto (×50 en el FBX). Comprado en una web de modelos 3D gratis |
@@ -150,7 +151,7 @@ Sonido y menú
 
 ## 4. Controles
 
-Los de Sky Apex v11 (en el juego, menú → Controles). La v6 estable usaba otros: clic izquierdo = bola de fuego, clic derecho = fijar.
+Los de Sky Apex v26 (en el juego, menú → Controles). La v6 estable usaba otros: clic izquierdo = bola de fuego, clic derecho = fijar. En la v26 cambiaron: hover de Espacio a Ctrl izq., escudo de F a R, nivelar de R a X, y son nuevos Espacio (vuelo recto) y F (cámara al objetivo).
 
 | Entrada | Acción |
 |---|---|
@@ -158,15 +159,17 @@ Los de Sky Apex v11 (en el juego, menú → Controles). La v6 estable usaba otro
 | Ratón | Dirección y puntería (el dragón gira hacia la mira y se inclina al virar) |
 | W / S | Acelerar / frenar. En hover, subir / bajar |
 | Shift | Boost (se gasta; recarga 2 s después de soltar; aletea el doble de rápido) |
-| Espacio | Hover: parar en el aire. Otra vez: volar |
+| Espacio (mantener) | (v26) Vuelo recto: el dragón mantiene la dirección que llevaba (sin perder altura); la mira sigue al ratón y el cuello la sigue |
+| Ctrl izq. | (v26; antes Espacio) Hover: parar en el aire. Otra vez: volar |
 | Q / E | Alabeo izquierda / derecha |
-| R (mantener) | Nivelar el horizonte |
+| X (mantener) | (v26; antes R) Nivelar el horizonte |
 | Clic izquierdo | Fuego rápido (un proyectil por clic; 20 de munición que se recargan solos) |
 | Clic izquierdo mantenido | Bola guiada: con un dragón fijado y la mira en el círculo rojo (0,5 s + 3 s de carga; 5 bolas, +2 por torre) |
 | Clic derecho mantenido | Llamarada de 200 m (se sobrecalienta: 10 s sin armas) |
 | Izq. + dcho. a la vez | Rayo de fuego, con la barra llena (90 s o haciendo daño) |
 | Clic central | Fijar el siguiente dragón a la vista |
-| F | Escudo 5 s (3 cargas; +1 por dragón derribado) |
+| R | (v26; antes F) Escudo 5 s (cargas del Excel; +1 por dragón derribado) |
+| F (mantener) | (v26) Cámara al blanco fijado, como en Ace Combat (sin blanco, fija el mejor a la vista); al soltar vuelve al frente |
 | Z (mantener) | Mirar alrededor (1ª persona ±170°; 3ª, órbita de 360°) |
 | C · M · Esc/P | Cámara 1ª/3ª persona · Sonido · Pausa |
 
@@ -666,6 +669,20 @@ Jorge editó el Excel a mano (solo valores de enemigos: dragón enemigo con vida
 - Probado (navegador integrado): los valores de Jorge aplicados (vida enemiga 70, etc.); la guiada no carga sin munición; capturas de la barra con 50/50 y 100/100, 21/50, 0/50 y 62/100, y 35/50 con 27/100 en rojo; HTML generado con la Misión 1 25 s sin errores y el tutorial sin huecos. Sin comprobar: la sensación jugando.
 - Etiqueta `v25`.
 
+### v26 (30-oct): logo nuevo, giro y huida de los enemigos, vuelo recto, cámara al objetivo y entrada de cine
+Petición de Jorge (lista de cinco puntos). Respuestas suyas a mis preguntas: el escudo pasa de la F a la **R** y nivelar, de la R a la **X**.
+- **Logo**: su imagen recortada, con transparencia de verdad (`imagenes/logo_v3.webp`, 2000×1116, WebP con canal alfa). Node no lee WebP: `herramientas/blender/imagen_a_png.py` lo pasa a PNG con Blender (píxeles en bruto; comparado con el navegador: diferencia máxima 2/255) y `herramientas/separar_logo_alfa.mjs` lo separa en SKY y APEX (manchas opacas a cada lado de la línea entre la Y y la A; la llama de la Y va con SKY) en dos PNG de 1737×611. Cambian `LOGO_W`, `LOGO_H`, `LOGO_BOX`, `LOGO_HIT` (17) y el `aspect-ratio` de `.logo-stage` (01). Las piezas de la v14 quedan como `logo_*_v2.png`. La intro del menú funciona igual (el choque sale entre la Y y la A).
+- **Giro de los enemigos** (Jorge: más radio = giro más abierto → 130): stat nueva `giro_radio` en la pestaña «Dragón enemigo» (130 m). Medí lo que había: cada eje (guiñada y cabeceo) tenía su tope por separado (1,75 y 0,95 rad/s) y, sumados, giraban hasta 1,34 rad/s: unos 104 m a 500 km/h, y en giros extremos (blanco a 90° o más) hacían bucles cerrados. Es decir, **giraban más que el jugador** (110 m a 600 km/h ≈ 1,5 rad/s): por eso la espiral no acababa. Ahora el tope es del giro total (`steerEnemy`: si la suma pasa del tope, se escalan los dos) y sale del radio: `ENEMY_TURN[1] = ENEMY_VMAX / giro_radio` (`applyStats`). Medido en 3D a 500 km/h: 130-131 m (a 45° y a 90°). Lance conserva el giro de antes (`ALLY_TURN`).
+- **Huida** (modo nuevo `evade`, 14_enemigos.js): si el jugador lo persigue (lo tiene detrás, a menos de `huida_distancia` m, 1800, y le apunta ±35°) durante 0,6 s, deja la pasada o la recolocación y huye hacia delante encadenando maniobras amplias (`evadePick`/`evadeWant`, rumbo y cabeceo por tiempo): recta con vaivén leve (3-5 s), eses (6-9 s, ±30-50°), curvas abiertas (0,25-0,45 rad/s, 4-7 s), tirabuzón (3,5-6 s), subida y picado (solo con altura); no repite la anterior y cerca del borde del área gira hacia dentro. Pasados `huida_min`-`huida_max` s (10-18) o sin perseguidor (`e.chase` baja a 0), da la vuelta con una curva abierta hacia el jugador (0,4 rad/s) y vuelve a la pasada. Las tres son stats nuevas del Excel (huida: ajustes «extra»). Simulado (40 s persiguiendo a uno a 600 km/h): 38 s huyendo (eses, rectas, tirabuzones, una vuelta), 18 s a menos de 8° del morro del jugador y ninguna espiral.
+- **Espacio mantenido = vuelo recto**: el dragón deja de seguir a la mira y mantiene la dirección del morro (0,3 s para frenar el giro que traía, `STRAIGHT_SETTLE`; luego fija esa dirección y levanta el morro lo justo para compensar el hundimiento, así que nivelado no pierde altura). La mira sigue al ratón (en vuelo recto puede bajar hasta -0,95 rad) y el cuello y los ataques la siguen (lo que ya hacía `animateTyrant`). HUD: el marcador del morro dorado con «VUELO RECTO». En hover, Espacio impide que gire hacia la mira. Medido: 8 s con la mira 40° abajo y 29° a la derecha: rumbo y altitud sin cambios, cuello a -43°.
+- **Ctrl izq. = hover** (antes Espacio). Riesgo: **Ctrl+W cierra la pestaña y el navegador no deja anularlo**; en partida (y pausa) la página pide confirmación antes de salir (`beforeunload`; Chrome solo la muestra si se ha hecho clic en la página, que en partida siempre). Los demás atajos con Ctrl (Ctrl+S, Ctrl+R…) y Ctrl + rueda se anulan en partida.
+- **F mantenida = cámara al objetivo**: gira la vista (el mismo giro que la Z: cabeza del jinete en 1ª persona, órbita en 3ª) hacia el blanco fijado con un muelle amortiguado (`TARGET_CAM_W` 6: media vuelta en ~1 s, arranca y llega suave) y lo sigue; al soltar vuelve igual al frente. Sin blanco, al pulsar fija el mejor a la vista. El ratón sigue moviendo la mira. La Z manda sobre la F. Medido: blanco a 151° detrás → 4° (lo que cabecea la cámara) en ~1 s, en 1ª y 3ª persona.
+- **R = escudo** (antes F) y **X = nivelar** (antes R).
+- **Entrada de cine** (15_vuelo_estado.js, `cine`): al empezar o reintentar cualquier misión, el dragón vuela solo, recto y nivelado con el rumbo de salida (solo sube si hay terreno o una isla delante: mira hasta 2 km, máx. 17° medido en la misión de prueba, que sale hacia las montañas), con bandas negras arriba y abajo (12 % del alto), el nombre de la misión y su lugar (o el objetivo, en el combate libre) en la de arriba, sin HUD y sin armas, hover, escudo, vuelo recto, cámara al objetivo ni daño; la radio sigue (queda sobre la banda de abajo, como un subtítulo). Luego las bandas se retiran en 1,8 s, el HUD vuelve y el jugador toma el control con la mira delante del morro. Duración: campo nuevo `intro` de la receta (s; 0 = sin entrada; por defecto `CINE_T` 7): Misión 1, 9 s (Lance y el principio del Mando); misión de prueba y prueba de objetivos, 7; combate libre, 4. Esc pausa; C y M funcionan.
+- **Textos**: Controles, tutorial (vuelo recto en «Dirección y puntería», F en «Cámara», hover con Ctrl, nivelar con X, escudo con R, la huida en «Dragones enemigos») y la descripción del escudo en el Excel. **Los vídeos del tutorial de hover, alabeo y escudo siguen mostrando las teclas de antes.**
+- Probado (navegador integrado, `sky-apex-2`, simulando el bucle): logo (separación, intro con el choque en su sitio), giro medido, huida, vuelo recto (también en hover), controles con eventos de teclado (Ctrl, R, X, F y Ctrl+S; bloqueados en la entrada de cine), cámara al objetivo en 1ª y 3ª persona, la entrada de cine en las cuatro misiones (duración, títulos, radio, HUD), sin errores. Sin comprobar: la sensación jugando (la huida, el vuelo recto, la cámara al objetivo y la entrada), Ctrl+W de verdad y el aviso de salir.
+- Etiqueta `v26`.
+
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.
 - El Tyrant del jugador cuesta unos 2 ms de render y 0,3–0,6 ms de CPU de animación.
@@ -674,6 +691,7 @@ Jorge editó el Excel a mano (solo valores de enemigos: dragón enemigo con vida
 - Partidas simuladas de 30 s: sin errores.
 
 ### Pendiente
+- **v26 entregada** (30-oct, sin jugar aún): logo nuevo, enemigos con 130 m de radio que huyen en patrones amplios, vuelo recto (Espacio), cámara al objetivo (F, para probar: Jorge la quitará si no convence), hover en Ctrl, escudo en R, nivelar en X y entrada de cine en cada misión. Para ajustar al jugarla: radio de giro y huida (Excel), `TARGET_CAM_W`, `intro` de cada receta. Regrabar los vídeos del tutorial de hover, alabeo y escudo (teclas nuevas).
 - **v25 entregada** (28-oct, sin jugar aún): valores de enemigos de Jorge, guiadas sin el coste de vida, armadura como marco de la vida.
 - **v24 entregada** (28-oct): stats en `datos/sky_apex_stats.xlsx` y `Jugar.bat`; Jorge ya editó el Excel a mano (valores de enemigos). Siguiente: que Jorge pase las stats de cada enemigo y la lista completa de enemigos (otra fase); luego, lo que queda de la Fase 1 (briefing, hangar con loadout, mapa del mundo, resultados con rango y guardado). Regrabar los vídeos del tutorial de boost, guiadas y vida.
 - **v23 jugada** (28-oct): «la misión funciona»; balance pendiente (flota en 3 min; en medio de todo te acribillan).
@@ -796,6 +814,7 @@ Integrado en el juego en la v20 como **Fulgor**, cuarto dragón (sección 7c, «
 
 ## 9. Lecciones y errores resueltos
 
+- (v26) Con un tope de giro por eje (guiñada y cabeceo por separado), un dragón gira más de lo que dice ese tope: los dos se suman y, alabeado, el cabeceo también cambia el rumbo. Los enemigos giraban hasta 1,34 rad/s (más que el jugador) y las persecuciones acababan en espirales sin fin. El tope tiene que ser del giro total; y el radio se mide en 3D (en los bucles, el rumbo en planta engaña).
 - Los enemigos al principio no cerraban distancia sobre un jugador que huía: se limitó el desvío del arco según la velocidad de cierre y se alargó el tiempo máximo de pasada a 28 s.
 - Los fallos del indicador de adelanto con IA real venían de la evitación de terreno de los enemigos; la matemática se verificó con objetivos cinemáticos (37 de 37 impactos).
 - La flecha del borde se solapaba con el HUD izquierdo y tenía poco contraste sobre el ala naranja: se añadió un disco oscuro y márgenes mayores.

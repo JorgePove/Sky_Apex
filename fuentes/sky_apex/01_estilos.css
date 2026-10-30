@@ -65,6 +65,20 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #area .a-title{letter-spacing:.24em;text-transform:uppercase;font-size:clamp(15px,2.1vw,22px)}
 #area .a-count{font-size:clamp(44px,6.5vw,72px);line-height:1.05}
 #area .a-hint{font-family:var(--f-data);font-weight:400;font-size:13px;letter-spacing:.14em;color:var(--bone);opacity:.9}
+/* v26: entrada de cine al empezar una misión: bandas negras arriba y abajo que se retiran despacio, el nombre de la misión en la de arriba
+   y el HUD oculto hasta que se toma el control (la radio queda por encima de la banda de abajo, como un subtítulo) */
+#cine{position:fixed;inset:0;z-index:3;pointer-events:none;display:none}
+#cine.show{display:block}
+#cine .cine-bar{position:absolute;left:0;right:0;height:max(56px,12vh);background:#000;transition:transform 1.8s cubic-bezier(.5,0,.3,1)}
+#cine .top{top:0;transform:translateY(-101%)}#cine .bottom{bottom:0;transform:translateY(101%)}
+#cine.on .cine-bar{transform:none}
+#cine .cine-title{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;opacity:0;transition:opacity .9s ease}
+#cine.title .cine-title{opacity:1}
+#cine .c-name{font-family:var(--f-display);font-weight:700;font-size:clamp(15px,2.3vw,23px);letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+#cine .c-sub{font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--bone-dim)}
+#cine.snap .cine-bar,#cine.snap .cine-title,#hud.snap{transition:none}
+#hud{transition:opacity 1.4s ease}#hud.cine{opacity:0}
+@media (prefers-reduced-motion:reduce){#cine .cine-bar{transition-duration:.4s}}
 #pause .p-btns{display:flex;flex-direction:column;align-items:center;gap:9px;margin-top:10px}
 #pause .p-btns .mbtn{width:min(280px,72vw)}
 .vic.fail h2{color:var(--danger);text-shadow:0 0 30px rgba(255,74,58,.45)}
@@ -81,7 +95,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #menu{flex-direction:column;justify-content:center;background:#000}
 .title{display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;padding:0 16px}
 /* logo «Sky Apex»: dos mitades (SKY y APEX) del mismo tamaño que se superponen; la intro las trae desde los bordes */
-.logo-stage{position:relative;width:min(64vw,150vh,880px);aspect-ratio:1734/633;margin:0 0 1vh;z-index:2}   /* v14: logo nuevo en una línea (1734×633) */
+.logo-stage{position:relative;width:min(64vw,150vh,880px);aspect-ratio:1737/611;margin:0 0 1vh;z-index:2}   /* v14: logo en una línea; v26: el recortado con transparencia (1737×611) */
 .logo-stage img{position:absolute;inset:0;width:100%;height:100%;display:block;user-select:none;-webkit-user-drag:none;will-change:transform;
   filter:drop-shadow(0 6px 18px rgba(0,0,0,.7))}
 /* intro: pantalla negra → las palabras entran → estallido → aparece el resto del menú */

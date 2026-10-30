@@ -66,8 +66,9 @@ function drawLadder(fwd) {
 function drawMarkers(fwd) {
   const p = {};
   if (proj(_camP.x + fwd.x * 1000, _camP.y + fwd.y * 1000, _camP.z + fwd.z * 1000, p)) {
-    hctx.strokeStyle = C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;
+    hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
     hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
+    if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
     _sp.x = p.x; _sp.y = p.y;
   } else { _sp.x = HW / 2; _sp.y = HH / 2; }
   const a = {};

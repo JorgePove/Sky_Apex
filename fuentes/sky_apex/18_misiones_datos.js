@@ -14,6 +14,8 @@
    · start (v19): punto de partida. { x, z, heading, height } en metros: heading = rumbo en grados como en la brújula (0 = norte, 90 = este;
      null = hacia donde más relieve hay), height = metros sobre el suelo (o el agua). Con y, la altitud absoluta en lugar de height (nunca
      a menos de 40 m del suelo). Si cae dentro de una isla, se sube por encima. Las coordenadas se leen en vuelo con el modo diseño (º).
+   · intro (v26): segundos de entrada de cine al empezar: el dragón vuela solo, recto y nivelado, con bandas negras, el nombre de la misión y los
+     primeros mensajes de la radio; luego las bandas se retiran y se toma el control. Sin intro, 7 (CINE_T); 0 = sin entrada.
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
    · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
@@ -64,6 +66,7 @@ const MISSIONS = {
     name: 'Misión 1: la flota', place: 'Valle de las Torres', callsign: 'Percival',
     world: { seed: 777, biome: 'valle' },
     start: { x: 9176, z: 2459, heading: 285, height: 750 },
+    intro: 9,                                              // v26: Lance y el primer mensaje del Mando, con las bandas
     area: { x: 0, z: 0, r: 11000 },
     death: 'fail',
     timeLimit: null,
@@ -104,6 +107,7 @@ const MISSIONS = {
     name: 'Misión de prueba', place: 'Valle de las Torres',
     world: { seed: 777, biome: 'valle' },                  // v19: siempre el mismo valle (el de los vídeos del tutorial)
     start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 7,
     area: { x: 0, z: 0, r: 10500 },
     death: 'fail',
     timeLimit: null,
@@ -135,6 +139,7 @@ const MISSIONS = {
     name: 'Prueba de objetivos', place: 'Valle de las Torres',
     world: { seed: 777, biome: 'valle' },                  // el mismo valle que la misión de prueba (no hay que regenerar)
     start: { x: 0, z: 0, heading: null, height: 300 },
+    intro: 7,
     area: { x: 0, z: 0, r: 8000 },
     death: 'fail',
     timeLimit: null,
@@ -170,6 +175,7 @@ const MISSIONS = {
     name: 'Combate libre', place: 'Mundo abierto', free: true,
     world: { seed: null, biome: 'valle' },
     start: { x: 0, z: 0, heading: null, height: 260 },
+    intro: 4,                                              // (sin radio: solo el objetivo en la banda)
     area: null,
     death: 'respawn',
     timeLimit: null,

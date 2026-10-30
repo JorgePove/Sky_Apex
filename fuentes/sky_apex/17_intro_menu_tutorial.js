@@ -102,20 +102,22 @@ document.getElementById('mQuit').addEventListener('click', quitGame);
 const K = (...k) => k.map(x => `<kbd>${x}</kbd>`).join('');
 const TUTORIAL = [
   { cat: 'Vuelo', items: [
-    { id: 'direccion', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella']], text: [
+    { id: 'direccion', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella'], [['Espacio'], 'Mantener: vuelo recto']], text: [
       'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde apunta el morro en ese momento; cuando los dos coinciden, vuelas recto.',
       'Cuanto más lejos del morro pongas la mira, más cerrado será el giro. A poca velocidad el dragón gira más deprisa; a mucha, los giros son más abiertos.',
-      'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.'] },
-    { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['R'], 'Mantener: nivelar el horizonte']], text: [
+      'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.',
+      'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira y mantiene la trayectoria que llevaba, sin perder altura, mientras la mira sigue al ratón y la cabeza del dragón la sigue. Sirve, por ejemplo, para barrer el suelo con la llamarada en un vuelo rasante sin bajar más. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira.'] },
+    { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
-      'Mantén ' + K('R') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
-    { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Espacio'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
-      'Pulsa ' + K('Espacio') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
+      'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
+    { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Ctrl izq.'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
+      'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',
-      'Pulsa ' + K('Espacio') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
-    { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor']], text: [
+      'Pulsa ' + K('Ctrl izq.') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
+    { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor'], [['F'], 'Mantener: mirar al blanco fijado']], text: [
       K('C') + ' cambia entre la vista del jinete, sobre el lomo del dragón, y la cámara exterior, detrás de él.',
-      'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.'] }
+      'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.',
+      'Mantén ' + K('F') + ' y la cámara gira despacio hacia el blanco fijado y lo sigue, como en Ace Combat: así ves dónde está para ir a por él. Si no tienes ninguno fijado, fija el mejor a la vista. El ratón sigue moviendo la mira. Al soltar ' + K('F') + ', la vista vuelve sola al frente.'] }
   ] },
   { cat: 'Velocidad', items: [
     { id: 'acelerar', title: 'Acelerar y frenar', sum: 'W abre el acelerador y S lo cierra.', keys: [[['W', 'S'], 'Acelerar / frenar']], text: [
@@ -149,11 +151,11 @@ const TUTORIAL = [
       'Pulsa los dos botones a la vez: la energía se concentra en la boca y sale un rayo de hasta {rayo_alcance} km que sigue a la mira durante {rayo_duracion} s y quema todo lo que cruza ({rayo_dano} de daño por segundo). Mientras dura, las demás armas no funcionan.'] }
   ] },
   { cat: 'Defensa', items: [
-    { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['F'], 'Activar el escudo']], text: [
-      K('F') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo y de los dirigibles) revientan contra ella sin hacerte daño. No te protege de los choques.',
+    { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['R'], 'Activar el escudo']], text: [
+      K('R') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo y de los dirigibles) revientan contra ella sin hacerte daño. No te protege de los choques.',
       'Tienes {escudos} cargas: las rayas azules bajo la mira. La que está en uso se vacía mientras dura y las gastadas quedan negras. Cuando el escudo parpadea, está a punto de apagarse.',
       'Guárdalo para cuando veas <b>¡PROYECTIL APROXIMÁNDOSE!</b> y no puedas esquivarlo.'] },
-    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['F'], 'Usar una carga']], text: [
+    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['R'], 'Usar una carga']], text: [
       'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>.',
       'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
     { id: 'recarga_guiadas', title: 'Munición guiada', sum: 'No se recargan: administra las de la misión.', keys: [], text: [
@@ -170,10 +172,11 @@ const TUTORIAL = [
     { id: 'dragones', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
       'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Sobre cada uno, un triángulo rojo marca su distancia y, si está herido, su vida ({enemigo.vida}).',
       'Patrullan hasta que te detectan (a unos {enemigo.deteccion} m). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan a {enemigo.velocidad} km/h.',
+      'Si te pegas a su cola, huyen hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzones, subidas y picados): síguelos y apunta. Al rato dan la vuelta con una curva abierta para volver a atacarte.',
       'Hay 20 en toda la partida, como mucho 6 a la vez. En el radar son triángulos rojos.'] },
-    { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['F'], 'Escudo, si no hay escapatoria']], text: [
+    { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['R'], 'Escudo, si no hay escapatoria']], text: [
       'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño) y aparece <b>¡PROYECTIL APROXIMÁNDOSE!</b>, con un rombo rojo y su distancia (o una flecha roja si viene por detrás).',
-      'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('F') + ').'] },
+      'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('R') + ').'] },
     { id: 'torres', title: 'Torres antiaéreas', sum: '30 torres fijas que disparan ráfagas.', keys: [], text: [
       'Hay 30 torres repartidas alrededor del punto de partida; en cada partida, entre 10 y 15 de ellas están sobre islas flotantes. Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está en una isla).',
       'A menos de {torre.aa_alcance} m te disparan ráfagas antiaéreas de {torre.aa_rafaga} proyectiles ({torre.aa_dano} de daño cada uno). Aguantan {torre.vida} de daño y destruirlas da {torre.puntos} puntos. No se pueden atravesar: rodéalas o pasa por encima.'] },
@@ -278,10 +281,11 @@ const logoEls = [document.getElementById('logoSky'), document.getElementById('lo
 const fxBack = document.getElementById('fxBack'), fxFront = document.getElementById('fxFront'), fxB = fxBack.getContext('2d'), fxF = fxFront.getContext('2d');
 
 const LOGO_FILES = ['../imagenes/logo_sky.png', '../imagenes/logo_apex.png'], LOGO_IDS = ['logo-sky-png', 'logo-apex-png'];
-/* v14: logo nuevo en una sola línea (imagenes/logo_v2.jpg, fondo blanco) separado con herramientas/separar_logo_blanco.mjs en dos PNG de 1734×633:
-   SKY a la izquierda y APEX a la derecha. LOGO_BOX: caja de cada palabra (por si no se pueden leer los píxeles); LOGO_HIT: punto del choque
-   (entre la Y y la A), en fracción del logo. */
-const LOGO_W = 1734, LOGO_H = 633, LOGO_BOX = [[37, 38, 763, 561], [688, 106, 1723, 594]], LOGO_HIT = [0.418, 0.473];
+/* v14: logo en una sola línea, separado en dos PNG del mismo tamaño: SKY a la izquierda y APEX a la derecha. LOGO_BOX: caja de cada palabra
+   (por si no se pueden leer los píxeles); LOGO_HIT: punto del choque (entre la Y y la A), en fracción del logo.
+   v26: logo nuevo de Jorge, recortado y con transparencia de verdad (imagenes/logo_v3.webp), separado con herramientas/separar_logo_alfa.mjs
+   en dos PNG de 1737×611 (los de la v14, de logo_v2.jpg con fondo blanco, quedan como logo_*_v2.png). */
+const LOGO_W = 1737, LOGO_H = 611, LOGO_BOX = [[25, 25, 751, 548], [676, 95, 1710, 583]], LOGO_HIT = [0.411, 0.469];
 function fireSprite(stops) {
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);

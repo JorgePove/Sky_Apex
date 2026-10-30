@@ -25,6 +25,12 @@ const ENEMY_SCALE = 1.5;              // tamaño respecto al dragón del jugador
 const ENEMY_TINT = new THREE.Color(1.7, 1.25, 0.18), ENEMY_EYES = 0xff2418;  // piel amarilla (por encima de 1: compensa la luz azulada del cielo) y ojos rojos
 const ENEMY_ANIM_LOD = [700, 1800];   // animación en cada fotograma hasta 700 m, uno de cada dos hasta 1800 m y uno de cada tres más lejos
 const ENEMY_BREAK = 230;              // a esta distancia rompen la pasada
+/* v26: giro máximo (rad/s) despacio y a su velocidad máxima, el TOTAL (guiñada y cabeceo juntos: steerEnemy). Sale de su radio de giro (Excel:
+   giro_radio; applyStats): radio = velocidad / giro. Antes cada eje tenía su tope por separado y, sumados, giraban hasta 1,34 rad/s (~104 m a
+   500 km/h): más que el jugador (110 m a 600 km/h ≈ 1,5 rad/s), así que al perseguirlos la espiral no acababa nunca. Medido con 130: 130-131 m. */
+const ENEMY_TURN = [1.97, 1.07];
+const ALLY_TURN = [1.75, 0.95];       // Lance (6e) gira como los enemigos antes de la v26 (cada eje con su tope)
+let ENEMY_EVADE_DIST = 1800, ENEMY_EVADE_T = [10, 18];   // v26, huida: distancia a la que se siente perseguido (m) y tiempo de huida antes de volver a atacar (s)
 const ENEMY_HIT_R = 13 * ENEMY_SCALE, PLAYER_HIT_R = 10;   // radios de impacto (m)
 const ENEMY_RESPAWN = [6, 10];        // segundos hasta que aparece un sustituto
 const TRAIL_LEN = 1100;               // longitud de la estela amarilla (m); se desvanece a lo largo de ella
@@ -156,6 +162,7 @@ function makeEnemy() {
     mode: 'patrol', t: 0, alert: 0, far: 0, fireCool: 1.5, fireFlash: 0, hitFlash: 0, ramT: 0, avoidT: 0, animAcc: 0, frame: 0,
     wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
     aimLocal: new THREE.Vector3(0, 0, -1),
+    chase: 0, evT: 0, ev: { kind: '', t: 0, dur: 0, h0: 0, p0: 0, s: 1, A: 0, T: 1, w: 0 },   // v26: huida (cuánto tiempo lleva perseguido y la maniobra en curso)
     kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
@@ -257,6 +264,55 @@ function setEnemyMode(e, m) {
     _Eef.set(0, 0, -1).applyQuaternion(e.q); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize();
     rotY(_Eef, rnd(-0.7, 0.7)); e.extDir.copy(_Eef); e.extDir.y = rnd(-0.10, 0.30); e.extDir.normalize();
   } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
+  else if (m === 'evade') { e.evT = rnd(ENEMY_EVADE_T[0], ENEMY_EVADE_T[1]); e.ev.kind = ''; evadePick(e); }
+  else if (m === 'patrol') e.chase = 0;
+}
+/* ---------- v26: huida ----------
+   Antes, con el jugador pegado a su cola, el dragón giraba al máximo para ponerse a su espalda y, con el mismo radio de giro, los dos
+   acababan dando vueltas sin fin (la «espiral de la muerte»). Ahora, si el jugador lo persigue (detrás de él, apuntándole y a menos de
+   ENEMY_EVADE_DIST), huye hacia delante encadenando maniobras amplias, al estilo de Ace Combat: recta con un leve vaivén, eses, curvas
+   abiertas, tirabuzón, subida y picado (radios de 250-550 m: el jugador puede cerrar y apuntar). Pasados ENEMY_EVADE_T s, o si deja de
+   perseguirlo, da la vuelta con una curva abierta hacia el jugador y vuelve a atacar. Cerca del borde del área, las maniobras llevan hacia
+   dentro. Rumbos como en la brújula: dirección (sin h, 0, -cos h); h crece hacia la derecha. */
+const wrapAng = a => Math.atan2(Math.sin(a), Math.cos(a));
+const EVADE_MOVES = [['recta', 2], ['ese', 3], ['curva', 2.5], ['tirabuzon', 1.5], ['subida', 1.2], ['picado', 1.2]];
+function evadePick(e) {
+  const v = e.ev, P = e.pos, f = _Eef.set(0, 0, -1).applyQuaternion(e.q), agl = P.y - groundAt(P.x, P.z);
+  const opts = EVADE_MOVES.map(([k, w]) => [k, k === v.kind ? 0 : k === 'subida' && agl > 1400 ? w * 0.25 : k === 'picado' && agl < 600 ? 0 : w]);
+  let r = Math.random() * opts.reduce((s, o) => s + o[1], 0), kind = 'ese';
+  for (const [k, w] of opts) if (w > 0 && (r -= w) <= 0) { kind = k; break; }
+  v.t = 0; v.h0 = Math.atan2(f.x, -f.z); v.p0 = Math.asin(clamp(f.y, -1, 1)); v.s = Math.random() < 0.5 ? -1 : 1;
+  const A = mission.area;
+  if (A && !inMissionArea(P.x, P.z, 2500)) {               // cerca del borde: hacia el centro del área
+    const dh = wrapAng(Math.atan2(A.x - P.x, -(A.z - P.z)) - v.h0);
+    v.s = dh >= 0 ? 1 : -1; if (Math.abs(dh) > 0.6) kind = 'curva';
+  }
+  v.kind = kind;
+  if (kind === 'recta') { v.dur = rnd(3, 5); v.A = rnd(0.08, 0.18); v.T = rnd(3.5, 5); }
+  else if (kind === 'ese') { v.T = rnd(6, 9); v.dur = v.T; v.A = rnd(0.5, 0.85); }
+  else if (kind === 'curva') { v.w = rnd(0.25, 0.45); v.dur = rnd(4, 7); }
+  else if (kind === 'tirabuzon') { v.T = rnd(3.5, 4.5); v.dur = v.T * rnd(1, 1.5); v.A = rnd(0.28, 0.4); }
+  else if (kind === 'subida') { v.dur = rnd(3.5, 5); v.A = rnd(0.32, 0.5); }
+  else { v.dur = rnd(3, 4.5); v.A = rnd(0.3, 0.45); }    // picado
+}
+/* Fin de la huida: curva abierta hacia el jugador (lo que le falta para encararlo, a 0,4 rad/s) y luego, pasada de ataque. */
+function evadeTurnBack(e) {
+  const v = e.ev, f = _Eef.set(0, 0, -1).applyQuaternion(e.q), P = dragon.position;
+  v.t = 0; v.kind = 'vuelta'; v.h0 = Math.atan2(f.x, -f.z); v.p0 = 0; v.w = 0.4;
+  const dh = wrapAng(Math.atan2(P.x - e.pos.x, -(P.z - e.pos.z)) - v.h0);
+  v.s = dh >= 0 ? 1 : -1; v.dur = clamp(Math.abs(dh) / v.w, 1, 8);
+}
+/* Dirección que quiere llevar según la maniobra en curso (out, en el mundo). */
+function evadeWant(e, dt, out) {
+  const v = e.ev, t = v.t += dt, TAU = Math.PI * 2;
+  let h = v.h0, p = 0;
+  if (v.kind === 'recta') { h += v.A * v.s * Math.sin(t * TAU / v.T); p = v.p0 * Math.max(0, 1 - t / 1.5); }
+  else if (v.kind === 'ese') h += v.A * v.s * Math.sin(t * TAU / v.T);
+  else if (v.kind === 'curva' || v.kind === 'vuelta') h += v.w * v.s * Math.min(t, v.dur);
+  else if (v.kind === 'tirabuzon') { const a = t * TAU / v.T, r = v.A * Math.min(1, t / 0.8); h += r * v.s * Math.sin(a); p = r * Math.cos(a); }
+  else if (v.kind === 'subida') { h += 0.08 * v.s * t; p = v.A * smooth(0, 1, t) * (1 - smooth(v.dur - 1.5, v.dur, t)); }
+  else { h += 0.08 * v.s * t; p = -v.A * smooth(0, 0.8, t) * (1 - smooth(v.dur - 1.6, v.dur, t)); }   // picado
+  return out.set(Math.sin(h) * Math.cos(p), Math.sin(p), -Math.cos(h) * Math.cos(p));
 }
 function newWaypoint(e) {
   const ship = escorting() && randomAirship();
@@ -298,7 +354,7 @@ function enemyShoot(e) {
 }
 /* ---------- Bolas guiadas enemigas ----------
    Los dragones (desde la v10, solo ellos) fijan al jugador (EMSL_LOCK s seguidos con línea de visión y entre EMSL_RANGE m) y le lanzan una bola guiada. Cada tirador,
-   como mucho una cada EMSL_CD s; entre dos lanzamientos de cualquiera, al menos EMSL_GAP s. El escudo (F) las anula. El guiado es imperfecto a propósito (steerEnemyMissile):
+   como mucho una cada EMSL_CD s; entre dos lanzamientos de cualquiera, al menos EMSL_GAP s. El escudo (R) las anula. El guiado es imperfecto a propósito (steerEnemyMissile):
    maniobrando se puede hacer que pase de largo, que se pierda o que choque con el terreno, una isla o una torre.
    Avisos: mientras alguien fija al jugador, «TE ESTÁN FIJANDO» y un pitido doble; con una bola en camino, «¡PROYECTIL APROXIMÁNDOSE!»,
    pitidos rápidos y flechas rojas hacia cada bola (drawMissileWarn). */
@@ -336,6 +392,12 @@ function thinkEnemy(e, dt, playing) {
     e.far = dist > ENEMY_LOSE ? e.far + dt : 0;
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
+  // v26: ¿le persigue el jugador? (lo tiene detrás, a menos de ENEMY_EVADE_DIST, y el jugador le apunta: ±35°). e.chase sube mientras
+  // tanto y baja despacio después; con más de 0,6 s y perseguido ahora mismo, deja lo que hacía y huye
+  _Epf.set(0, 0, -1).applyQuaternion(dragon.quaternion);
+  const chased = playing && dist < ENEMY_EVADE_DIST && dotF < -0.2 && -_Epf.dot(_Etn) > 0.82;
+  e.chase = chased ? Math.min(3, e.chase + dt) : Math.max(0, e.chase - dt * 0.5);
+  if (chased && e.chase > 0.6 && (e.mode === 'pass' || e.mode === 'extend' || e.mode === 'reposition')) setEnemyMode(e, 'evade');
   if (e.mode === 'patrol') {
     const esc = escorting();
     if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
@@ -357,12 +419,21 @@ function thinkEnemy(e, dt, playing) {
   } else if (e.mode === 'extend') {
     want.copy(e.extDir); tSpeed = ENEMY_VMAX;
     if ((e.t > 2.0 && dist > 700) || e.t > 6) setEnemyMode(e, 'reposition');
-  } else {                                               // reposition: ponerse a la espalda del jugador
+  } else if (e.mode === 'reposition') {                  // ponerse a la espalda del jugador
     _Epf.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Epf.y = 0; if (_Epf.lengthSq() < 1e-4) _Epf.set(0, 0, -1); _Epf.normalize();
     _Elead.copy(P).addScaledVector(_Epf, -900); _Elead.x += -_Epf.z * e.side * 300; _Elead.z += _Epf.x * e.side * 300; _Elead.y = P.y + e.repY;
     want.subVectors(_Elead, e.pos).normalize(); tSpeed = ENEMY_VMAX;
     const behind = -_Etn.dot(_Epf) < -0.55;               // el dragón está a las 5-7 del jugador
     if ((behind && dist < 1400 && e.t > 1.5) || e.t > 11) setEnemyMode(e, 'pass');
+  }
+  if (e.mode === 'evade') {                                // v26: huida
+    const v = e.ev;
+    if (v.t >= v.dur) {                                    // maniobra acabada: otra; o, cumplido el tiempo o sin perseguidor, la vuelta
+      if (v.kind === 'vuelta') setEnemyMode(e, 'pass');
+      else if (e.t > e.evT || e.chase <= 0) evadeTurnBack(e);
+      else evadePick(e);
+    }
+    if (e.mode === 'evade') { evadeWant(e, dt, want); tSpeed = ENEMY_VMAX; }
   }
   return tSpeed;
 }
@@ -409,8 +480,10 @@ function steerEnemy(e, tSpeed, dt) {
   // tasas de giro hacia la dirección deseada
   _Eiq.copy(q).invert(); _Esl.copy(d).applyQuaternion(_Eiq);
   const yawErr = Math.atan2(_Esl.x, -_Esl.z), pitErr = Math.atan2(_Esl.y, Math.hypot(_Esl.x, _Esl.z));
-  const sn = clamp((e.speed - VMIN) / (ENEMY_VMAX - VMIN), 0, 1), maxRate = lerp(1.75, 0.95, sn);   // (v24: su velocidad, no la del dragón del jugador)
-  const tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
+  const TR = e.kind === 'ally' ? ALLY_TURN : ENEMY_TURN;  // (v26: el de los enemigos sale de su radio de giro; Lance, el de antes)
+  const sn = clamp((e.speed - VMIN) / (ENEMY_VMAX - VMIN), 0, 1), maxRate = lerp(TR[0], TR[1], sn);   // (v24: su velocidad, no la del dragón del jugador)
+  let tYaw = -clamp(yawErr * 2.6, -maxRate, maxRate), tPit = clamp(pitErr * 2.6, -maxRate, maxRate);
+  if (e.kind !== 'ally') { const m = Math.hypot(tYaw, tPit); if (m > maxRate) { tYaw *= maxRate / m; tPit *= maxRate / m; } }   // v26: el tope es del giro total
   _Esr.set(1, 0, 0).applyQuaternion(q); _Esu.set(0, 1, 0).applyQuaternion(q);
   const rollAng = Math.atan2(_Esr.y, _Esu.y) - e.bank;
   const tRoll = -clamp(rollAng * 2.4, -1.5, 1.5) * (1 - smooth(0.9, 0.99, Math.abs(_Esf.y)));

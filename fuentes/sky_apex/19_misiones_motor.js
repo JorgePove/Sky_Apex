@@ -56,7 +56,9 @@ function missionStart() {
   missionHideHUD();
   allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
-  toast(mission.free ? 'Objetivo: ' + goal : mission.name);
+  const intro = mission.intro != null ? mission.intro : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
+  if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
+  else toast(mission.free ? 'Objetivo: ' + goal : mission.name);
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
