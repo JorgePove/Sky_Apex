@@ -130,13 +130,13 @@ function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); cl
 const menuEl = document.getElementById('menu'), pauseEl = document.getElementById('pause'), deadEl = document.getElementById('dead');
 function setPaused(p) {
   if (p && state === 'playing') {
-    state = 'paused'; pauseEl.hidden = false; W.lmb = W.rmb = W.shotQ = false; sfx.breath(0, 0); sfx.quiet(); if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
+    state = 'paused'; pauseEl.hidden = false; W.lmb = W.rmb = W.shotQ = false; sfx.breath(0, 0); sfx.quiet(); voicePause(); if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }   // (v34: y la voz que suene)
     document.getElementById('pRetry').textContent = mission.free ? 'Reiniciar partida' : 'Reintentar misión';
   }
 }
 function resumeGame() {
   if (state !== 'paused') return;
-  pauseEl.hidden = true; state = 'playing'; requestLock(); canvasGL.focus();
+  pauseEl.hidden = true; state = 'playing'; requestLock(); canvasGL.focus(); voiceResume();
 }
 pauseEl.addEventListener('click', resumeGame);
 /* v15: botones de la pausa (el clic no llega al fondo, que reanuda) */
@@ -158,7 +158,7 @@ function showResult(win, why) {
   state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet(); cineEnd(true); devPanel(false);
   deadEl.hidden = pauseEl.hidden = true; toastEl.classList.remove('on');
   if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
-  music.game.stop(2); music.menu.play(2.5);
+  music.stopGame(2); music.menu.play(2.5); storyStop(true);   // (v34: también la de tensión; las voces, fuera; el fundido a negro se queda detrás)
   const pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
   const rows = [
     ['Tiempo', fmtClock(stats.time)], ['Puntos', towerState.score],
@@ -203,14 +203,14 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true); devPanel(false);   // (v27: panel de pruebas)
-  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset();   // (v34)
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
-  music.game.stop(1.5); music.menu.play(1.5);
+  music.stopGame(1.5); music.menu.play(1.5);
 }
 function restartGame() { vicEl.hidden = pauseEl.hidden = deadEl.hidden = true; state = 'menu'; startGame(); }   // (v15: también desde la pausa)
 /* Salir: un juego en una página no puede cerrar su pestaña (salvo que la abriera un script): se intenta y, si no, despedida en negro. */
 function quitGame() {
-  music.menu.stop(0.8); music.game.stop(0.8); sfx.breath(0, 0);
+  music.menu.stop(0.8); music.stopGame(0.8); sfx.breath(0, 0); storyStop(false);
   vicEl.hidden = true; menuEl.hidden = true; closePanels(); state = 'menu';
   try { window.close(); } catch (err) { }
   setTimeout(() => { byeEl.hidden = false; }, 250);
@@ -225,7 +225,7 @@ function startGame() {
   if (worldNeedsGen()) { beginWorldGen(); return; }        // v19: otro mundo → pantalla de carga; al acabar, startGame otra vez
   resetRun(true);
   sfx.init(); menuEl.hidden = true; state = 'playing';
-  music.menu.stop(1.6); music.game.play(2.5);              // la música del menú se funde y entra la de la partida
+  music.menu.stop(1.6); music.tension.stop(1); music.game.play(2.5);   // la música del menú se funde y entra la de la partida (v34: y fuera la de tensión, al reintentar)
   F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
@@ -241,24 +241,29 @@ function startGame() {
    control con la mira delante del morro. Duración: «intro» en la receta (s; 0 = sin entrada) o CINE_T. Mientras dura: sin armas, hover,
    escudo, vuelo recto, cámara al objetivo ni daño; Esc pausa, C cambia la cámara y M silencia. La llama missionStart. */
 const CINE_T = 7;
-const cine = { on: false, t: 0, dur: CINE_T, dir: new THREE.Vector3(0, 0, -1) };
+/* v34 (Capítulo 1): dur puede ser Infinity (dura hasta que un evento la acaba: «cine: 'end'») y o trae: title [desde, hasta] (s en que se
+   ve el título), shots (planos de cámara, 19e), to (un punto hacia el que gira el dragón, despacio), y (altitud a la que va) y skip (Intro
+   corta la voz que suena: la entrada acaba con ella). */
+const cine = { on: false, t: 0, dur: CINE_T, dir: new THREE.Vector3(0, 0, -1), title: [0.6, CINE_T - 1], to: null, y: null, skip: false };
 const cineEl = document.getElementById('cine'), cineNameEl = document.getElementById('cineName'), cineSubEl = document.getElementById('cineSub');
-function cineStart(dur, name, sub) {
-  cine.on = true; cine.t = 0; cine.dur = dur;
+function cineStart(dur, name, sub, o) {
+  o = o || {};
+  cine.on = true; cine.t = 0; cine.dur = dur; cine.title = o.title || [0.6, dur - 1]; cine.to = o.to || null; cine.y = o.y != null ? o.y : null; cine.skip = !!o.skip;
   cine.dir.set(0, 0, -1).applyQuaternion(dragon.quaternion); cine.dir.y = 0; if (cine.dir.lengthSq() < 1e-4) cine.dir.set(0, 0, -1); cine.dir.normalize();
   cineNameEl.textContent = name || ''; cineSubEl.textContent = sub || '';
-  cineEl.classList.remove('title'); cineEl.classList.add('show', 'on', 'snap'); hudEl.classList.add('cine', 'snap');   // de golpe: ya están al aparecer
+  cineEl.classList.remove('title'); cineEl.classList.toggle('skip', cine.skip); cineEl.classList.add('show', 'on', 'snap'); hudEl.classList.add('cine', 'snap');   // de golpe: ya están al aparecer
   void cineEl.offsetWidth; cineEl.classList.remove('snap'); hudEl.classList.remove('snap');
+  cineCamStart(o.shots);                                   // (v34: planos de cámara, 19e)
 }
 function cineUpdate(dt) {
   cine.t += dt;
-  cineEl.classList.toggle('title', cine.t > 0.6 && cine.t < cine.dur - 1);
+  cineEl.classList.toggle('title', cine.t > cine.title[0] && cine.t < cine.title[1] && !!cineNameEl.textContent);
   if (cine.t >= cine.dur) cineEnd(false);
 }
 /* Fin: las bandas se retiran y vuelve el HUD (instant: de golpe, al salir de la partida). El control vuelve con la mira delante del morro. */
 function cineEnd(instant) {
   if (cine.on) { F.aimWorld.set(0, 0, -1).applyQuaternion(dragon.quaternion); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; }
-  cine.on = false;
+  cine.on = false; cine.to = null; cine.skip = false; cineEl.classList.remove('skip');
   if (instant) { cineEl.classList.add('snap'); hudEl.classList.add('snap'); }
   cineEl.classList.remove('on', 'title'); hudEl.classList.remove('cine');
   if (instant) { void cineEl.offsetWidth; cineEl.classList.remove('snap', 'show'); hudEl.classList.remove('snap'); }
@@ -316,6 +321,7 @@ function hurtDragon(n, why, light) {
   if (cine.on || devCheat('god')) return;                  // v26: la entrada de cine no se interrumpe (v27: ni en Dev Test con «invulnerable»)
   F.lastHit = gameTime; stats.dmgTaken += n;
   const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
+  if (n - a > 0 && F.health > 0) storyChatter(F.health < heroHpMax() * 0.3 ? 'lowhp' : !light ? 'hurt' : '');   // v34: los compañeros reaccionan (19e)
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
   else { vigAlpha = 1; camShake = Math.max(camShake, 0.7); sfx.hurt(); const p = dragon.position; explode(p.x, p.y - 2, p.z, 0.35); }
   if (F.health <= 0) { F.health = 0; crash(why || 'Te derribaron'); }
@@ -800,14 +806,18 @@ function updateAim(dt, auto) {
   if (!auto) updateLook(dt);
   if (!auto && cine.on) {
     // v26: entrada de cine: rumbo de salida y nivelado (solo sube si hay terreno o una isla delante); el ratón no mueve la mira
-    const p = dragon.position, hx = cine.dir.x, hz = cine.dir.z;
+    // v34: con cine.to gira despacio hacia ese punto, y con cine.y va hacia esa altitud (también bajando, poco a poco)
+    const p = dragon.position;
+    if (cine.to) { _l.set(cine.to.x - p.x, 0, cine.to.z - p.z); if (_l.lengthSq() > 1) cine.dir.lerp(_l.normalize(), 1 - Math.exp(-dt * 0.9)).normalize(); }
+    const hx = cine.dir.x, hz = cine.dir.z;
     let wantY = Math.max(heightAt(p.x, p.z), WL) + 120;
     for (const d of [200, 500, 900, 1400, 2000]) wantY = Math.max(wantY, heightAt(p.x + hx * d, p.z + hz * d) + 160);
     for (const d of [0, 150, 400, 800, 1300]) {
       const isl = islandColumn(p.x + hx * d, p.z + hz * d, p.y - 60, p.y + 60, 60);
       if (isl) { wantY = Math.max(wantY, isl.yMax + 150); break; }
     }
-    const pit = clamp(Math.atan2(wantY - p.y, 1000), 0, 0.3);   // (mira lejos: sube pronto y poco a poco)
+    if (cine.y != null) wantY = Math.max(wantY, cine.y);
+    const pit = clamp(Math.atan2(wantY - p.y, 1000), cine.y != null ? -0.12 : 0, 0.3);   // (mira lejos: sube pronto y poco a poco)
     F.aimWorld.set(hx * Math.cos(pit), Math.sin(pit), hz * Math.cos(pit)); F.pdx = F.pdy = 0;
   } else if (auto) {
     // piloto automático del menú: rumbo suave y altura segura sobre el terreno
@@ -835,7 +845,9 @@ function updateAim(dt, auto) {
     F.aimWorld.copy(_l).applyQuaternion(q);
   } else if (!F.lookHeld && !F.tgtCam && !DEV.open) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
     const t = Math.tan(camera.fov * Math.PI / 360);
-    _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize().applyQuaternion(camera.quaternion).applyQuaternion(q);
+    _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize();
+    if (CC.k < 0.01) _l.applyQuaternion(camera.quaternion);  // (v34: mientras se retira un plano de cine, desde el morro: la cámara mira a otro lado)
+    _l.applyQuaternion(q);
     F.aimWorld.copy(_l);
   }
   _iq.copy(q).invert();

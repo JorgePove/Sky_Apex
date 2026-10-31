@@ -16,6 +16,7 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 
 ## Flujo del juego (línea activa, rama Tyrant)
 - Editar solo los módulos de `fuentes/sky_apex/` (`NN_*.html|css|js`, en ese orden; misiones en `18_misiones_datos.js` y `19_misiones_motor.js`).
+- Modo Historia (desde la v34): cada capítulo en su módulo (`18b_capitulo1.js`: receta y guion, en inglés para las voces y en castellano para los subtítulos); el modo (pantalla de capítulo, voces, subtítulos, planos de cine, reacciones) en `19e_historia.js`; el portal y el rayo del superdirigible en `14h_portal.js`. Voces nuevas: archivo en `audio/`, entrada en `VOICES` (19e), su `<script id>` en `02_dom.html` y su `--extra` en `construir.mjs`.
 - `node herramientas/construir.mjs` junta los módulos y genera `fuentes/sky_apex.src.html` (para probar con servidor) y `sky_apex.html` (para jugar, con los modelos incrustados y una copia de las stats del Excel). Con `--solo-fuente`, solo la fuente.
 - Stats de las unidades (desde la v24): en `datos/sky_apex_stats.xlsx`, que edita Jorge y el juego lee solo. Ningún valor de balance fijo en el código: se añade a `STATS_SCHEMA` (`19c_stats.js`), se usa en `applyStats`/`applyHeroStats` y se amplía el Excel con `node herramientas/stats_excel.mjs` (conserva los valores de Jorge). `Jugar.bat` abre el juego con servidor local para que lea el Excel al momento.
 - Para cambiar un valor del Excel cuando Jorge lo pida: `node herramientas/stats_excel.mjs --poner unidad.clave=valor` (con el Excel cerrado; conserva los demás).

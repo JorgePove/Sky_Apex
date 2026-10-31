@@ -66,6 +66,9 @@
          · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
    Las misiones de la campaña las define Jorge (premisa, escenario, encuentros). «mision1» es la suya (Fase 1, v23); las otras tres son
    solo para probar el motor.
+   v34: el Modo Historia. Cada capítulo va en su propio módulo (18b_capitulo1.js: Capítulo 01, Trial by Fire), con los campos nuevos
+   (chapter, card, voices, intro con planos, world.relief, allies, squads en formación, oleadas de unidades, chatter y las condiciones y
+   acciones nuevas de los eventos) explicados en su cabecera.
    ============================================================ */
 const MISSIONS = {
   /* v23: Misión 1 (diseño de Jorge): una flota de 10 dirigibles huye hacia el borde del mapa; hay que destruirla antes de que salga (si

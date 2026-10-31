@@ -222,7 +222,7 @@ function devDebug() {
   const put = (cyl, color, x, y, z, r, h) => { const m = devHitBox(n++, cyl, color); m.position.set(x, y, z); m.scale.set(r, h, r); };
   if (mission.dev && DEV.hitbox && devInGame()) {
     for (const e of enemies) if (!e.dead && !e.off) put(false, 0xff4a3a, e.pos.x, e.pos.y, e.pos.z, ENEMY_HIT_R, ENEMY_HIT_R);
-    if (ally.e && ally.on) { const p = ally.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }
+    for (const a of allies) if (a.e && a.on) { const p = a.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }   // (v34: todos)
     const P = dragon.position; put(false, 0xf2b84b, P.x, P.y, P.z, PLAYER_HIT_R, PLAYER_HIT_R);
     for (const t of towers.values()) if (!t.dead && Math.hypot(t.x - P.x, t.z - P.z) < 4000) put(true, 0xff7a2e, t.x, t.y + TOWER_TOP / 2, t.z, TOWER_R, TOWER_TOP);
     for (const u of UNITS) {                                 // v29: cápsulas de las unidades nuevas (cilindro a lo largo y una esfera en cada punta)

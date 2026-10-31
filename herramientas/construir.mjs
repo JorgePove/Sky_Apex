@@ -53,6 +53,7 @@ if (!soloFuente) {
     '--extra', 'superdirigible-glb=../modelos/superdirigible.glb', '--extra', 'sierpe-glb=../modelos/sierpe.glb', '--extra', 'soldado-glb=../modelos/soldado.glb',
     '--extra', 'aleteo-mp3=../audio/dragon-studio-dragon-wings-flapping-478385.mp3', '--extra', 'rugido-mp3=../audio/dragon-studio-epic-dragon-roar-364481.mp3',
     '--extra', 'llamarada-mp3=../audio/dragon-studio-dragon-breathing-fire-364475.mp3',
-    '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible; v29: las unidades nuevas; v32: los sonidos de audio/)
+    '--extra', 'voz-seraphin-01=../audio/audio Seraphin test 01.mpeg', '--extra', 'voz-volger-01=../audio/audio Volger test 01.mpeg',
+    '--salida', '../sky_apex.html'];   // (v16: los otros dos dragones; v20: Fulgor; v21: el dirigible; v29: las unidades nuevas; v32: los sonidos de audio/; v34: las voces del Capítulo 1)
   process.stdout.write(execFileSync(process.execPath, args, { cwd: HERR }));
 }

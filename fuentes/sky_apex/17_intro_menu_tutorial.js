@@ -16,21 +16,23 @@ const MUSIC_EXT = ['mp3', 'ogg', 'm4a', 'wav', 'aac', 'flac', 'opus', 'webm'], M
 const MUSIC_MENU_LEAD = 0.45;   // v14: silencio al principio de «Dragon's Ascent» (s; medido): la intro empieza la canción ahí. Si se cambia la canción, ajustar
 /* Volúmenes (0-1) de «Opciones»: música del menú, música de la partida (por defecto más baja, que no canse) y efectos. Se guardan en el
    navegador. La M silencia todo (musicMix.muted y sfx). */
-const audioVol = { menu: 0.7, game: 0.28, sfx: 1 };
-const musicMix = { muted: false, tracks: [] };
+const audioVol = { menu: 0.7, game: 0.28, sfx: 1, voice: 1 };   // (v34: voces de los mensajes mentales)
+const musicMix = { muted: false, tracks: [], duck: 1, duckTo: 1 };   // v34: duck = la música baja mientras habla una voz (19e)
 try {
   const a = JSON.parse(localStorage.getItem(AUDIO_KEY) || 'null');
   if (a) { for (const k in audioVol) if (typeof a[k] === 'number') audioVol[k] = clamp(a[k], 0, 1); }
   else { const o = JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}'); if (typeof o.vol === 'number') { audioVol.menu = clamp(o.vol, 0, 1); audioVol.game = audioVol.menu * 0.4; } }
 } catch (err) { }
 function saveAudio() { try { localStorage.setItem(AUDIO_KEY, JSON.stringify(audioVol)); } catch (err) { } }
-/* Una pista: musica/<nombre>.<extensión> junto al HTML (o ../musica/ desde fuentes/), en bucle, con fundidos. */
-function musicTrack(name, key) {
-  const el = new Audio(); el.loop = true; el.preload = 'auto';
-  const dirs = /\/fuentes\//.test(location.pathname) ? ['../musica/', 'musica/'] : ['musica/', '../musica/'];
-  const cands = []; for (const d of dirs) for (const x of MUSIC_EXT) cands.push(d + name + '.' + x);
-  let i = -1, found = false, want = false, fade = 0, fadeTo = 0, fadeSpeed = 10;
-  const apply = () => { el.volume = clamp((musicMix.muted ? 0 : audioVol[key]) * fade, 0, 1); };
+/* Una pista: musica/<nombre>.<extensión> junto al HTML (o ../musica/ desde fuentes/), en bucle, con fundidos. v34: files = archivos a probar
+   antes (rutas desde la carpeta del HTML, p. ej. la música de tensión de audio/); lazy = no se carga hasta que se usa (prime o play). */
+function musicTrack(name, key, files, lazy) {
+  const el = new Audio(); el.loop = true; el.preload = lazy ? 'none' : 'auto';
+  const inF = /\/fuentes\//.test(location.pathname), dirs = inF ? ['../musica/', 'musica/'] : ['musica/', '../musica/'];
+  const cands = []; for (const f of files || []) cands.push(...(inF ? ['../' + f, f] : [f, '../' + f]));
+  for (const d of dirs) for (const x of MUSIC_EXT) cands.push(d + name + '.' + x);
+  let i = -1, found = false, want = false, fade = 0, fadeTo = 0, fadeSpeed = 10, started = !lazy;
+  const apply = () => { el.volume = clamp((musicMix.muted ? 0 : audioVol[key]) * fade * musicMix.duck, 0, 1); };
   const next = () => {                                     // siguiente candidato (carpeta y extensión) hasta dar con el archivo
     if (++i < cands.length) { el.src = cands[i]; el.load(); }
     else console.warn('Sin música: falta musica/' + name + ' (.mp3, .ogg, .wav…) junto al HTML');
@@ -38,10 +40,12 @@ function musicTrack(name, key) {
   el.addEventListener('error', () => { if (!found) next(); });
   let startAt = null;                                       // (v14) segundo de la canción por el que empezar (lo pide play)
   el.addEventListener('loadedmetadata', () => { found = true; apply(); if (want) { if (startAt != null) { el.currentTime = Math.min(startAt, el.duration || 0); startAt = null; } el.play().catch(() => { }); } });
-  next(); apply();
+  if (started) next(); apply();
   const T = {
     el, apply, get found() { return found; },
+    prime() { if (!started) { started = true; el.preload = 'auto'; next(); } },   // (v34: empezar a cargarla)
     play(fadeIn, from) {                                   // sin fundido (o muy corto): a su volumen al momento. from: empezar en ese segundo
+      T.prime();
       if (from != null) { if (found) el.currentTime = from; else startAt = from; }
       want = true; fadeTo = 1; fadeSpeed = 1 / Math.max(fadeIn || 0, 0.02); if (!(fadeIn > 0.3)) fade = 1; apply();
       if (found && el.paused) el.play().catch(() => { });
@@ -57,12 +61,18 @@ function musicTrack(name, key) {
 const music = {
   menu: musicTrack('musica_menu', 'menu'),                 // menú, «Elige tu dragón» y victoria
   game: musicTrack('musica_game', 'game'),                 // partida
+  tension: musicTrack('musica_tension', 'game', ['audio/apex tension music.mpeg'], true),   // v34: Capítulo 1, desde que aparece el superdirigible (volumen: el de la partida)
   get muted() { return musicMix.muted; },
   setMuted(m) { musicMix.muted = !!m; musicMix.tracks.forEach(t => t.apply()); },
-  update(dt) { musicMix.tracks.forEach(t => t.update(dt)); }
+  duck(k) { musicMix.duckTo = k; },                        // v34: bajar la música mientras habla una voz (1 = normal)
+  stopGame(fade) { music.game.stop(fade); music.tension.stop(fade); },   // v34: fuera la música de la partida (la normal y la de tensión)
+  update(dt) {
+    if (musicMix.duck !== musicMix.duckTo) { const s = dt * 1.6; musicMix.duck = musicMix.duck < musicMix.duckTo ? Math.min(musicMix.duckTo, musicMix.duck + s) : Math.max(musicMix.duckTo, musicMix.duck - s); musicMix.tracks.forEach(t => t.apply()); }
+    musicMix.tracks.forEach(t => t.update(dt));
+  }
 };
 /* ---------- Menú principal: botones y paneles ---------- */
-const optEls = { menu: ['volMenu', 'volMenuV'], game: ['volGame', 'volGameV'], sfx: ['volSfx', 'volSfxV'] };
+const optEls = { menu: ['volMenu', 'volMenuV'], game: ['volGame', 'volGameV'], sfx: ['volSfx', 'volSfxV'], voice: ['volVoice', 'volVoiceV'] };   // (v34: voces)
 function syncAudioUI() {
   for (const k in optEls) { const v = Math.round(audioVol[k] * 100); document.getElementById(optEls[k][0]).value = v; document.getElementById(optEls[k][1]).textContent = String(v); }
 }

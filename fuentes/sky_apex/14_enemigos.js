@@ -38,7 +38,7 @@ const TRAIL_STEP = 14, TRAIL_MAXP = 96;
 const TRAIL_PX = 3.6;                 // grosor mínimo en pantalla (px), para verla a gran distancia
 
 const enemies = [];
-const enemyState = { kills: 0, spawned: 0, squadN: 0 };   // (v21: squadN = dragones de los escuadrones que han salido)
+const enemyState = { kills: 0, spawned: 0, squadN: 0, engaged: {} };   // (v21: squadN = dragones de los escuadrones que han salido; v34: engaged[id] = el escuadrón ya ataca)
 const dragonsTotal = () => RUN.dragons.total + enemyState.squadN;
 const enemyLock = { e: null };          // blanco fijado con el clic central (v21: dragón, torre o dirigible; ver 6d)
 let enemyLastShot = -9;
@@ -202,7 +202,7 @@ function placeEnemy(e, rmin, rmax) {
 }
 function reviveEnemy(e) {
   enemyState.spawned++;
-  e.tags = RUN.dragons.tags; e.squad = null;
+  e.tags = RUN.dragons.tags; e.squad = null; e.unknown = false;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
   if (!(escorting() && placeEscort(e, true))) placeEnemy(e, 3500, 5500);   // (v23: los relevos de la escolta despegan de un dirigible)
 }
@@ -212,9 +212,9 @@ function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.ad
 function spawnEnemies() {
   const n = Math.min(RUN.dragons.atOnce, RUN.dragons.total);
   while (enemies.length < n) enemies.push(makeEnemy());
-  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
+  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyState.engaged = {}; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
+    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags; e.unknown = false;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
@@ -222,33 +222,58 @@ function spawnEnemies() {
 }
 /* v21: escuadrón de la receta (mission.squads[id]), desde un evento («squad»). Salen todos a la vez en cuña, en su punto (at: { x, z,
    height | y }) o, sin él, a dist m (2500) del jugador por delante y dentro del área; miran hacia el jugador. attack: false = patrullan
-   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id). */
+   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id).
+   v34 (Capítulo 1): rel: { bearing, dist } = a dist m del jugador en ese rumbo de brújula (0 = norte, 90 = este); y = altitud (sobre el
+   agua, como la ALTITUD del HUD); gap = separación de la cuña (m); cruise: { speed (km/h), engage (m) } = vuelan en formación hacia el
+   jugador sin disparar (modo 'cruise') hasta que está a menos de engage m, les disparan o un evento dice «engage»: entonces atacan todos;
+   unknown: true = en el HUD, «DESCONOCIDO» mientras vuelan en formación; from: 'super' = despegan de los costados del superdirigible (6i). */
 const _Esq = new THREE.Vector3();
+function squadMember() {
+  let e = enemies.find(x => x.off);
+  if (!e) { e = makeEnemy(); enemies.push(e); }
+  return e;
+}
 function spawnSquad(id) {
   const q = mission.squads && mission.squads[id];
   if (!q) { console.warn('Escuadrón desconocido: ' + id); return; }
   const P = dragon.position, n = q.n || 1, tags = [q.tag || id];
+  enemyState.engaged[id] = !q.cruise;
+  if (q.from === 'super') { if (superLaunch(id, q, tags)) return; }   // (6i; sin superdirigible, salen como los demás)
   let cx, cy, cz;
   if (q.at) { cx = q.at.x; cz = q.at.z; cy = q.at.y != null ? q.at.y : groundAt(cx, cz) + (q.at.height != null ? q.at.height : 400); }
-  else {
+  else if (q.rel) {                                        // v34: en un rumbo de brújula desde el jugador
+    const a = (q.rel.bearing || 0) * Math.PI / 180, d = q.rel.dist || 2500;
+    clampToArea(P.x + Math.sin(a) * d, P.z - Math.cos(a) * d, 600, _Eac); cx = _Eac.x; cz = _Eac.z;
+    cy = q.y != null ? Math.max(q.y, groundAt(cx, cz) + 200) : Math.max(P.y, groundAt(cx, cz) + 300);
+  } else {
     _Eef.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize(); rotY(_Eef, rnd(-0.6, 0.6));
     clampToArea(P.x + _Eef.x * (q.dist || 2500), P.z + _Eef.z * (q.dist || 2500), 600, _Eac); cx = _Eac.x; cz = _Eac.z;
     cy = Math.max(P.y, groundAt(cx, cz) + 300);
   }
   cy = safeY(cx, cy, cz); enemyState.squadN += n;
   _Esq.set(P.x - cx, 0, P.z - cz); if (_Esq.lengthSq() < 1) _Esq.set(0, 0, -1); _Esq.normalize();   // rumbo: hacia el jugador
+  const gl = q.gap || 70, gb = q.gap ? q.gap * 0.85 : 60;
+  let lead = null;
   for (let i = 0; i < n; i++) {
-    let e = enemies.find(x => x.off);
-    if (!e) { e = makeEnemy(); enemies.push(e); }
-    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * 70, back = row * 60;   // cuña: el jefe delante, los demás a los lados y detrás
-    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0;
+    const e = squadMember();
+    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * gl, back = row * gb;   // cuña: el jefe delante, los demás a los lados y detrás
+    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.unknown = !!q.unknown;
     e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
-    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + rnd(-15, 15), cz + _Esq.x * lat - _Esq.z * back);
+    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + (q.cruise ? 0 : rnd(-15, 15)), cz + _Esq.x * lat - _Esq.z * back);
     e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Esq, UP));
-    e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
-    if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
+    e.speed = q.cruise ? (q.cruise.speed || 400) / 3.6 : 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
+    if (q.cruise) { setEnemyMode(e, 'cruise'); e.alert = 0; e.cr = { lead, r: lat, b: back, y: cy, v: (q.cruise.speed || 400) / 3.6, engage: q.cruise.engage || 2500 }; if (!i) lead = e; }
+    else if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
     resetTrail(e);
   }
+}
+/* v34: el escuadrón deja la formación y ataca (todos a la vez): al acercarse el jugador, al recibir un disparo o por un evento («engage»). */
+function squadEngage(id) {
+  if (!id || enemyState.engaged[id]) return;
+  enemyState.engaged[id] = true;
+  let d = Infinity;
+  for (const o of enemies) if (o.squad === id && !o.dead && !o.off && o.mode === 'cruise') { setEnemyMode(o, 'pass'); o.alert = 0; o.fireCool = rnd(1.2, 2.6); d = Math.min(d, o.pos.distanceTo(dragon.position)); }
+  if (d < Infinity) sfx.roar(clamp(1.1 - d / 2200, 0.2, 1));
 }
 /* v29: dragón quieto (galería de enemigos, receta units con type 'dragon'): flota en el sitio con la animación de hover, mirando al rumbo
    heading (°), sin IA, sin disparar y sin reaparecer; se le puede fijar, dañar y derribar como a cualquiera. */
@@ -256,7 +281,7 @@ function spawnStatue(x, y, z, heading, tags) {
   let e = enemies.find(o => o.off);
   if (!e) { e = makeEnemy(); enemies.push(e); }
   if (!e.act.hover) { e.act.hover = e.mixer.clipAction(hero.clips.hover); e.act.hover.play(); e.act.hover.time = Math.random() * hero.hoverDur; }
-  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
+  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.unknown = false; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
   const a = heading * Math.PI / 180; _Eef.set(Math.sin(a), 0, -Math.cos(a));
   e.pos.set(x, y, z); e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP)); e.vel.set(0, 0, 0);
   e.speed = 0; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.aimLocal.set(0, 0, -1); setEnemyMode(e, 'patrol'); e.alert = 1e9;
@@ -391,6 +416,7 @@ function enemyMissileTry(s, from, dt, can) {
   spawnFireball(from, _Emd, true, clamp(1.3 - d / 2000, 0.25, 1), 'emsl');
   for (let i = 0; i < 18; i++) emit(fxAdd, from.x, from.y, from.z, _Emd.x * rnd(30, 70) + rnd(-8, 8), _Emd.y * rnd(30, 70) + rnd(-8, 8), _Emd.z * rnd(30, 70) + rnd(-8, 8), rnd(0.25, 0.5), 3, 7, 1, rnd(0.45, 0.7), 0.15, 0.9, 1.5, 0);
   s.mslCool = EMSL_CD; s.mslLock = 0; threat.lastLaunch = gameTime;
+  storyChatter('missile');                                 // v34: «¡bola guiada a tus seis!» (19e)
   return true;
 }
 function thinkEnemy(e, dt, playing) {
@@ -401,7 +427,7 @@ function thinkEnemy(e, dt, playing) {
   const dotF = _Eef.dot(_Etn);
   e.t += dt; e.fireCool -= dt; e.alert -= dt; e.ramT -= dt;
   const want = _Ewant; let tSpeed = 62;
-  if (e.mode !== 'patrol') {
+  if (e.mode !== 'patrol' && e.mode !== 'cruise') {        // (v34: en formación, aún lejos, no pierden al jugador)
     e.far = dist > ENEMY_LOSE ? e.far + dt : 0;
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
@@ -411,7 +437,21 @@ function thinkEnemy(e, dt, playing) {
   const chased = playing && dist < ENEMY_EVADE_DIST && dotF < -0.2 && -_Epf.dot(_Etn) > 0.82;
   e.chase = chased ? Math.min(3, e.chase + dt) : Math.max(0, e.chase - dt * 0.5);
   if (chased && e.chase > 0.6 && (e.mode === 'pass' || e.mode === 'extend' || e.mode === 'reposition')) setEnemyMode(e, 'evade');
-  if (e.mode === 'patrol') {
+  if (e.mode === 'cruise') {                               // v34: en formación hacia el jugador, sin disparar (escuadrones con cruise)
+    const c = e.cr, L = c.lead && !c.lead.dead && c.lead.mode === 'cruise' ? c.lead : null;
+    if (!L) {                                              // el jefe (o si cae): hacia el jugador, a su altitud
+      want.set(_Etn.x, 0, _Etn.z); if (want.lengthSq() < 1e-4) want.copy(_Eef); want.normalize(); want.y = clamp((c.y - e.pos.y) / 500, -0.2, 0.2); want.normalize();
+      tSpeed = c.v;
+    } else {                                               // los demás: su sitio en la cuña del jefe, mirando 200 m por delante
+      _Elead.set(0, 0, -1).applyQuaternion(L.q); _Elead.y = 0; if (_Elead.lengthSq() < 1e-4) _Elead.set(0, 0, -1); _Elead.normalize();
+      const rx = -_Elead.z, rz = _Elead.x;
+      _Epf.set(L.pos.x + rx * c.r - _Elead.x * c.b, L.pos.y, L.pos.z + rz * c.r - _Elead.z * c.b);
+      const along = (_Epf.x - e.pos.x) * _Elead.x + (_Epf.z - e.pos.z) * _Elead.z;
+      want.copy(_Epf).addScaledVector(_Elead, 200).sub(e.pos).normalize();
+      tSpeed = clamp(c.v + along * 0.5, c.v * 0.6, c.v * 1.6);
+    }
+    if (playing && dist < c.engage) squadEngage(e.squad);
+  } else if (e.mode === 'patrol') {
     const esc = escorting();
     if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
     want.subVectors(e.wp, e.pos).normalize(); tSpeed = 62;
@@ -463,7 +503,7 @@ function steerEnemy(e, tSpeed, dt) {
   }
   // separación de otros dragones
   for (const o of enemies) {
-    if (o === e || o.dead) continue;
+    if (o === e || o.dead || (e.mode === 'cruise' && o.squad === e.squad)) continue;   // (v34: en formación, juntos)
     const dx = pos.x - o.pos.x, dy = pos.y - o.pos.y, dz = pos.z - o.pos.z, dd = Math.hypot(dx, dy, dz);
     if (dd < 230 && dd > 1) { const k = (1 - dd / 230) * 1.6 / dd; d.x += dx * k; d.y += dy * k; d.z += dz * k; }
   }
@@ -528,6 +568,7 @@ function steerEnemy(e, tSpeed, dt) {
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
   if (e.dead) return;
+  if (byAlly && byAlly.style === 'escort') n = Math.max(0, Math.min(n, e.hp - ENEMY_HP * ALLY_ESC.hpMin));   // v34: los aliados de escolta no rematan (6e)
   e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);   // (v24: n ya es el daño del arma del dragón elegido, o del aliado)
   if (soft) sparks(at.x, at.y, at.z, 2, e.vel.x * 0.5, e.vel.y * 0.5, e.vel.z * 0.5);
   else {
@@ -541,6 +582,7 @@ function damageEnemy(e, n, at, soft) {
   }
   if (!(gameTime - e.sndT < (soft ? 0.22 : 0.07))) { e.sndT = gameTime; sfx.hit(); }
   if (e.mode === 'patrol' && state === 'playing') { setEnemyMode(e, 'pass'); e.alert = 0; }
+  if (e.mode === 'cruise') squadEngage(e.squad);           // v34: si les disparan, rompen la formación y atacan
   if (e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e) {
@@ -553,8 +595,9 @@ function killEnemy(e) {
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
   const sh = mine ? Math.max(0, Math.min(SHIELD_PER_KILL, SHIELD_MAX - W.shield)) : 0; W.shield += sh;   // derribar dragones recarga el escudo (v24: SHIELD_PER_KILL)
-  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
-  if (!mine) allySay('kill');
+  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (!mine) allySay(byAlly, 'kill');
+  else storyChatter('kill');                               // v34: los compañeros reaccionan a tus derribos (19e)
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -621,7 +664,7 @@ function updateEnemies(dt) {
       _Est.hover = 1; animateEnemyModel(e, dt, e.pos.distanceTo(P)); _Est.hover = 0;
       continue;
     }
-    if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
+    if (e.mode !== 'cruise' && (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500)) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota; v34: los que vienen en formación, no)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
     e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
@@ -630,10 +673,10 @@ function updateEnemies(dt) {
     // choque con el jugador
     if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo'); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
-    if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
+    if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && e.mode !== 'cruise' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate
     _Eiq.copy(e.q).invert();
-    if (e.mode === 'patrol') e.aimLocal.set(0, 0, -1);
+    if (e.mode === 'patrol' || e.mode === 'cruise') e.aimLocal.set(0, 0, -1);
     else e.aimLocal.copy(P).sub(e.pos).applyQuaternion(_Eiq).normalize();
     const vis = animateEnemyModel(e, dt, dist);
     // dañado: humo (y chispas con 1 de vida)

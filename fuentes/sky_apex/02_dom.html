@@ -8,7 +8,10 @@
 <div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
 <div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
 <aside id="dev" hidden aria-label="Panel de pruebas"></aside>   <!-- v27: modo Dev Test (Tab); lo rellena 19d_dev.js -->
-<div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"></div></div>   <!-- v26: entrada de cine -->
+<div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"><div class="cine-skip"><kbd>Intro</kbd> saltar</div></div></div>   <!-- v26: entrada de cine (v34: Intro salta la voz) -->
+<div id="card" hidden><div class="card-top" id="cardTop"></div><div class="card-bot" id="cardBot"></div><div class="card-skip"><kbd>Intro</kbd> saltar</div></div>   <!-- v34: pantalla de capítulo (19e) -->
+<div id="fade" hidden></div>   <!-- v34: fundido a negro al final del capítulo -->
+<div id="hint" role="status"></div>   <!-- v34: consejos de la misión -->
 
 <section class="overlay intro" id="menu">
   <div id="introBlack"></div>
@@ -28,6 +31,7 @@
       </div>
       <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
         <div class="kicker">Modo de juego</div>
+        <button class="mbtn story" id="mStory">Modo Historia</button>   <!-- v34: capítulos (19e) -->
         <button class="mbtn" id="mM1">Misión 1: la flota</button>
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
@@ -68,9 +72,16 @@
     <div class="kicker">Objetivo</div>
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
+    <p class="lead"><b>Modo Historia</b>: los capítulos de la campaña, con voces, compañeros de escuadrón y cinemáticas. <kbd>Intro</kbd> salta la pantalla de capítulo y la voz de la entrada; los subtítulos (español o inglés) y el volumen de las voces, en Opciones.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
     <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <p class="lead"><b>Galería de enemigos</b>: campo de pruebas llano con todos los tipos de enemigos quietos, con los mismos trucos y panel; en el panel, además, parar su fuego, la sierpe en vuelo circular, «Restaurar galería» e «Ir a…» cada grupo.</p>
+    <button class="ghost" data-close>← Volver</button>
+  </div>
+  <div class="mpanel" id="pStory" hidden role="dialog" aria-label="Modo Historia">   <!-- v34: capítulos (19e: storyMenu) -->
+    <div class="kicker">Modo Historia</div>
+    <h2 class="story-h">Capítulos</h2>
+    <div class="story-list" id="storyList"></div>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -78,6 +89,8 @@
     <div class="opt"><label for="volMenu">Música del menú</label><input id="volMenu" type="range" min="0" max="100"><span class="vol-val" id="volMenuV"></span></div>
     <div class="opt"><label for="volGame">Música de la partida</label><input id="volGame" type="range" min="0" max="100"><span class="vol-val" id="volGameV"></span></div>
     <div class="opt"><label for="volSfx">Efectos de sonido</label><input id="volSfx" type="range" min="0" max="100"><span class="vol-val" id="volSfxV"></span></div>
+    <div class="opt"><label for="volVoice">Voces</label><input id="volVoice" type="range" min="0" max="100"><span class="vol-val" id="volVoiceV"></span></div>   <!-- v34 -->
+    <div class="opt"><label for="subLang">Subtítulos</label><select id="subLang"><option value="es">Español</option><option value="en">English</option></select><span></span></div>   <!-- v34 -->
     <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
     <div class="kicker">Stats de las unidades</div>
     <p class="lead stats-info" id="statsInfo"></p>
@@ -189,4 +202,7 @@
 <script id="aleteo-mp3" type="application/octet-stream"></script>
 <script id="rugido-mp3" type="application/octet-stream"></script>
 <script id="llamarada-mp3" type="application/octet-stream"></script>
+<!-- v34: voces del Capítulo 1 (../audio): Seraphin y Volger -->
+<script id="voz-seraphin-01" type="application/octet-stream"></script>
+<script id="voz-volger-01" type="application/octet-stream"></script>
 <script>

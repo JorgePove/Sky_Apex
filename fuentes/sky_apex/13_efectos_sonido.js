@@ -2,7 +2,7 @@
    6. PARTÍCULAS, PROYECTILES Y SONIDO PROCEDURAL
    ============================================================ */
 let camShake = 0;
-let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas)
+let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas). v34: el aliado (objeto), o false
 
 /* ---------- Partículas (puntos con shader) ---------- */
 function makeParticles(cap, additive) {
@@ -200,7 +200,7 @@ function spawnFireball(from, dir, enemy, vol, kind, ally) {
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
   const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
   const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? (ally ? ALLY_GUN_DMG : GUN_DMG) : MSL_DMG, target: null, lost: false,
-    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: !!ally };
+    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: ally || false };   // (v34: ally = el aliado que dispara)
   fireballs.push(f);
   if (gun) sfx.shot(ally ? vol : undefined); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
@@ -425,6 +425,7 @@ function audioSegments(buf) {
 }
 const sfx = (() => {
   let ctx = null, master = null, noiseBuf = null, whiteBuf = null, wind = null, rumble = null, brn = null, muted = false;
+  let voiceOut = null, extLa = 0, laNow = 0;               // v34: salida de las voces; zumbido del rayo del superdirigible (6i) y del jugador
   const smp = {}, segs = [], fireS = { src: null, g: null, roar: -99 };   // v32: sonidos grabados (buffers), trozos del aleteo y la llamarada que suena
   let lastSeg = -1;
   const S = {
@@ -480,6 +481,25 @@ const sfx = (() => {
       }
     },
     get samples() { return { loaded: Object.keys(smp), wingSegs: segs.map(o => [+o.s.toFixed(2), +o.len.toFixed(2), +o.pk.toFixed(2), +o.k.toFixed(2)]) }; },   // (para las pruebas)
+    get now() { return ctx ? ctx.currentTime : 0; },
+    /* v34: voces de los mensajes mentales (19e): bytes → buffer; y suena desde from s por su propia salida (volumen «Voces» de Opciones;
+       la M también la silencia). Devuelve la fuente (para pararla en la pausa). */
+    decode(bytes) { return new Promise((res, rej) => ctx.decodeAudioData(bytes, res, rej)); },
+    voice(buf, from) {
+      if (!ctx) return null;
+      if (!voiceOut) { voiceOut = ctx.createGain(); voiceOut.connect(ctx.destination); }
+      voiceOut.gain.value = muted ? 0 : audioVol.voice;
+      const s = ctx.createBufferSource(); s.buffer = buf; s.connect(voiceOut); s.start(ctx.currentTime + 0.02, Math.min(from || 0, buf.duration));
+      return s;
+    },
+    /* v34: zumbido del rayo del superdirigible (el mismo del rayo del jugador; level 0-1, ya con la distancia) */
+    extBeam(level) {
+      if (!ctx) return;
+      extLa = level; const l = Math.max(level, laNow), t = ctx.currentTime;
+      brn.eg.gain.setTargetAtTime(0.2 * l, t, l ? 0.08 : 0.15); brn.trG.gain.setTargetAtTime(0.05 * l, t, 0.08);
+    },
+    /* v34: tecla de la pantalla de capítulo (texto que se escribe solo) */
+    tick() { this.noise(0.035, 'highpass', 3600, 2600, 0.06, 0.8); },
     /* v32: un sonido grabado (buffer) desde from s durante len s, que empieza when (tiempo del contexto), con volumen vol y un fundido corto al final */
     play(buf, when, from, len, vol) {
       const s = ctx.createBufferSource(); s.buffer = buf;
@@ -514,7 +534,7 @@ const sfx = (() => {
       }
     },
     toggleMute() { muted = !muted; this.applyVolume(); return muted; },
-    applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; },   // volumen de efectos de «Opciones»
+    applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; if (voiceOut) voiceOut.gain.value = muted ? 0 : audioVol.voice; },   // volumen de efectos de «Opciones» (v34: y el de las voces)
     /* v: velocidad / VMAX (0-1; crucero ≈ 0,5; 0 fuera de partida), acc: aceleración suavizada (m/s²) */
     update(speedNorm, throttle, boost, hover, v, acc) {
       if (!ctx) return;
@@ -608,8 +628,9 @@ const sfx = (() => {
       const t = ctx.currentTime;
       if (smp.fire) this.fireSample(fl > 0);
       brn.g.gain.setTargetAtTime(smp.fire ? 0 : 0.55 * fl, t, 0.06);
-      brn.eg.gain.setTargetAtTime(0.2 * la, t, la ? 0.08 : 0.15);
-      brn.trG.gain.setTargetAtTime(0.05 * la, t, 0.08);
+      laNow = la; const l = Math.max(la, extLa);           // (v34: con el rayo del superdirigible)
+      brn.eg.gain.setTargetAtTime(0.2 * l, t, l ? 0.08 : 0.15);
+      brn.trG.gain.setTargetAtTime(0.05 * l, t, 0.08);
     }
   };
   return S;

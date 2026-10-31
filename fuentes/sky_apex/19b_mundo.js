@@ -21,10 +21,11 @@ function missionWorld(m) {
   const w = m.world || {}, s = Object.assign({}, START_DEFAULT, m.start || {});
   let biome = w.biome || 'valle';
   if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle» y «pruebas»)'); biome = 'valle'; }
-  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)) };
+  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)),
+    relief: (w.relief || []).map(R => Object.assign({ edge: 2000, m: 1 }, R)), islands: w.islands !== false };   // (v34: relieve forzado y sin islas)
 }
 const startKey = s => [s.x, s.z, s.heading, s.height, s.y].join(',');
-const shapeKey = w => w.biome + JSON.stringify(w.lakes || []);   // v29: bioma y lagos (el relieve del mundo llano)
+const shapeKey = w => w.biome + JSON.stringify(w.lakes || []) + JSON.stringify(w.relief || []) + (w.islands === false ? '/sin islas' : '');   // v29: bioma y lagos (el relieve del mundo llano); v34: relieve e islas
 function worldNeedsGen() {
   const w = RUN.world; return !!w && (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape || startKey(w.start) !== WORLD.startKey);
 }
@@ -33,6 +34,7 @@ function setBiome(w) {
   const B = BIOMES[w.biome];
   FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
   terrainUniforms.uGrid.value = FLAT ? 1 : 0;
+  RELIEF = w.relief || []; NO_ISL = w.islands === false;   // v34: cordilleras y llanuras de la receta; sin islas
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {

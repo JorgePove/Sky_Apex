@@ -79,12 +79,21 @@ function flatTerrain(x, z, out, full) {
   if (full) { out.forest = 0; out.wet = 0; }
   return h;
 }
+/* v34: relieve por misión (world.relief en la receta; lo fija setBiome, M3): círculos { x, z, r, edge, m } que fuerzan la máscara de
+   cordilleras (m = 1: montañas; m = 0: tierras bajas con ríos, lagos y bosques) dentro de r m, con un borde suave de edge m. Los últimos
+   mandan. NO_ISL: mundo sin islas flotantes (world.islands: false). */
+let RELIEF = [], NO_ISL = false;
+function reliefMask(x, z, m) {
+  for (const R of RELIEF) m = lerp(m, R.m, 1 - smooth(R.r - R.edge, R.r, Math.hypot(x - R.x, z - R.z)));
+  return m;
+}
 function terrain(x, z, out, full) {
   if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;
   // máscara de cordilleras
   let m = smooth(0.38, 0.62, N2(px * 0.00017 + 7.7, pz * 0.00017 - 3.1) * 0.5 + 0.5);
+  if (RELIEF.length) m = reliefMask(x, z, m);
   // tierras bajas ondulantes
   let low = 34 + N3(px * 0.0004, pz * 0.0004) * 20
     + N1(px * 0.0016, pz * 0.0016) * 10 + N2(px * 0.0044, pz * 0.0044) * 4

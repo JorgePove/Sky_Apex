@@ -186,8 +186,8 @@ function killAirship(a) {
   if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast((byAlly ? allyName() + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
-  if (byAlly) allySay('kill');
+  toast((byAlly ? allyName(byAlly) + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (byAlly) allySay(byAlly, 'kill'); else storyChatter('ship');   // (v34: reacciones, 19e)
   sfx.energyCharge(airshipVol(a));
 }
 const airshipVol = a => clamp(1.25 - a.pos.distanceTo(dragon.position) / 2200, 0.15, 1);

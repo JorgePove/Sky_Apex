@@ -289,3 +289,44 @@ input[type=range]{accent-color:var(--ember);width:160px}
   .picker canvas{width:110px;height:110px}.picker input[type=range],.try{width:110px}.menu-foot{display:none}}
 /* v24: Opciones, de dónde salen las stats (Excel o copia del HTML) */
 .stats-info{font-size:12px;max-width:440px;margin:2px 0 12px}
+/* v34: Modo Historia. Pantalla de capítulo (19e): fondo gris muy oscuro y textos en mayúsculas con una fuente militar (Graduate) que se
+   escriben solos, como en la referencia de Jorge: el título arriba a la izquierda y el briefing abajo. */
+#card{position:fixed;inset:0;z-index:4;background:#1b1b1b;color:#f4f4f2;font-family:'Graduate','Share Tech Mono',ui-monospace,monospace;text-transform:uppercase;pointer-events:none}
+#card[hidden]{display:none}
+#card .card-top{position:absolute;left:7.6%;top:10.5%;right:6%;display:flex;flex-direction:column}
+#card .card-bot{position:absolute;left:7.6%;top:67%;right:6%;display:flex;flex-direction:column;gap:.3em}
+#card .card-line{font-size:clamp(14px,1.95vw,27px);letter-spacing:.05em;line-height:1.22;min-height:1.22em;white-space:pre-wrap}
+#card .card-line.big{font-size:clamp(30px,4.3vw,62px);letter-spacing:.035em;line-height:1.1;min-height:1.1em}
+#card .card-line.space{margin-bottom:.85em}
+#card .card-line.cur::after{content:'_';margin-left:.06em;animation:cardCur 1s steps(1) infinite}
+#card.done .card-line.cur::after{animation-duration:.8s}
+@keyframes cardCur{50%{opacity:0}}
+#card .card-skip,#cine .cine-skip{position:absolute;right:3.2vw;font-family:var(--f-data);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:rgba(241,230,211,.5)}
+#card .card-skip{bottom:4vh}
+#cine .cine-skip{top:50%;transform:translateY(-50%);opacity:0;transition:opacity .6s}
+#cine.skip .cine-skip{opacity:1}
+#card kbd,#cine kbd{font-size:10px;padding:2px 6px;margin-right:6px}
+#fade{position:fixed;inset:0;z-index:4;background:#000;opacity:0;pointer-events:none}
+#fade.on{opacity:1}
+#fade[hidden]{display:none}
+#hint{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:8;box-sizing:border-box;max-width:min(660px,92vw);padding:9px 16px;background:var(--glass);border:1px solid rgba(241,230,211,.18);
+  border-left:3px solid var(--ember);font-size:13px;line-height:1.45;letter-spacing:.05em;color:var(--bone);text-align:center;opacity:0;transition:opacity .45s;pointer-events:none}
+#hint.on{opacity:1}
+/* Menú: el botón y la ventana de capítulos */
+.mbtn.story{color:var(--gold);border-color:rgba(255,122,46,.6);background:linear-gradient(180deg,rgba(255,122,46,.18),rgba(255,122,46,.04))}
+#pStory{width:min(700px,calc(100% - 32px))}
+.story-h{font-family:var(--f-display);font-weight:700;font-size:clamp(24px,3vw,34px);margin:0;letter-spacing:.06em}
+.story-list{display:flex;flex-direction:column;gap:10px}
+.chap{display:grid;grid-template-columns:1fr auto;gap:3px 18px;text-align:left;padding:15px 18px;background:rgba(241,230,211,.04);border:1px solid rgba(241,230,211,.18);border-left:3px solid var(--ember);
+  border-radius:2px;color:var(--bone);font-family:var(--f-data);cursor:pointer;transition:border-color .15s,background .15s}
+.chap:hover{background:rgba(255,122,46,.1);border-color:var(--ember)}
+.chap:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.chap>span{grid-column:1}
+.chap-n{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--ember)}
+.chap-t{font-family:'Graduate',var(--f-display);font-size:clamp(20px,2.5vw,29px);text-transform:uppercase;letter-spacing:.04em;line-height:1.15}
+.chap-p{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--bone-dim)}
+.chap-b{font-size:13px;line-height:1.5;color:var(--bone-dim);margin-top:5px}
+.chap>.chap-go{grid-column:2;grid-row:1/span 4;align-self:center;font-family:var(--f-display);font-weight:700;font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.chap.locked{opacity:.38;cursor:default;border-left-color:rgba(241,230,211,.3)}
+.opt select{width:100%;background:#1a1418;color:var(--bone);border:1px solid rgba(241,230,211,.25);font:inherit;letter-spacing:.06em;padding:4px}
+@media (prefers-reduced-motion:reduce){#card .card-line.cur::after{animation:none}#hint{transition:none}}

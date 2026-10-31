@@ -193,7 +193,17 @@ const STATS_SCHEMA = {
     ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
     ['dispersion', 'Dispersión', '°', 1.72, ''],
     ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Como los dirigibles: medido desde el eje del casco.'],
-    ['muerto_vertical', 'Elevación máxima', '°', 70, '']
+    ['muerto_vertical', 'Elevación máxima', '°', 70, ''],
+    { sec: 'Rayo de la proa (v34, Capítulo 1)' },
+    ['rayo_espera', 'Primer rayo', 's', 60, 'Desde que empieza el combate (se cierra el portal). Petición de Jorge: a los 60 s.'],
+    ['rayo_carga', 'Carga del rayo', 's', 10, 'La esfera de energía crece en la proa; los aliados avisan.'],
+    ['rayo_duracion', 'Duración del rayo', 's', 4, ''],
+    ['rayo_repetir', 'Pausa entre rayos', 's', 45, 'Desde que acaba uno hasta que empieza a cargar el siguiente.'],
+    ['rayo_dano', 'Daño si te cruzas', 'puntos/s', 30, 'Nunca apunta al jugador: dispara a los aliados (que no reciben daño).'],
+    ['rayo_radio', 'Radio de daño', 'm', 30, ''],
+    ['rayo_ancho', 'Ancho del rayo', 'm', 70, 'Aspecto: el halo; el núcleo blanco es un 40 % y el aura, el doble.'],
+    ['rayo_alcance', 'Alcance', 'm', 12000, ''],
+    ['rayo_giro', 'Giro siguiendo al blanco', '°/s', 2, 'Lo que tarda en seguir al aliado: le da tiempo a apartarse (el rayo pasa rozándole).']
   ],
   sierpe: [
     { sec: 'Vida y tamaño' },
@@ -236,7 +246,13 @@ const STATS_SCHEMA = {
     ['proteger_prob', 'Probabilidad de protegerte', '%', 60, 'Al cambiar de blanco, elige a uno de esos dragones con esta probabilidad.'],
     ['proteger_urgente', 'Distancia de protección urgente', 'm', 600, 'Un dragón que va a por ti a menos de esto: Lance va a por él al momento.'],
     ['blanco_min', 'Tiempo con el mismo blanco (mínimo)', 's', 5, ''],
-    ['blanco_max', 'Tiempo con el mismo blanco (máximo)', 's', 10, '']
+    ['blanco_max', 'Tiempo con el mismo blanco (máximo)', 's', 10, ''],
+    { sec: 'Escolta (v34: los compañeros del Capítulo 1)' },
+    ['escolta_radio', 'Radio de las vueltas a tu alrededor', 'm', 550, 'Casi no atacan: te dan vueltas y te defienden de vez en cuando.'],
+    ['escolta_persecucion', 'Tiempo persiguiendo a un dragón', 's', 5, 'Cuando persiguen a uno que va a por ti.'],
+    ['escolta_pausa', 'Pausa entre persecuciones', 's', 14, 'Cada aliado (con algo de azar).'],
+    ['escolta_dano', 'Su daño', '%', 25, 'Del daño normal del aliado.'],
+    ['escolta_vida_min', 'Vida mínima en que dejan a un enemigo', '%', 40, 'No rematan: los derribos son tuyos.']
   ]
 };
 /* Pestañas del Excel → unidad del juego (las de los dragones, con el id de DRAGONS). */
@@ -408,7 +424,8 @@ function applyStats(vals, src) {
   ALLY_GUN_DMG = L.basico_dano; ALLY_GUN_CD[0] = L.basico_pausa_min; ALLY_GUN_CD[1] = Math.max(L.basico_pausa_min, L.basico_pausa_max); ALLY_GUN_RANGE = L.basico_alcance; ALLY_AIM_ERR = L.basico_error / 100;
   ALLY_FLAME_DPS = L.llamas_dano; ALLY_FLAME_RANGE = L.llamas_alcance; ALLY_VMAX = L.vel_max / 3.6; ALLY_ENGAGE = L.combate_distancia;
   ALLY_PROTECT = L.proteger_dist; ALLY_PROTECT_P = L.proteger_prob / 100; ALLY_URGENT = L.proteger_urgente; ALLY_PICK[0] = L.blanco_min; ALLY_PICK[1] = Math.max(L.blanco_min, L.blanco_max);
-  if (ally.e) ally.e.vmax = ALLY_VMAX;
+  ALLY_ESC = { radius: L.escolta_radio, chase: L.escolta_persecucion, rest: L.escolta_pausa, dmg: L.escolta_dano / 100, hpMin: L.escolta_vida_min / 100 };   // (v34)
+  for (const a of allies) if (a.e) a.e.vmax = ALLY_VMAX;   // (v34: todos los aliados)
   if (typeof applyUnitStats === 'function') applyUnitStats();   // v29: tamaños y vidas de las unidades nuevas (6f; el resto lo leen al usarlo)
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();

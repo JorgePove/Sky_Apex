@@ -197,8 +197,8 @@ function killUnit(u, silent) {
   if (!silent) {
     if (!byAlly) ultGain(ULT_PER_KILL);
     towerState.score += u.score; unitState.kills++; missionKill(u);
-    toast((byAlly ? allyName() + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
-    if (byAlly) allySay('kill');
+    toast((byAlly ? allyName(byAlly) + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
+    if (byAlly) allySay(byAlly, 'kill'); else storyChatter(u.kind === 'batallon' ? 'battalion' : 'unit');   // (v34: reacciones, 19e)
   }
   for (const k of u.kids) killUnit(k, true);
   if (u.onKill) u.onKill(u, silent);
@@ -381,12 +381,13 @@ function broadside(u, dt, P, d, S, px, py, pzs, msg) {
    Megaestructura del cielo (500 m de largo como mínimo, a 1500 m de altura como mínimo) con 6 torretas por costado (cañones y balistas
    alternos) que se destruyen y se fijan una a una; el núcleo (el casco) también se fija y se daña aparte. Las torretas disparan como los
    cañones de los dirigibles (mismos ángulos muertos), cada una por su costado, y giran hacia el jugador. Al caer el núcleo caen todas. */
-function addSuper(x, z, height, heading, tags) {
+function addSuper(x, z, height, heading, tags, g) {
   const S = STATS.superdirigible, ang = heading * Math.PI / 180;
   const u = newUnit('superdirigible', { tags: tags || [], label: 'Superdirigible', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: 'superdirigible',
     markR: 14000, lockRange: 12000, radar: 'super', crashText: 'un superdirigible', upd: updSuper, onKill: superDie });
   u.base = Math.max(groundAt(x, z) + Math.max(height || 0, S.altura_min), WL + S.altura_min);
   u.pos.set(x, u.base, z); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
+  if (g && g.hp) { u.hp = u.hpMax = g.hp; u.hpFixed = true; }   // v34: vida de la receta (Capítulo 1: 500), no la del Excel
   unitResize(u);
   const n = clamp(Math.round(S.torretas), 0, SUPER_MOUNTS.length);
   for (const side of [-1, 1]) for (let i = 0; i < n; i++) {
@@ -409,7 +410,8 @@ function updSuper(u, dt, P, d) {
   const t = gameTime * 0.25 + u.ph;
   if (!u.jets && u.model) superJets(u);
   if (u.jets) superJetsUpdate(u, dt, d);
-  if (u.dead) { superFall(u, dt, d); if (u.upd2) u.upd2(u, dt); return; }             // v31: cae ennegrecido y en llamas, con una estela de humo, y se estrella
+  if (u.dead) { superFall(u, dt, d); if (u.upd2) u.upd2(u, dt); if (u.beam) superBeamUpdate(u, dt, d); return; }   // v31: cae ennegrecido y en llamas, con una estela de humo, y se estrella
+  if (u.move) u.move(u, dt);                                // v34: sale del portal y avanza (6i)
   u.pos.y = u.base + Math.sin(t) * 4;                       // vaivén muy lento
   u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, Math.sin(t * 0.8) * 0.01));
   if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
@@ -442,6 +444,7 @@ function updSuper(u, dt, P, d) {
     emit(fxAdd, _Ub.x, _Ub.y, _Ub.z, 0, 0, 0, 0.15, 6, 16, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 1, 0, 0);
     k.cool = Math.max(0.05, S.torreta_cadencia) * rnd(0.8, 1.2);
   }
+  if (u.beam) superBeamUpdate(u, dt, d);                    // v34: su rayo (6i)
 }
 function superDie(u) {
   toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2);
@@ -586,7 +589,7 @@ function superJets(u) {
   }
 }
 function superJetsUpdate(u, dt, d) {
-  const J = SUPER_JETS, L = u.size, on = !u.dead, c = ARC_COLOR;
+  const J = SUPER_JETS, L = u.size, on = !u.dead && !u.jetsOff, c = ARC_COLOR;   // (v34: apagados mientras sale del portal)
   for (const j of u.jets) {
     j.g.visible = on;
     if (!on) continue;
@@ -603,7 +606,7 @@ function superJetsUpdate(u, dt, d) {
    RUN.units = [{ type, variant, x, z, heading, height, n, formation, gap, tag, … }] (formato en M1). Cada entrada pone n unidades del
    tipo en formación alrededor de (x, z), mirando al rumbo heading (°). Los dragones quietos de la galería (type 'dragon') salen después,
    en unitsStart (spawnEnemies los reinicia todos). */
-const UNIT_GAP = { artilleria: 40, barco: 260, superdirigible: 900, batallon: 90, sierpe: 1500, dragon: 90 };
+const UNIT_GAP = { artilleria: 40, barco: 260, superdirigible: 900, batallon: 90, sierpe: 1500, dragon: 90, dirigible: 500 };
 function formationPts(f, n, gap) {                          // desplazamientos { r (a la derecha), b (hacia atrás) } en m
   const pts = [];
   for (let i = 0; i < n; i++) {
@@ -622,18 +625,37 @@ function planUnits() {
   for (const u of UNITS) removeUnitMesh(u);
   UNITS.length = 0; unitState.kills = 0;
   if (typeof arrowsClear === 'function') arrowsClear();
-  const R = RUN.units || [];
-  R.forEach((g, gi) => {
-    const tags = g.tag ? [].concat(g.tag) : [], V = ['balista', 'catapulta', 'canon'];
-    if (g.type === 'dragon') return;                       // (unitsStart)
-    unitGroupPts(g, (x, z, i) => {
-      if (g.type === 'artilleria') addArtilleria(g.variant && g.variant !== 'mixta' ? g.variant : V[i % 3], x, z, g.heading || 0, tags);
-      else if (g.type === 'barco') addBarco(x, z, g.heading || 0, tags);
-      else if (g.type === 'superdirigible') addSuper(x, z, g.height, g.heading || 0, tags);
-      else if (g.type === 'batallon') addBatallon(x, z, g.heading || 0, tags, g.soldiers ? [].concat(g.soldiers)[i % [].concat(g.soldiers).length] : null, (SEED ^ (gi * 7919 + i * 104729)) >>> 0);
-      else if (g.type === 'sierpe') addSierpe(x, z, g.height, g.heading || 0, tags, g.mode || 'idle');
-      else console.warn('Unidad desconocida en la receta: ' + g.type);
-    });
+  const taken = [];
+  (RUN.units || []).forEach((g, gi) => { if (!g.wave) placeUnitGroup(g, gi, taken); });   // (v34: las de una oleada, cuando la pide un evento)
+}
+/* v34: el punto seco más cercano a (x, z) (en anillos de 40 m hasta 700 m) donde cabe algo de radio r m sin tocar el agua ni lo ya puesto (taken). */
+const _dry = { x: 0, z: 0 };
+function dryNear(x, z, r, taken) {
+  const ok = (px, pz) => { if (heightAt(px, pz) < WL + 1.5) return false; for (const t of taken || []) if (Math.hypot(px - t.x, pz - t.z) < r + t.r + 12) return false; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (heightAt(px + Math.cos(a) * r, pz + Math.sin(a) * r) < WL + 1.5) return false; } return true; };
+  for (let d = 0; d <= 700; d += 40) for (let k = 0, n = d ? Math.ceil(d / 20) : 1; k < n; k++) {
+    const a = k / n * Math.PI * 2, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+    if (ok(px, pz)) { _dry.x = px; _dry.z = pz; return _dry; }
+  }
+  _dry.x = x; _dry.z = z; return _dry;
+}
+/* v34: oleada de unidades (receta: grupos con wave; acción «spawn» de un evento): las pone en su sitio en ese momento. */
+function unitsWave(name) {
+  const taken = [];
+  (RUN.units || []).forEach((g, gi) => { if (g.wave === name) placeUnitGroup(g, gi, taken); });
+}
+function placeUnitGroup(g, gi, taken) {
+  const tags = g.tag ? [].concat(g.tag) : [], V = ['balista', 'catapulta', 'canon'];
+  if (g.type === 'dragon') return;                         // (unitsStart)
+  const rh = () => Array.isArray(g.height) ? lerp(g.height[0], g.height[1], Math.random()) : g.height;
+  unitGroupPts(g, (x, z, i) => {
+    if (g.type === 'batallon' || g.type === 'artilleria') { const r = g.type === 'batallon' ? 55 : 10, p = dryNear(x, z, r, taken); x = p.x; z = p.z; taken.push({ x, z, r }); }   // (v34: nunca en un río o un lago, ni encima de otra)
+    if (g.type === 'artilleria') addArtilleria(g.variant && g.variant !== 'mixta' ? g.variant : V[i % 3], x, z, g.heading || 0, tags);
+    else if (g.type === 'barco') addBarco(x, z, g.heading || 0, tags);
+    else if (g.type === 'superdirigible') addSuper(x, z, g.height, g.heading || 0, tags, g);
+    else if (g.type === 'batallon') addBatallon(x, z, g.heading || 0, tags, g.soldiers ? [].concat(g.soldiers)[i % [].concat(g.soldiers).length] : null, (SEED ^ (gi * 7919 + i * 104729)) >>> 0);
+    else if (g.type === 'sierpe') addSierpe(x, z, g.height, g.heading || 0, tags, g.mode || 'idle');
+    else if (g.type === 'dirigible') addAirship('U' + gi + '.' + i, x, z, rh() != null ? rh() : lerp(AIRSHIP_ALT[0], AIRSHIP_ALT[1], Math.random()), g.heading || 0, tags);   // v34: dirigibles de la receta units (height: m o [mín, máx])
+    else console.warn('Unidad desconocida en la receta: ' + g.type);
   });
 }
 /* Tras spawnEnemies: los dragones enemigos quietos (galería: flotan en el sitio con la animación de hover). */
@@ -648,7 +670,7 @@ function applyUnitStats() {
   for (const u of UNITS) {
     const S = u.kind === 'artilleria' ? STATS.artilleria : u.kind === 'barco' ? STATS.barco_naval : u.kind === 'superdirigible' ? STATS.superdirigible : null;
     let max = S ? S.vida : u.kind === 'torreta' ? STATS.superdirigible.torreta_vida : u.kind === 'sierpe' ? STATS.sierpe.vida : u.kind === 'hechicero' ? STATS.sierpe.hechicero_vida : u.hpMax;
-    if (!u.dead && max !== u.hpMax && u.kind !== 'batallon') { u.hp = u.hp / u.hpMax * max; u.hpMax = max; }
+    if (!u.dead && max !== u.hpMax && u.kind !== 'batallon' && !u.hpFixed) { u.hp = u.hp / u.hpMax * max; u.hpMax = max; }   // (v34: salvo la vida fijada por la receta)
     if (u.kind !== 'batallon' && u.kind !== 'sierpe' && u.kind !== 'hechicero') unitResize(u);
   }
   if (typeof serpentResize === 'function') serpentResize();
@@ -664,4 +686,5 @@ function updateUnits(dt) {
   }
   unitTime.value = gameTime;
   if (typeof updateArrows === 'function') updateArrows(dt);
+  updatePortal(dt);                                          // v34: el portal arcano del Capítulo 1 (6i)
 }

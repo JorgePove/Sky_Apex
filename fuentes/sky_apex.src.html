@@ -17,7 +17,7 @@
      propio juego: herramientas/grabar_tutorial.js + herramientas/servidor_tutorial.mjs (ver sus cabeceras). ?semilla=N fija el mundo. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Graduate&family=Share+Tech+Mono&display=swap">
 <style>
 /* Concepto: cabina de vuelo en primera persona. El mundo ocupa toda la pantalla;
    la interfaz es instrumental (tinta oscura, hueso, brasa) y se dibuja casi toda en canvas. */
@@ -310,6 +310,47 @@ input[type=range]{accent-color:var(--ember);width:160px}
   .picker canvas{width:110px;height:110px}.picker input[type=range],.try{width:110px}.menu-foot{display:none}}
 /* v24: Opciones, de dónde salen las stats (Excel o copia del HTML) */
 .stats-info{font-size:12px;max-width:440px;margin:2px 0 12px}
+/* v34: Modo Historia. Pantalla de capítulo (19e): fondo gris muy oscuro y textos en mayúsculas con una fuente militar (Graduate) que se
+   escriben solos, como en la referencia de Jorge: el título arriba a la izquierda y el briefing abajo. */
+#card{position:fixed;inset:0;z-index:4;background:#1b1b1b;color:#f4f4f2;font-family:'Graduate','Share Tech Mono',ui-monospace,monospace;text-transform:uppercase;pointer-events:none}
+#card[hidden]{display:none}
+#card .card-top{position:absolute;left:7.6%;top:10.5%;right:6%;display:flex;flex-direction:column}
+#card .card-bot{position:absolute;left:7.6%;top:67%;right:6%;display:flex;flex-direction:column;gap:.3em}
+#card .card-line{font-size:clamp(14px,1.95vw,27px);letter-spacing:.05em;line-height:1.22;min-height:1.22em;white-space:pre-wrap}
+#card .card-line.big{font-size:clamp(30px,4.3vw,62px);letter-spacing:.035em;line-height:1.1;min-height:1.1em}
+#card .card-line.space{margin-bottom:.85em}
+#card .card-line.cur::after{content:'_';margin-left:.06em;animation:cardCur 1s steps(1) infinite}
+#card.done .card-line.cur::after{animation-duration:.8s}
+@keyframes cardCur{50%{opacity:0}}
+#card .card-skip,#cine .cine-skip{position:absolute;right:3.2vw;font-family:var(--f-data);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:rgba(241,230,211,.5)}
+#card .card-skip{bottom:4vh}
+#cine .cine-skip{top:50%;transform:translateY(-50%);opacity:0;transition:opacity .6s}
+#cine.skip .cine-skip{opacity:1}
+#card kbd,#cine kbd{font-size:10px;padding:2px 6px;margin-right:6px}
+#fade{position:fixed;inset:0;z-index:4;background:#000;opacity:0;pointer-events:none}
+#fade.on{opacity:1}
+#fade[hidden]{display:none}
+#hint{position:fixed;left:50%;top:116px;transform:translateX(-50%);z-index:8;box-sizing:border-box;max-width:min(660px,92vw);padding:9px 16px;background:var(--glass);border:1px solid rgba(241,230,211,.18);
+  border-left:3px solid var(--ember);font-size:13px;line-height:1.45;letter-spacing:.05em;color:var(--bone);text-align:center;opacity:0;transition:opacity .45s;pointer-events:none}
+#hint.on{opacity:1}
+/* Menú: el botón y la ventana de capítulos */
+.mbtn.story{color:var(--gold);border-color:rgba(255,122,46,.6);background:linear-gradient(180deg,rgba(255,122,46,.18),rgba(255,122,46,.04))}
+#pStory{width:min(700px,calc(100% - 32px))}
+.story-h{font-family:var(--f-display);font-weight:700;font-size:clamp(24px,3vw,34px);margin:0;letter-spacing:.06em}
+.story-list{display:flex;flex-direction:column;gap:10px}
+.chap{display:grid;grid-template-columns:1fr auto;gap:3px 18px;text-align:left;padding:15px 18px;background:rgba(241,230,211,.04);border:1px solid rgba(241,230,211,.18);border-left:3px solid var(--ember);
+  border-radius:2px;color:var(--bone);font-family:var(--f-data);cursor:pointer;transition:border-color .15s,background .15s}
+.chap:hover{background:rgba(255,122,46,.1);border-color:var(--ember)}
+.chap:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.chap>span{grid-column:1}
+.chap-n{font-size:11px;letter-spacing:.28em;text-transform:uppercase;color:var(--ember)}
+.chap-t{font-family:'Graduate',var(--f-display);font-size:clamp(20px,2.5vw,29px);text-transform:uppercase;letter-spacing:.04em;line-height:1.15}
+.chap-p{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--bone-dim)}
+.chap-b{font-size:13px;line-height:1.5;color:var(--bone-dim);margin-top:5px}
+.chap>.chap-go{grid-column:2;grid-row:1/span 4;align-self:center;font-family:var(--f-display);font-weight:700;font-size:14px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold)}
+.chap.locked{opacity:.38;cursor:default;border-left-color:rgba(241,230,211,.3)}
+.opt select{width:100%;background:#1a1418;color:var(--bone);border:1px solid rgba(241,230,211,.25);font:inherit;letter-spacing:.06em;padding:4px}
+@media (prefers-reduced-motion:reduce){#card .card-line.cur::after{animation:none}#hint{transition:none}}
 </style>
 
 <canvas id="gl" tabindex="0"></canvas>
@@ -320,7 +361,10 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <div id="radio" aria-live="polite"><div class="r-icon" id="radioIcon"></div><div class="r-body"><div class="r-name" id="radioName"></div><div class="r-text" id="radioText"></div></div></div>
 <div id="area" role="alert"><div class="a-title">Abandonando el área de la misión</div><div class="a-count" id="areaCount">15</div><div class="a-hint" id="areaEdge"></div></div>
 <aside id="dev" hidden aria-label="Panel de pruebas"></aside>   <!-- v27: modo Dev Test (Tab); lo rellena 19d_dev.js -->
-<div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"></div></div>   <!-- v26: entrada de cine -->
+<div id="cine" aria-hidden="true"><div class="cine-bar top"><div class="cine-title"><div class="c-name" id="cineName"></div><div class="c-sub" id="cineSub"></div></div></div><div class="cine-bar bottom"><div class="cine-skip"><kbd>Intro</kbd> saltar</div></div></div>   <!-- v26: entrada de cine (v34: Intro salta la voz) -->
+<div id="card" hidden><div class="card-top" id="cardTop"></div><div class="card-bot" id="cardBot"></div><div class="card-skip"><kbd>Intro</kbd> saltar</div></div>   <!-- v34: pantalla de capítulo (19e) -->
+<div id="fade" hidden></div>   <!-- v34: fundido a negro al final del capítulo -->
+<div id="hint" role="status"></div>   <!-- v34: consejos de la misión -->
 
 <section class="overlay intro" id="menu">
   <div id="introBlack"></div>
@@ -340,6 +384,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       </div>
       <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
         <div class="kicker">Modo de juego</div>
+        <button class="mbtn story" id="mStory">Modo Historia</button>   <!-- v34: capítulos (19e) -->
         <button class="mbtn" id="mM1">Misión 1: la flota</button>
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
@@ -380,9 +425,16 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <div class="kicker">Objetivo</div>
     <p class="lead">Destruye las 30 torres de la región (el radar las marca todas) y derriba los 20 dragones enemigos.</p>
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
+    <p class="lead"><b>Modo Historia</b>: los capítulos de la campaña, con voces, compañeros de escuadrón y cinemáticas. <kbd>Intro</kbd> salta la pantalla de capítulo y la voz de la entrada; los subtítulos (español o inglés) y el volumen de las voces, en Opciones.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
     <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <p class="lead"><b>Galería de enemigos</b>: campo de pruebas llano con todos los tipos de enemigos quietos, con los mismos trucos y panel; en el panel, además, parar su fuego, la sierpe en vuelo circular, «Restaurar galería» e «Ir a…» cada grupo.</p>
+    <button class="ghost" data-close>← Volver</button>
+  </div>
+  <div class="mpanel" id="pStory" hidden role="dialog" aria-label="Modo Historia">   <!-- v34: capítulos (19e: storyMenu) -->
+    <div class="kicker">Modo Historia</div>
+    <h2 class="story-h">Capítulos</h2>
+    <div class="story-list" id="storyList"></div>
     <button class="ghost" data-close>← Volver</button>
   </div>
   <div class="mpanel" id="pOptions" hidden role="dialog" aria-label="Opciones">
@@ -390,6 +442,8 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <div class="opt"><label for="volMenu">Música del menú</label><input id="volMenu" type="range" min="0" max="100"><span class="vol-val" id="volMenuV"></span></div>
     <div class="opt"><label for="volGame">Música de la partida</label><input id="volGame" type="range" min="0" max="100"><span class="vol-val" id="volGameV"></span></div>
     <div class="opt"><label for="volSfx">Efectos de sonido</label><input id="volSfx" type="range" min="0" max="100"><span class="vol-val" id="volSfxV"></span></div>
+    <div class="opt"><label for="volVoice">Voces</label><input id="volVoice" type="range" min="0" max="100"><span class="vol-val" id="volVoiceV"></span></div>   <!-- v34 -->
+    <div class="opt"><label for="subLang">Subtítulos</label><select id="subLang"><option value="es">Español</option><option value="en">English</option></select><span></span></div>   <!-- v34 -->
     <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
     <div class="kicker">Stats de las unidades</div>
     <p class="lead stats-info" id="statsInfo"></p>
@@ -501,6 +555,9 @@ input[type=range]{accent-color:var(--ember);width:160px}
 <script id="aleteo-mp3" type="application/octet-stream"></script>
 <script id="rugido-mp3" type="application/octet-stream"></script>
 <script id="llamarada-mp3" type="application/octet-stream"></script>
+<!-- v34: voces del Capítulo 1 (../audio): Seraphin y Volger -->
+<script id="voz-seraphin-01" type="application/octet-stream"></script>
+<script id="voz-volger-01" type="application/octet-stream"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -583,12 +640,21 @@ function flatTerrain(x, z, out, full) {
   if (full) { out.forest = 0; out.wet = 0; }
   return h;
 }
+/* v34: relieve por misión (world.relief en la receta; lo fija setBiome, M3): círculos { x, z, r, edge, m } que fuerzan la máscara de
+   cordilleras (m = 1: montañas; m = 0: tierras bajas con ríos, lagos y bosques) dentro de r m, con un borde suave de edge m. Los últimos
+   mandan. NO_ISL: mundo sin islas flotantes (world.islands: false). */
+let RELIEF = [], NO_ISL = false;
+function reliefMask(x, z, m) {
+  for (const R of RELIEF) m = lerp(m, R.m, 1 - smooth(R.r - R.edge, R.r, Math.hypot(x - R.x, z - R.z)));
+  return m;
+}
 function terrain(x, z, out, full) {
   if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;
   // máscara de cordilleras
   let m = smooth(0.38, 0.62, N2(px * 0.00017 + 7.7, pz * 0.00017 - 3.1) * 0.5 + 0.5);
+  if (RELIEF.length) m = reliefMask(x, z, m);
   // tierras bajas ondulantes
   let low = 34 + N3(px * 0.0004, pz * 0.0004) * 20
     + N1(px * 0.0016, pz * 0.0016) * 10 + N2(px * 0.0044, pz * 0.0044) * 4
@@ -1429,7 +1495,7 @@ function fineCell(fx, fz) {
 }
 function islandsInRange(px, pz, range) {
   const out = [];
-  if (FLAT) return out;                                     // v29: el campo de pruebas no tiene islas
+  if (FLAT || NO_ISL) return out;                           // v29: el campo de pruebas no tiene islas (v34: ni las misiones con world.islands: false)
   const f0x = Math.floor((px - range) / ISL_FINE), f1x = Math.floor((px + range) / ISL_FINE);
   const f0z = Math.floor((pz - range) / ISL_FINE), f1z = Math.floor((pz + range) / ISL_FINE);
   for (let fz = f0z; fz <= f1z; fz++) for (let fx = f0x; fx <= f1x; fx++) for (const s of fineCell(fx, fz)) if (Math.hypot(s.x - px, s.z - pz) < range + s.R) out.push(s);
@@ -1968,6 +2034,7 @@ function animateHero(dt, st) {
   } else A.aimT = null;
   // v32: esquiva en 3ª persona: la cámara se queda atrás lo que el dragón se ha desplazado de lado (st.dodgeOff, en el mundo; ya con DODGE_CAM)
   if (st.dodgeOff && c > 0.001) camera.position.sub(_kA.copy(st.dodgeOff).applyQuaternion(_kRi.copy(qd).invert()).multiplyScalar(c));
+  cineCamApply(dt);                                        // v34: planos de cámara de las entradas de cine (19e), mezclados encima
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);
@@ -3114,7 +3181,7 @@ window.addEventListener('wheel', e => { if (state === 'select') show.zoom = clam
    6. PARTÍCULAS, PROYECTILES Y SONIDO PROCEDURAL
    ============================================================ */
 let camShake = 0;
-let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas)
+let byAlly = false;   // v23: el daño que se está aplicando lo hace el aliado (6e): con su propio daño y sin recompensas para el jugador (rayo, escudo, bolas guiadas). v34: el aliado (objeto), o false
 
 /* ---------- Partículas (puntos con shader) ---------- */
 function makeParticles(cap, additive) {
@@ -3312,7 +3379,7 @@ function spawnFireball(from, dir, enemy, vol, kind, ally) {
   halo.scale.setScalar(r1); halo.renderOrder = 7; halo.position.copy(from); scene.add(halo);
   const speed = arc ? AIRSHIP_SHOT_SPEED : aa ? AA_SPEED : emsl ? EMSL_SPEED[0] : enemy ? FIREBALL_SPEED : gun ? GUN_SPEED : MSL_SPEED[0], life = arc ? AIRSHIP_SHOT_LIFE : aa ? AA_LIFE : emsl ? EMSL_LIFE : enemy ? FIREBALL_LIFE : gun ? GUN_LIFE : MSL_LIFE;
   const f = { pos: from.clone(), vel: dir.clone().multiplyScalar(speed), speed, life, core, halo, r0, r1, enemy: !!enemy, kind, dmg: arc ? AIRSHIP_DMG : aa ? AA_DMG : emsl ? EMSL_DMG : enemy ? ENEMY_DMG : gun ? (ally ? ALLY_GUN_DMG : GUN_DMG) : MSL_DMG, target: null, lost: false,
-    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: !!ally };
+    c: enemy ? (aa ? [1, 0.62, 0.22] : arc ? ARC_COLOR : null) : ally ? [ALLY_FIRE.r, ALLY_FIRE.g, ALLY_FIRE.b] : [ATTACK.r, ATTACK.g, ATTACK.b], ally: ally || false };   // (v34: ally = el aliado que dispara)
   fireballs.push(f);
   if (gun) sfx.shot(ally ? vol : undefined); else if (aa) sfx.shot(vol); else if (arc) sfx.arcShot(vol); else if (emsl) sfx.launch(vol); else sfx.fire(vol);
   return f;
@@ -3537,6 +3604,7 @@ function audioSegments(buf) {
 }
 const sfx = (() => {
   let ctx = null, master = null, noiseBuf = null, whiteBuf = null, wind = null, rumble = null, brn = null, muted = false;
+  let voiceOut = null, extLa = 0, laNow = 0;               // v34: salida de las voces; zumbido del rayo del superdirigible (6i) y del jugador
   const smp = {}, segs = [], fireS = { src: null, g: null, roar: -99 };   // v32: sonidos grabados (buffers), trozos del aleteo y la llamarada que suena
   let lastSeg = -1;
   const S = {
@@ -3592,6 +3660,25 @@ const sfx = (() => {
       }
     },
     get samples() { return { loaded: Object.keys(smp), wingSegs: segs.map(o => [+o.s.toFixed(2), +o.len.toFixed(2), +o.pk.toFixed(2), +o.k.toFixed(2)]) }; },   // (para las pruebas)
+    get now() { return ctx ? ctx.currentTime : 0; },
+    /* v34: voces de los mensajes mentales (19e): bytes → buffer; y suena desde from s por su propia salida (volumen «Voces» de Opciones;
+       la M también la silencia). Devuelve la fuente (para pararla en la pausa). */
+    decode(bytes) { return new Promise((res, rej) => ctx.decodeAudioData(bytes, res, rej)); },
+    voice(buf, from) {
+      if (!ctx) return null;
+      if (!voiceOut) { voiceOut = ctx.createGain(); voiceOut.connect(ctx.destination); }
+      voiceOut.gain.value = muted ? 0 : audioVol.voice;
+      const s = ctx.createBufferSource(); s.buffer = buf; s.connect(voiceOut); s.start(ctx.currentTime + 0.02, Math.min(from || 0, buf.duration));
+      return s;
+    },
+    /* v34: zumbido del rayo del superdirigible (el mismo del rayo del jugador; level 0-1, ya con la distancia) */
+    extBeam(level) {
+      if (!ctx) return;
+      extLa = level; const l = Math.max(level, laNow), t = ctx.currentTime;
+      brn.eg.gain.setTargetAtTime(0.2 * l, t, l ? 0.08 : 0.15); brn.trG.gain.setTargetAtTime(0.05 * l, t, 0.08);
+    },
+    /* v34: tecla de la pantalla de capítulo (texto que se escribe solo) */
+    tick() { this.noise(0.035, 'highpass', 3600, 2600, 0.06, 0.8); },
     /* v32: un sonido grabado (buffer) desde from s durante len s, que empieza when (tiempo del contexto), con volumen vol y un fundido corto al final */
     play(buf, when, from, len, vol) {
       const s = ctx.createBufferSource(); s.buffer = buf;
@@ -3626,7 +3713,7 @@ const sfx = (() => {
       }
     },
     toggleMute() { muted = !muted; this.applyVolume(); return muted; },
-    applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; },   // volumen de efectos de «Opciones»
+    applyVolume() { if (master) master.gain.value = muted ? 0 : 0.55 * audioVol.sfx; if (voiceOut) voiceOut.gain.value = muted ? 0 : audioVol.voice; },   // volumen de efectos de «Opciones» (v34: y el de las voces)
     /* v: velocidad / VMAX (0-1; crucero ≈ 0,5; 0 fuera de partida), acc: aceleración suavizada (m/s²) */
     update(speedNorm, throttle, boost, hover, v, acc) {
       if (!ctx) return;
@@ -3720,8 +3807,9 @@ const sfx = (() => {
       const t = ctx.currentTime;
       if (smp.fire) this.fireSample(fl > 0);
       brn.g.gain.setTargetAtTime(smp.fire ? 0 : 0.55 * fl, t, 0.06);
-      brn.eg.gain.setTargetAtTime(0.2 * la, t, la ? 0.08 : 0.15);
-      brn.trG.gain.setTargetAtTime(0.05 * la, t, 0.08);
+      laNow = la; const l = Math.max(la, extLa);           // (v34: con el rayo del superdirigible)
+      brn.eg.gain.setTargetAtTime(0.2 * l, t, l ? 0.08 : 0.15);
+      brn.trG.gain.setTargetAtTime(0.05 * l, t, 0.08);
     }
   };
   return S;
@@ -3952,7 +4040,7 @@ const TRAIL_STEP = 14, TRAIL_MAXP = 96;
 const TRAIL_PX = 3.6;                 // grosor mínimo en pantalla (px), para verla a gran distancia
 
 const enemies = [];
-const enemyState = { kills: 0, spawned: 0, squadN: 0 };   // (v21: squadN = dragones de los escuadrones que han salido)
+const enemyState = { kills: 0, spawned: 0, squadN: 0, engaged: {} };   // (v21: squadN = dragones de los escuadrones que han salido; v34: engaged[id] = el escuadrón ya ataca)
 const dragonsTotal = () => RUN.dragons.total + enemyState.squadN;
 const enemyLock = { e: null };          // blanco fijado con el clic central (v21: dragón, torre o dirigible; ver 6d)
 let enemyLastShot = -9;
@@ -4116,7 +4204,7 @@ function placeEnemy(e, rmin, rmax) {
 }
 function reviveEnemy(e) {
   enemyState.spawned++;
-  e.tags = RUN.dragons.tags; e.squad = null;
+  e.tags = RUN.dragons.tags; e.squad = null; e.unknown = false;
   e.hp = ENEMY_HP; e.dead = false; e.hitFlash = 0; e.fireFlash = 0; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
   if (!(escorting() && placeEscort(e, true))) placeEnemy(e, 3500, 5500);   // (v23: los relevos de la escolta despegan de un dirigible)
 }
@@ -4126,9 +4214,9 @@ function showEnemy(e, on) { if (on !== (e.wrap.parent === e.g)) { if (on) e.g.ad
 function spawnEnemies() {
   const n = Math.min(RUN.dragons.atOnce, RUN.dragons.total);
   while (enemies.length < n) enemies.push(makeEnemy());
-  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyLastShot = -9; enemyLock.e = null;
+  enemyState.kills = 0; enemyState.spawned = n; enemyState.squadN = 0; enemyState.engaged = {}; enemyLastShot = -9; enemyLock.e = null;
   enemies.forEach((e, i) => {
-    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
+    e.off = i >= n; e.statue = false; e.hitFlash = 0; e.fireFlash = 0; e.squad = null; e.tags = RUN.dragons.tags; e.unknown = false;   // (v21: también los escuadrones de la anterior; v29: y las estatuas de la galería)
     if (e.off) { e.dead = true; showEnemy(e, false); e.glow.visible = false; resetTrail(e); return; }
     e.dead = false; e.hp = ENEMY_HP; e.fireCool = rnd(1.5, 3); e.mslCool = rnd(10, EMSL_CD); e.mslLock = 0; placeEnemy(e, 2000, 5000);
   });
@@ -4136,33 +4224,58 @@ function spawnEnemies() {
 }
 /* v21: escuadrón de la receta (mission.squads[id]), desde un evento («squad»). Salen todos a la vez en cuña, en su punto (at: { x, z,
    height | y }) o, sin él, a dist m (2500) del jugador por delante y dentro del área; miran hacia el jugador. attack: false = patrullan
-   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id). */
+   hasta verlo (si no, van a por él). Usan dragones libres (off) o nuevos, no reaparecen y llevan la etiqueta tag (o el id).
+   v34 (Capítulo 1): rel: { bearing, dist } = a dist m del jugador en ese rumbo de brújula (0 = norte, 90 = este); y = altitud (sobre el
+   agua, como la ALTITUD del HUD); gap = separación de la cuña (m); cruise: { speed (km/h), engage (m) } = vuelan en formación hacia el
+   jugador sin disparar (modo 'cruise') hasta que está a menos de engage m, les disparan o un evento dice «engage»: entonces atacan todos;
+   unknown: true = en el HUD, «DESCONOCIDO» mientras vuelan en formación; from: 'super' = despegan de los costados del superdirigible (6i). */
 const _Esq = new THREE.Vector3();
+function squadMember() {
+  let e = enemies.find(x => x.off);
+  if (!e) { e = makeEnemy(); enemies.push(e); }
+  return e;
+}
 function spawnSquad(id) {
   const q = mission.squads && mission.squads[id];
   if (!q) { console.warn('Escuadrón desconocido: ' + id); return; }
   const P = dragon.position, n = q.n || 1, tags = [q.tag || id];
+  enemyState.engaged[id] = !q.cruise;
+  if (q.from === 'super') { if (superLaunch(id, q, tags)) return; }   // (6i; sin superdirigible, salen como los demás)
   let cx, cy, cz;
   if (q.at) { cx = q.at.x; cz = q.at.z; cy = q.at.y != null ? q.at.y : groundAt(cx, cz) + (q.at.height != null ? q.at.height : 400); }
-  else {
+  else if (q.rel) {                                        // v34: en un rumbo de brújula desde el jugador
+    const a = (q.rel.bearing || 0) * Math.PI / 180, d = q.rel.dist || 2500;
+    clampToArea(P.x + Math.sin(a) * d, P.z - Math.cos(a) * d, 600, _Eac); cx = _Eac.x; cz = _Eac.z;
+    cy = q.y != null ? Math.max(q.y, groundAt(cx, cz) + 200) : Math.max(P.y, groundAt(cx, cz) + 300);
+  } else {
     _Eef.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize(); rotY(_Eef, rnd(-0.6, 0.6));
     clampToArea(P.x + _Eef.x * (q.dist || 2500), P.z + _Eef.z * (q.dist || 2500), 600, _Eac); cx = _Eac.x; cz = _Eac.z;
     cy = Math.max(P.y, groundAt(cx, cz) + 300);
   }
   cy = safeY(cx, cy, cz); enemyState.squadN += n;
   _Esq.set(P.x - cx, 0, P.z - cz); if (_Esq.lengthSq() < 1) _Esq.set(0, 0, -1); _Esq.normalize();   // rumbo: hacia el jugador
+  const gl = q.gap || 70, gb = q.gap ? q.gap * 0.85 : 60;
+  let lead = null;
   for (let i = 0; i < n; i++) {
-    let e = enemies.find(x => x.off);
-    if (!e) { e = makeEnemy(); enemies.push(e); }
-    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * 70, back = row * 60;   // cuña: el jefe delante, los demás a los lados y detrás
-    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0;
+    const e = squadMember();
+    const row = Math.ceil(i / 2), lat = (i % 2 ? 1 : -1) * row * gl, back = row * gb;   // cuña: el jefe delante, los demás a los lados y detrás
+    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.unknown = !!q.unknown;
     e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
-    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + rnd(-15, 15), cz + _Esq.x * lat - _Esq.z * back);
+    e.pos.set(cx - _Esq.z * lat - _Esq.x * back, cy + (q.cruise ? 0 : rnd(-15, 15)), cz + _Esq.x * lat - _Esq.z * back);
     e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Esq, UP));
-    e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
-    if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
+    e.speed = q.cruise ? (q.cruise.speed || 400) / 3.6 : 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
+    if (q.cruise) { setEnemyMode(e, 'cruise'); e.alert = 0; e.cr = { lead, r: lat, b: back, y: cy, v: (q.cruise.speed || 400) / 3.6, engage: q.cruise.engage || 2500 }; if (!i) lead = e; }
+    else if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
     resetTrail(e);
   }
+}
+/* v34: el escuadrón deja la formación y ataca (todos a la vez): al acercarse el jugador, al recibir un disparo o por un evento («engage»). */
+function squadEngage(id) {
+  if (!id || enemyState.engaged[id]) return;
+  enemyState.engaged[id] = true;
+  let d = Infinity;
+  for (const o of enemies) if (o.squad === id && !o.dead && !o.off && o.mode === 'cruise') { setEnemyMode(o, 'pass'); o.alert = 0; o.fireCool = rnd(1.2, 2.6); d = Math.min(d, o.pos.distanceTo(dragon.position)); }
+  if (d < Infinity) sfx.roar(clamp(1.1 - d / 2200, 0.2, 1));
 }
 /* v29: dragón quieto (galería de enemigos, receta units con type 'dragon'): flota en el sitio con la animación de hover, mirando al rumbo
    heading (°), sin IA, sin disparar y sin reaparecer; se le puede fijar, dañar y derribar como a cualquiera. */
@@ -4170,7 +4283,7 @@ function spawnStatue(x, y, z, heading, tags) {
   let e = enemies.find(o => o.off);
   if (!e) { e = makeEnemy(); enemies.push(e); }
   if (!e.act.hover) { e.act.hover = e.mixer.clipAction(hero.clips.hover); e.act.hover.play(); e.act.hover.time = Math.random() * hero.hoverDur; }
-  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
+  e.off = false; e.statue = true; e.squad = 'galeria'; e.tags = tags || []; e.unknown = false; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.mslLock = 0;
   const a = heading * Math.PI / 180; _Eef.set(Math.sin(a), 0, -Math.cos(a));
   e.pos.set(x, y, z); e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP)); e.vel.set(0, 0, 0);
   e.speed = 0; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.aimLocal.set(0, 0, -1); setEnemyMode(e, 'patrol'); e.alert = 1e9;
@@ -4305,6 +4418,7 @@ function enemyMissileTry(s, from, dt, can) {
   spawnFireball(from, _Emd, true, clamp(1.3 - d / 2000, 0.25, 1), 'emsl');
   for (let i = 0; i < 18; i++) emit(fxAdd, from.x, from.y, from.z, _Emd.x * rnd(30, 70) + rnd(-8, 8), _Emd.y * rnd(30, 70) + rnd(-8, 8), _Emd.z * rnd(30, 70) + rnd(-8, 8), rnd(0.25, 0.5), 3, 7, 1, rnd(0.45, 0.7), 0.15, 0.9, 1.5, 0);
   s.mslCool = EMSL_CD; s.mslLock = 0; threat.lastLaunch = gameTime;
+  storyChatter('missile');                                 // v34: «¡bola guiada a tus seis!» (19e)
   return true;
 }
 function thinkEnemy(e, dt, playing) {
@@ -4315,7 +4429,7 @@ function thinkEnemy(e, dt, playing) {
   const dotF = _Eef.dot(_Etn);
   e.t += dt; e.fireCool -= dt; e.alert -= dt; e.ramT -= dt;
   const want = _Ewant; let tSpeed = 62;
-  if (e.mode !== 'patrol') {
+  if (e.mode !== 'patrol' && e.mode !== 'cruise') {        // (v34: en formación, aún lejos, no pierden al jugador)
     e.far = dist > ENEMY_LOSE ? e.far + dt : 0;
     if (!playing || e.far > 6) { setEnemyMode(e, 'patrol'); e.alert = 6; e.hasWp = false; e.far = 0; }
   }
@@ -4325,7 +4439,21 @@ function thinkEnemy(e, dt, playing) {
   const chased = playing && dist < ENEMY_EVADE_DIST && dotF < -0.2 && -_Epf.dot(_Etn) > 0.82;
   e.chase = chased ? Math.min(3, e.chase + dt) : Math.max(0, e.chase - dt * 0.5);
   if (chased && e.chase > 0.6 && (e.mode === 'pass' || e.mode === 'extend' || e.mode === 'reposition')) setEnemyMode(e, 'evade');
-  if (e.mode === 'patrol') {
+  if (e.mode === 'cruise') {                               // v34: en formación hacia el jugador, sin disparar (escuadrones con cruise)
+    const c = e.cr, L = c.lead && !c.lead.dead && c.lead.mode === 'cruise' ? c.lead : null;
+    if (!L) {                                              // el jefe (o si cae): hacia el jugador, a su altitud
+      want.set(_Etn.x, 0, _Etn.z); if (want.lengthSq() < 1e-4) want.copy(_Eef); want.normalize(); want.y = clamp((c.y - e.pos.y) / 500, -0.2, 0.2); want.normalize();
+      tSpeed = c.v;
+    } else {                                               // los demás: su sitio en la cuña del jefe, mirando 200 m por delante
+      _Elead.set(0, 0, -1).applyQuaternion(L.q); _Elead.y = 0; if (_Elead.lengthSq() < 1e-4) _Elead.set(0, 0, -1); _Elead.normalize();
+      const rx = -_Elead.z, rz = _Elead.x;
+      _Epf.set(L.pos.x + rx * c.r - _Elead.x * c.b, L.pos.y, L.pos.z + rz * c.r - _Elead.z * c.b);
+      const along = (_Epf.x - e.pos.x) * _Elead.x + (_Epf.z - e.pos.z) * _Elead.z;
+      want.copy(_Epf).addScaledVector(_Elead, 200).sub(e.pos).normalize();
+      tSpeed = clamp(c.v + along * 0.5, c.v * 0.6, c.v * 1.6);
+    }
+    if (playing && dist < c.engage) squadEngage(e.squad);
+  } else if (e.mode === 'patrol') {
     const esc = escorting();
     if (!e.hasWp || e.pos.distanceTo(e.wp) < 350 || e.t > (esc ? 15 : 70)) { newWaypoint(e); e.hasWp = true; e.t = 0; }
     want.subVectors(e.wp, e.pos).normalize(); tSpeed = 62;
@@ -4377,7 +4505,7 @@ function steerEnemy(e, tSpeed, dt) {
   }
   // separación de otros dragones
   for (const o of enemies) {
-    if (o === e || o.dead) continue;
+    if (o === e || o.dead || (e.mode === 'cruise' && o.squad === e.squad)) continue;   // (v34: en formación, juntos)
     const dx = pos.x - o.pos.x, dy = pos.y - o.pos.y, dz = pos.z - o.pos.z, dd = Math.hypot(dx, dy, dz);
     if (dd < 230 && dd > 1) { const k = (1 - dd / 230) * 1.6 / dd; d.x += dx * k; d.y += dy * k; d.z += dz * k; }
   }
@@ -4442,6 +4570,7 @@ function steerEnemy(e, tSpeed, dt) {
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
   if (e.dead) return;
+  if (byAlly && byAlly.style === 'escort') n = Math.max(0, Math.min(n, e.hp - ENEMY_HP * ALLY_ESC.hpMin));   // v34: los aliados de escolta no rematan (6e)
   e.hp -= n; e.hitFlash = Math.max(e.hitFlash, soft ? 0.65 : 1);   // (v24: n ya es el daño del arma del dragón elegido, o del aliado)
   if (soft) sparks(at.x, at.y, at.z, 2, e.vel.x * 0.5, e.vel.y * 0.5, e.vel.z * 0.5);
   else {
@@ -4455,6 +4584,7 @@ function damageEnemy(e, n, at, soft) {
   }
   if (!(gameTime - e.sndT < (soft ? 0.22 : 0.07))) { e.sndT = gameTime; sfx.hit(); }
   if (e.mode === 'patrol' && state === 'playing') { setEnemyMode(e, 'pass'); e.alert = 0; }
+  if (e.mode === 'cruise') squadEngage(e.squad);           // v34: si les disparan, rompen la formación y atacan
   if (e.hp <= 0) killEnemy(e);
 }
 function killEnemy(e) {
@@ -4467,8 +4597,9 @@ function killEnemy(e) {
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
   const sh = mine ? Math.max(0, Math.min(SHIELD_PER_KILL, SHIELD_MAX - W.shield)) : 0; W.shield += sh;   // derribar dragones recarga el escudo (v24: SHIELD_PER_KILL)
-  toast((mine ? 'Dragón derribado' : allyName() + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
-  if (!mine) allySay('kill');
+  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (!mine) allySay(byAlly, 'kill');
+  else storyChatter('kill');                               // v34: los compañeros reaccionan a tus derribos (19e)
 }
 function clearEnemyFireballs() { for (let i = fireballs.length - 1; i >= 0; i--) if (fireballs[i].enemy) killFireball(i); }
 
@@ -4535,7 +4666,7 @@ function updateEnemies(dt) {
       _Est.hover = 1; animateEnemyModel(e, dt, e.pos.distanceTo(P)); _Est.hover = 0;
       continue;
     }
-    if (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota)
+    if (e.mode !== 'cruise' && (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500)) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota; v34: los que vienen en formación, no)
     const tSpeed = thinkEnemy(e, dt, playing);
     steerEnemy(e, tSpeed, dt);
     e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
@@ -4544,10 +4675,10 @@ function updateEnemies(dt) {
     // choque con el jugador
     if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo'); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
-    if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
+    if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && e.mode !== 'cruise' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate
     _Eiq.copy(e.q).invert();
-    if (e.mode === 'patrol') e.aimLocal.set(0, 0, -1);
+    if (e.mode === 'patrol' || e.mode === 'cruise') e.aimLocal.set(0, 0, -1);
     else e.aimLocal.copy(P).sub(e.pos).applyQuaternion(_Eiq).normalize();
     const vis = animateEnemyModel(e, dt, dist);
     // dañado: humo (y chispas con 1 de vida)
@@ -4758,8 +4889,8 @@ function killAirship(a) {
   if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast((byAlly ? allyName() + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
-  if (byAlly) allySay('kill');
+  toast((byAlly ? allyName(byAlly) + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (byAlly) allySay(byAlly, 'kill'); else storyChatter('ship');   // (v34: reacciones, 19e)
   sfx.energyCharge(airshipVol(a));
 }
 const airshipVol = a => clamp(1.25 - a.pos.distanceTo(dragon.position) / 2200, 0.15, 1);
@@ -4965,20 +5096,25 @@ function cycleTarget() {
 }
 
 /* ============================================================
-   6e. ALIADO: COMPAÑERO DE ESCUADRÓN (v23)
-   Un dragón amigo con IA (receta: ally { id, lines }; su nombre y color, en radio[id]). Es el Tyrant teñido de azul (ALLY_TINT), con el
-   vuelo de los enemigos (steerEnemy) y solo fuego rápido y llamarada: ni bolas guiadas ni rayo. No recibe daño (los enemigos no lo atacan
-   ni sus proyectiles le dan). Dos estados:
-   · formación ('form'): a ALLY_SLOT del jugador (a su lado y algo por detrás), a su velocidad y con margen para alcanzarle (hasta VMAX);
-     si el jugador está en hover, le da vueltas alrededor;
-   · combate ('fight'): en cuanto un dragón enemigo o un dirigible está a menos de ALLY_ENGAGE del jugador (o de él). Ataca blancos al
-     azar entre dragones y dirigibles, pero antes que nada a los dragones que van a por el jugador (protegerle). Tras ALLY_CALM s sin
-     enemigos cerca, vuelve a la formación.
-   Sus derribos cuentan para la misión, pero no dan rayo, escudo ni bolas guiadas al jugador (byAlly). Lo que dice por radio sale de
-   ally.lines de la receta (start, engage, protect, kill, regroup: un texto o una lista, uno al azar), con ALLY_SAY_GAP s entre dos iguales.
+   6e. ALIADOS: COMPAÑEROS DE ESCUADRÓN (v23; v34: varios)
+   Dragones amigos con IA. Receta: ally { id, lines } (v23: uno, Lance, en ALLY_SLOT) o, desde la v34, allies: [{ id, slot: [derecha,
+   delante] (m respecto al jugador; negativo = izquierda / detrás), y (m por encima del jugador), style, lines }]; su nombre y color, en
+   radio[id]. Son el Tyrant teñido de azul (ALLY_TINT), con el vuelo de los enemigos (steerEnemy) y solo fuego rápido y llamarada: ni bolas
+   guiadas ni rayo. No reciben daño (los enemigos no los atacan ni sus proyectiles les dan). Estados:
+   · formación ('form'): en su puesto respecto al jugador, a su velocidad y con margen para alcanzarle (hasta VMAX); si el jugador está en
+     hover, le dan vueltas alrededor;
+   · combate ('fight'): en cuanto un dragón enemigo o un dirigible está a menos de ALLY_ENGAGE del jugador (o de él). Tras ALLY_CALM s sin
+     enemigos cerca, vuelve a la formación. Cómo combate depende de style:
+       'fight' (v23, Lance en la Misión 1): ataca blancos al azar entre dragones y dirigibles, pero antes que nada a los dragones que van a
+         por el jugador (protegerle);
+       'escort' (v34, Capítulo 1): casi no ataca. Da vueltas alrededor del jugador (ALLY_ESC.radius) y de vez en cuando persigue unos
+         segundos a un dragón que va a por él; hace ALLY_ESC.dmg de su daño y nunca deja a un enemigo por debajo de ALLY_ESC.hpMin de su
+         vida: los derribos son del jugador (petición de Jorge: la primera misión es para que se haga con los controles y se sienta fuerte).
+   Sus derribos cuentan para la misión, pero no dan rayo, escudo ni bolas guiadas al jugador (byAlly = el aliado que hace el daño). Lo que
+   dicen por radio sale de lines (start, engage, protect, kill, regroup: un texto o una lista, uno al azar), con ALLY_SAY_GAP s entre dos iguales.
    ============================================================ */
-/* v24: los valores de balance (con let, y ALLY_GUN_DMG, ALLY_FLAME_*, ALLY_VMAX en 7c) salen del Excel, pestaña «Lance (aliado)». */
-const ALLY_SLOT = [200, -70];            // a la derecha del jugador y hacia delante (negativo: detrás), en m
+/* v24: los valores de balance (con let, y ALLY_GUN_DMG, ALLY_FLAME_*, ALLY_VMAX en 7c) salen del Excel, pestaña «Lance (aliado)» (todos los aliados). */
+const ALLY_SLOT = [200, -70];            // (v23) a la derecha del jugador y hacia delante (negativo: detrás), en m
 let ALLY_ENGAGE = 2000;                  // distancia a la que entra en combate (m)
 const ALLY_CALM = 6;                     // s sin enemigos para volver a la formación
 const ALLY_TINT = new THREE.Color(0.55, 0.85, 1.75), ALLY_EYES = 0x5fd0ff;   // piel azul acero y ojos azules
@@ -4987,74 +5123,119 @@ let ALLY_GUN_RANGE = 1000, ALLY_AIM_ERR = 0.01;       // alcance (m) y error de 
 const ALLY_PICK = [5, 10];               // s con el mismo blanco antes de cambiar (salvo para proteger al jugador)
 let ALLY_PROTECT = 1000, ALLY_URGENT = 600, ALLY_PROTECT_P = 0.6;   // dragón en pasada de ataque hacia el jugador: a menos de ALLY_URGENT va
                                          // a por él al momento; a menos de ALLY_PROTECT, al cambiar de blanco lo elige con probabilidad ALLY_PROTECT_P
+/* v34: estilo «escolta» (Excel, «Lance (aliado)», sección Escolta): radio de las vueltas (m), s persiguiendo a un dragón, s de pausa entre
+   persecuciones, fracción de su daño y vida mínima en que deja a un enemigo (fracción de su vida máxima). */
+let ALLY_ESC = { radius: 550, chase: 5, rest: 14, dmg: 0.25, hpMin: 0.4 };
+const ALLY_ESC_W = 0.11;                 // giro de las vueltas alrededor del jugador (rad/s)
 const ALLY_SAY_GAP = 9;
-const ally = { e: null, on: false, mode: 'form', target: null, protect: false, pickT: 0, calmT: 0, gunCool: 0, breakT: 0, breakDir: new THREE.Vector3(), said: {} };
-const _Al = new THREE.Vector3(), _Am = new THREE.Vector3(), _Ad2 = new THREE.Vector3(), _Af2 = new THREE.Vector3(), _Ar2 = new THREE.Vector3();
+const allies = [];                       // v34: los de la misión (los de la anterior que sobren, apagados)
+const _Al = new THREE.Vector3(), _Am = new THREE.Vector3(), _Ad2 = new THREE.Vector3(), _Af2 = new THREE.Vector3(), _Ar2 = new THREE.Vector3(), _Av2 = new THREE.Vector3();
 
-const allyName = () => { const A = mission.ally, c = A && mission.radio && mission.radio[A.id]; return c ? c.name : 'Tu aliado'; };
-function allySay(key) {
-  const A = mission.ally; if (!A || !ally.on || !A.lines || !A.lines[key]) return;
-  if (key in ally.said && gameTime - ally.said[key] < ALLY_SAY_GAP) return;
-  ally.said[key] = gameTime;
-  const L = [].concat(A.lines[key]); radioSay(A.id, L[Math.floor(Math.random() * L.length)]);
+const allyAlive = o => !!o && !o.dead && !o.off;
+/* Nombre del aliado a (por defecto, el que hace el daño ahora: byAlly) para avisos y radio. */
+function allyName(a) {
+  a = a && a !== true ? a : allies[0];
+  const c = a && mission.radio && mission.radio[a.id];
+  return c ? c.name : 'Tu aliado';
 }
-/* Al empezar la misión (missionStart): sin aliado en la receta, fuera; si no, a su sitio en la formación. */
-function allyStart() {
-  if (!mission.ally || !hero.ready) { allyOff(); return; }
-  if (!ally.e) {
-    const e = ally.e = makeEnemy();
-    e.g.scale.setScalar(1);                                // del tamaño del dragón del jugador (los enemigos, +50 %)
-    e.U.uTint.value = ALLY_TINT; e.vmax = ALLY_VMAX; e.kind = 'ally';
-    e.model.traverse(o => { if (o.isSkinnedMesh && !o.material.map && o.material.emissive) o.material.emissive.set(ALLY_EYES); });
-    e.glow.material.color.copy(ALLY_FIRE);
+function allySay(a, key) {
+  if (!a || a === true) a = allies[0];
+  if (!a || !a.on || !a.lines || !a.lines[key]) return;
+  if (key in a.said && gameTime - a.said[key] < ALLY_SAY_GAP) return;
+  if (a.style === 'escort') {                              // v34: los de escolta hablan como las reacciones (19e): sin pisar a nadie y no muy seguido
+    if (!STORY.chatter || !radioQuiet() || gameTime - STORY.chatT < CHATTER_GAP || Math.random() < 0.5) return;
+    STORY.chatT = gameTime;
   }
-  const e = ally.e, P = dragon.position;
+  a.said[key] = gameTime;
+  const L = [].concat(a.lines[key]); radioSay(a.id, L[Math.floor(Math.random() * L.length)]);
+}
+/* Al empezar la misión (missionStart): sin aliados en la receta, fuera; si no, cada uno a su puesto en la formación. */
+function allyStart() {
+  const list = mission.allies || (mission.ally ? [Object.assign({ slot: ALLY_SLOT, style: 'fight' }, mission.ally)] : []);
+  if (!list.length || !hero.ready) { allyOff(); return; }
+  const P = dragon.position;
   _Af2.set(0, 0, -1).applyQuaternion(dragon.quaternion); _Af2.y = 0; if (_Af2.lengthSq() < 1e-4) _Af2.set(0, 0, -1); _Af2.normalize();
-  e.pos.set(P.x - _Af2.z * ALLY_SLOT[0] + _Af2.x * ALLY_SLOT[1], P.y + 10, P.z + _Af2.x * ALLY_SLOT[0] + _Af2.z * ALLY_SLOT[1]);
-  e.q.copy(dragon.quaternion); e.speed = Math.max(64, F.speed); e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
-  e.dead = false; e.hp = ENEMY_HP; e.hitFlash = e.fireFlash = 0; e.aimLocal.set(0, 0, -1);
-  Object.assign(ally, { on: true, mode: 'form', target: null, protect: false, pickT: 0, calmT: 0, gunCool: 1, breakT: 0, said: {} });
-  allySay('start');
+  list.forEach((d, i) => {
+    const a = allies[i] || (allies[i] = { e: null, breakDir: new THREE.Vector3() });
+    if (!a.e) {
+      const e = a.e = makeEnemy();
+      e.g.scale.setScalar(1);                              // del tamaño del dragón del jugador (los enemigos, +50 %)
+      e.U.uTint.value = ALLY_TINT; e.vmax = ALLY_VMAX; e.kind = 'ally';
+      e.model.traverse(o => { if (o.isSkinnedMesh && !o.material.map && o.material.emissive) o.material.emissive.set(ALLY_EYES); });
+      e.glow.material.color.copy(ALLY_FIRE);
+    }
+    const slot = d.slot || ALLY_SLOT, e = a.e;
+    Object.assign(a, { id: d.id, slot, dy: d.y != null ? d.y : 10, style: d.style || 'fight', lines: d.lines || null, on: true, mode: 'form', target: null, protect: false,
+      pickT: 0, calmT: 0, gunCool: 1, breakT: 0, said: {}, chaseT: 0, restT: rnd(3, ALLY_ESC.rest), ph: i / list.length * Math.PI * 2, flee: null });
+    e.pos.set(P.x - _Af2.z * slot[0] + _Af2.x * slot[1], P.y + a.dy, P.z + _Af2.x * slot[0] + _Af2.z * slot[1]);
+    e.q.copy(dragon.quaternion); e.speed = Math.max(64, F.speed); e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
+    e.dead = false; e.hp = ENEMY_HP; e.hitFlash = e.fireFlash = 0; e.aimLocal.set(0, 0, -1);
+  });
+  for (let i = list.length; i < allies.length; i++) allyHide(allies[i]);
+  for (const a of allies) if (a.on) allySay(a, 'start');
 }
-function allyOff() {
-  ally.on = false;
-  if (ally.e) { showEnemy(ally.e, false); ally.e.glow.visible = false; }
+function allyHide(a) {
+  a.on = false;
+  if (a.e) { showEnemy(a.e, false); a.e.glow.visible = false; }
 }
+function allyOff() { for (const a of allies) allyHide(a); }
 
 /* ---------- Cada fotograma (desde updateWorld) ---------- */
 function updateAlly(dt) {
-  if (!ally.on) return;
-  const e = ally.e, P = dragon.position, playing = state === 'playing';
+  if (!allies.some(a => a.on)) return;
   if (!enemies.length) _Efr.setFromProjectionMatrix(_Epm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
-  // ¿hay enemigos cerca?
+  for (const a of allies) if (a.on) updateOneAlly(a, dt);
+}
+function updateOneAlly(a, dt) {
+  const e = a.e, P = dragon.position, playing = state === 'playing';
+  // ¿hay enemigos cerca? (los que aún vuelan en formación sin atacar, v34, no cuentan)
   let near = Infinity;
-  for (const o of enemies) if (!o.dead && !o.off) near = Math.min(near, o.pos.distanceTo(P), o.pos.distanceTo(e.pos));
-  for (const a of airships) if (!a.dead) near = Math.min(near, a.pos.distanceTo(P), a.pos.distanceTo(e.pos));
-  if (ally.mode === 'form' && playing && near < ALLY_ENGAGE) { ally.mode = 'fight'; ally.target = null; ally.calmT = 0; allySay('engage'); }
-  else if (ally.mode === 'fight') {
-    ally.calmT = near > ALLY_ENGAGE + 500 ? ally.calmT + dt : 0;
-    if (ally.calmT > ALLY_CALM || !playing) { ally.mode = 'form'; ally.target = null; if (playing) allySay('regroup'); }
+  for (const o of enemies) if (!o.dead && !o.off && !o.statue && o.mode !== 'cruise') near = Math.min(near, o.pos.distanceTo(P), o.pos.distanceTo(e.pos));
+  for (const s of airships) if (!s.dead) near = Math.min(near, s.pos.distanceTo(P), s.pos.distanceTo(e.pos));
+  if (a.mode === 'form' && playing && near < ALLY_ENGAGE) { a.mode = 'fight'; a.target = null; a.calmT = 0; allySay(a, 'engage'); }
+  else if (a.mode === 'fight') {
+    a.calmT = near > ALLY_ENGAGE + 500 ? a.calmT + dt : 0;
+    if (a.calmT > ALLY_CALM || !playing) { a.mode = 'form'; a.target = null; a.chaseT = 0; if (playing) allySay(a, 'regroup'); }
   }
-  ally.gunCool -= dt; ally.pickT -= dt;
-  const tSpeed = ally.mode === 'fight' && allyPick() ? allyFight(e, dt) : allyFormation(e);
+  a.gunCool -= dt; a.pickT -= dt;
+  let tSpeed;
+  if (a.flee && gameTime > a.flee.until) a.flee = null;
+  if (a.flee) tSpeed = allyFlee(a, e);                     // (v34: el rayo del superdirigible va a por él)
+  else if (a.mode !== 'fight') tSpeed = allyFormation(a, e);
+  else if (a.style === 'escort') tSpeed = allyEscort(a, e, dt);
+  else tSpeed = allyPick(a) ? allyFight(a, e, dt) : allyFormation(a, e);
   steerEnemy(e, tSpeed, dt);
-  // no atravesar dirigibles: si se mete en el casco, sale hacia arriba
-  for (const a of airships) if (!a.dead && airshipPointDist2(a, e.pos) < (a.r + 25) ** 2) { e.pos.y += 40 * dt; if (ally.breakT <= 0) { ally.breakT = 1.5; ally.breakDir.set(0, 0, -1).applyQuaternion(e.q).setY(0.6).normalize(); } }
+  // no atravesar dirigibles ni el superdirigible (v34): si se mete en el casco, sale hacia arriba
+  for (const s of airships) if (!s.dead && airshipPointDist2(s, e.pos) < (s.r + 25) ** 2) { allyUnstick(a, e, dt); break; }
+  if (unitPointHit(e.pos, 1.3)) allyUnstick(a, e, dt);
   // mirada: hacia su blanco en combate; si no, al frente
   _Eiq.copy(e.q).invert();
-  if (ally.mode === 'fight' && ally.target) e.aimLocal.copy(ally.target.pos).sub(e.pos).applyQuaternion(_Eiq).normalize(); else e.aimLocal.set(0, 0, -1);
+  if (a.mode === 'fight' && allyAlive(a.target) && (a.style !== 'escort' || a.chaseT > 0)) e.aimLocal.copy(a.target.pos).sub(e.pos).applyQuaternion(_Eiq).normalize(); else e.aimLocal.set(0, 0, -1);
   e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2);
   animateEnemyModel(e, dt, e.pos.distanceTo(_Ecam.setFromMatrixPosition(camera.matrixWorld)));
 }
-/* Formación: hacia un punto 250 m por delante de su sitio, a la velocidad del jugador más lo que le falte para llegar. */
-function allyFormation(e) {
+/* v34: el superdirigible carga su rayo contra él (6i: a.flee): se aparta flee.d m a un lado de la línea entre la proa y el jugador. */
+function allyFlee(a, e) {
+  const P = dragon.position, f = a.flee;
+  _Ad2.subVectors(P, f.from); _Ad2.y = 0; if (_Ad2.lengthSq() < 1) _Ad2.set(0, 0, 1); _Ad2.normalize();
+  const x = P.x - _Ad2.z * f.side * f.d, z = P.z + _Ad2.x * f.side * f.d;
+  _Al.set(x, Math.max(P.y + 120, groundAt(x, z) + 250), z);
+  _Ewant.subVectors(_Al, e.pos).normalize();
+  return ALLY_VMAX * 0.75;
+}
+function allyUnstick(a, e, dt) {
+  e.pos.y += 40 * dt;
+  if (a.breakT <= 0) { a.breakT = 1.5; a.breakDir.set(0, 0, -1).applyQuaternion(e.q).setY(0.6).normalize(); }
+}
+/* Formación: hacia un punto 250 m por delante de su puesto, a la velocidad del jugador más lo que le falte para llegar. */
+function allyFormation(a, e) {
   const P = dragon.position;
   _Af2.set(0, 0, -1).applyQuaternion(dragon.quaternion); const fy = _Af2.y; _Af2.y = 0; if (_Af2.lengthSq() < 1e-4) _Af2.set(0, 0, -1); _Af2.normalize();
   _Ar2.set(-_Af2.z, 0, _Af2.x);
-  _Al.copy(P).addScaledVector(_Ar2, ALLY_SLOT[0]).addScaledVector(_Af2, ALLY_SLOT[1]); _Al.y += 10;   // su sitio
+  _Al.copy(P).addScaledVector(_Ar2, a.slot[0]).addScaledVector(_Af2, a.slot[1]); _Al.y += a.dy;   // su puesto
   if (F.speed < 45) {                                      // jugador en hover: vueltas a su alrededor
     _Ad2.subVectors(e.pos, P); _Ad2.y = 0; const r = _Ad2.length() || 1; _Ad2.divideScalar(r);
-    _Ewant.set(-_Ad2.z, 0, _Ad2.x).addScaledVector(_Ad2, clamp((400 - r) / 300, -1, 1)); _Ewant.y = clamp((P.y + 40 - e.pos.y) / 300, -0.5, 0.5); _Ewant.normalize();
+    _Ewant.set(-_Ad2.z, 0, _Ad2.x).addScaledVector(_Ad2, clamp((400 - r) / 300, -1, 1)); _Ewant.y = clamp((P.y + 40 + a.dy - e.pos.y) / 300, -0.5, 0.5); _Ewant.normalize();
     return 62;
   }
   _Ad2.subVectors(_Al, e.pos); const gap = _Ad2.length(), along = _Ad2.dot(_Af2);
@@ -5062,52 +5243,82 @@ function allyFormation(e) {
   _Ewant.subVectors(_Am, e.pos).normalize();
   return gap > 1500 ? ALLY_VMAX : clamp(F.speed + along * 0.4, 45, ALLY_VMAX);
 }
-/* Elige blanco. Un dragón en pasada de ataque muy cerca del jugador, al momento (protegerle); si no, sigue con el suyo un rato y, al
-   cambiar, elige con probabilidad ALLY_PROTECT_P al que esté atacando al jugador o, si no, uno al azar entre los dragones y dirigibles cercanos. */
-function allyPick() {
-  const P = dragon.position, t = ally.target, alive = o => !!o && !o.dead && !o.off;
+/* v34, estilo escolta: vueltas alrededor del jugador (cada uno en su ángulo, a su altura) y, cada ALLY_ESC.rest s más o menos, una
+   persecución de ALLY_ESC.chase s a un dragón que va a por él (con poco daño: ver damageEnemy). */
+function allyEscort(a, e, dt) {
+  if (a.chaseT > 0) {
+    a.chaseT -= dt;
+    if (allyAlive(a.target)) return allyFight(a, e, dt);
+    a.chaseT = 0;
+  }
+  a.restT -= dt;
+  if (a.restT <= 0) {
+    const P = dragon.position; let threat = null, best = ALLY_PROTECT * 1.6;
+    for (const o of enemies) if (allyAlive(o) && !o.statue && o.mode !== 'cruise' && o.mode !== 'patrol') {
+      const d = o.pos.distanceTo(P) + (allies.some(b => b !== a && b.chaseT > 0 && b.target === o) ? 900 : 0);   // (mejor uno que no persiga ya otro)
+      if (d < best) { best = d; threat = o; }
+    }
+    a.restT = threat ? ALLY_ESC.rest * rnd(0.8, 1.4) : 2;
+    if (threat) { a.target = threat; a.chaseT = ALLY_ESC.chase; allySay(a, 'protect'); return allyFight(a, e, dt); }
+  }
+  if (a.breakT > 0) { a.breakT -= dt; _Ewant.copy(a.breakDir); return ALLY_VMAX * 0.6; }
+  // el punto de su vuelta: centro algo por delante del jugador, radio ALLY_ESC.radius, a su altura (y por encima del suelo)
+  const P = dragon.position, R = ALLY_ESC.radius, th = a.ph + gameTime * ALLY_ESC_W, c = Math.cos(th), s = Math.sin(th);
+  _Al.set(P.x + c * R, 0, P.z + s * R).addScaledVector(dragonVel, 1.2);
+  _Al.y = Math.max(P.y + 40 + a.dy, groundAt(_Al.x, _Al.z) + 160);
+  _Av2.set(-s * R * ALLY_ESC_W, 0, c * R * ALLY_ESC_W).add(dragonVel);   // velocidad de ese punto
+  _Am.copy(_Al).addScaledVector(_Av2, 1.2);
+  _Ewant.subVectors(_Am, e.pos); const gap = _Ewant.length(); _Ewant.divideScalar(gap || 1);
+  return clamp(_Av2.length() + clamp(gap * 0.35, -60, 160), 50, ALLY_VMAX);
+}
+/* Estilo «fight» (v23): elige blanco. Un dragón en pasada de ataque muy cerca del jugador, al momento (protegerle); si no, sigue con el suyo
+   un rato y, al cambiar, elige con probabilidad ALLY_PROTECT_P al que esté atacando al jugador o, si no, uno al azar entre los dragones y
+   dirigibles cercanos. */
+function allyPick(a) {
+  const P = dragon.position, t = a.target;
   let threat = null, best = ALLY_PROTECT;
-  for (const o of enemies) if (alive(o) && o.mode === 'pass') { const d = o.pos.distanceTo(P); if (d < best) { best = d; threat = o; } }
-  const protect = () => { if (!ally.protect || threat !== t) allySay('protect'); ally.target = threat; ally.protect = true; ally.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]); return true; };
+  for (const o of enemies) if (allyAlive(o) && o.mode === 'pass') { const d = o.pos.distanceTo(P); if (d < best) { best = d; threat = o; } }
+  const protect = () => { if (!a.protect || threat !== t) allySay(a, 'protect'); a.target = threat; a.protect = true; a.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]); return true; };
   if (threat && best < ALLY_URGENT && threat !== t) return protect();
-  if (alive(t) && ally.pickT > 0) return true;
+  if (allyAlive(t) && a.pickT > 0) return true;
   if (threat && Math.random() < ALLY_PROTECT_P) return protect();
-  ally.protect = false;
+  a.protect = false;
   const cand = [];
-  for (const o of enemies) if (!o.dead && !o.off && o.pos.distanceTo(P) < 3500) cand.push(o);
-  for (const a of airships) if (!a.dead && a.pos.distanceTo(P) < 4000) cand.push(a);
-  ally.target = cand.length ? cand[Math.floor(Math.random() * cand.length)] : null;
-  ally.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]);
-  return !!ally.target;
+  for (const o of enemies) if (allyAlive(o) && !o.statue && o.mode !== 'cruise' && o.pos.distanceTo(P) < 3500) cand.push(o);
+  for (const s of airships) if (!s.dead && s.pos.distanceTo(P) < 4000) cand.push(s);
+  a.target = cand.length ? cand[Math.floor(Math.random() * cand.length)] : null;
+  a.pickT = rnd(ALLY_PICK[0], ALLY_PICK[1]);
+  return !!a.target;
 }
 /* Combate: persigue al blanco con adelanto, dispara cuando lo tiene delante, lo quema de cerca y rompe la pasada para no chocar. */
-function allyFight(e, dt) {
-  const t = ally.target, ship = t.kind === 'airship', mouth = enemyMouth(e, _Am);
+function allyFight(a, e, dt) {
+  const t = a.target, ship = t.kind === 'airship', mouth = enemyMouth(e, _Am);
   if (interceptPoint(t, mouth, _Al, GUN_SPEED, GUN_LIFE) < 0) _Al.copy(t.pos);
   _Ad2.subVectors(_Al, mouth); const dist = _Ad2.length(); _Ad2.divideScalar(dist || 1);
   const close = ship ? t.r + 90 : 120;
   let tSpeed;
-  if (ally.breakT > 0) { ally.breakT -= dt; _Ewant.copy(ally.breakDir); tSpeed = ENEMY_VMAX; }
+  if (a.breakT > 0) { a.breakT -= dt; _Ewant.copy(a.breakDir); tSpeed = ENEMY_VMAX; }
   else {
     _Ewant.copy(_Ad2); tSpeed = ship ? lerp(60, ENEMY_VMAX, smooth(300, 1200, dist)) : ENEMY_VMAX * 1.05;
     if (dist < close) {                                    // romper la pasada: de lado y hacia arriba
-      ally.breakT = 2.2; _Af2.set(0, 0, -1).applyQuaternion(e.q); rotY(_Af2, (Math.random() < 0.5 ? -1 : 1) * 0.8); _Af2.y = 0.35;
-      ally.breakDir.copy(_Af2.normalize());
+      a.breakT = 2.2; _Af2.set(0, 0, -1).applyQuaternion(e.q); rotY(_Af2, (Math.random() < 0.5 ? -1 : 1) * 0.8); _Af2.y = 0.35;
+      a.breakDir.copy(_Af2.normalize());
     }
   }
   // armas: fuego rápido con el blanco delante; llamarada de cerca
   _Af2.set(0, 0, -1).applyQuaternion(e.q);
   const dot = _Af2.dot(_Ad2);
-  if (state === 'playing' && ally.gunCool <= 0 && dist < ALLY_GUN_RANGE && dot > ALLY_AIM && losClear(mouth.x, mouth.y, mouth.z, _Al.x, _Al.y, _Al.z)) {
+  if (state === 'playing' && a.gunCool <= 0 && dist < ALLY_GUN_RANGE && dot > ALLY_AIM && losClear(mouth.x, mouth.y, mouth.z, _Al.x, _Al.y, _Al.z)) {
     _Ar2.copy(_Ad2); _Ar2.x += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.y += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.z += rnd(-1, 1) * ALLY_AIM_ERR; _Ar2.normalize();
-    spawnFireball(mouth, _Ar2, false, clamp(1 - e.pos.distanceTo(dragon.position) / 1500, 0.05, 0.5), 'gun', true);
-    e.fireFlash = 1; ally.gunCool = rnd(ALLY_GUN_CD[0], ALLY_GUN_CD[1]);
+    const f = spawnFireball(mouth, _Ar2, false, clamp(1 - e.pos.distanceTo(dragon.position) / 1500, 0.05, 0.5), 'gun', a);
+    if (a.style === 'escort') f.dmg *= ALLY_ESC.dmg;
+    e.fireFlash = 1; a.gunCool = rnd(ALLY_GUN_CD[0], ALLY_GUN_CD[1]) * (a.style === 'escort' ? 2 : 1);
   }
-  if (state === 'playing' && dist < ALLY_FLAME_RANGE + (ship ? t.r : 15) && dot > 0.94) allyFlame(e, mouth, dt);
+  if (state === 'playing' && dist < ALLY_FLAME_RANGE + (ship ? t.r : 15) && dot > 0.94) allyFlame(a, e, mouth, dt);
   return tSpeed;
 }
 /* Llamarada del aliado: un chorro más ligero que el del jugador (menos partículas), en su color, con su daño y su alcance (v24). */
-function allyFlame(e, mouth, dt) {
+function allyFlame(a, e, mouth, dt) {
   _Af2.set(0, 0, -1).applyQuaternion(e.q);
   const c = ALLY_FIRE, n = Math.round(260 * dt + Math.random()), R = ALLY_FLAME_RANGE;
   for (let i = 0; i < n; i++) {
@@ -5115,9 +5326,9 @@ function allyFlame(e, mouth, dt) {
     emit(fxAdd, mouth.x, mouth.y, mouth.z, vx + e.vel.x, vy + e.vel.y, vz + e.vel.z, R / sp * rnd(0.7, 1.05), rnd(1, 1.8), rnd(14, 22), c.r, c.g * rnd(0.85, 1.1), c.b, 0.4, 0, -8);
   }
   e.fireFlash = 1;
-  const amt = ALLY_FLAME_DPS * dt;
+  const amt = ALLY_FLAME_DPS * dt * (a.style === 'escort' ? ALLY_ESC.dmg : 1);
   _Am.copy(mouth); _Al.copy(mouth).addScaledVector(_Af2, R);
-  byAlly = true;
+  byAlly = a;
   for (const o of enemies) {
     if (o.dead || o.off) continue;
     _Ad2.subVectors(o.pos, _Am); const along = _Ad2.dot(_Af2);
@@ -5125,7 +5336,7 @@ function allyFlame(e, mouth, dt) {
     const r = ENEMY_HIT_R + 2 + clamp(along, 0, R) * 0.11;
     if (_Ad2.lengthSq() - along * along < r * r) damageEnemy(o, amt, _Ad2.copy(_Am).addScaledVector(_Af2, clamp(along, 0, R)), true);
   }
-  for (const a of airships) if (!a.dead && airshipSegDist2(a, _Am, _Al) < (a.r + 12) ** 2) damageAirship(a, amt, true, _sdc);
+  for (const s of airships) if (!s.dead && airshipSegDist2(s, _Am, _Al) < (s.r + 12) ** 2) damageAirship(s, amt, true, _sdc);
   byAlly = false;
 }
 
@@ -5327,8 +5538,8 @@ function killUnit(u, silent) {
   if (!silent) {
     if (!byAlly) ultGain(ULT_PER_KILL);
     towerState.score += u.score; unitState.kills++; missionKill(u);
-    toast((byAlly ? allyName() + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
-    if (byAlly) allySay('kill');
+    toast((byAlly ? allyName(byAlly) + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
+    if (byAlly) allySay(byAlly, 'kill'); else storyChatter(u.kind === 'batallon' ? 'battalion' : 'unit');   // (v34: reacciones, 19e)
   }
   for (const k of u.kids) killUnit(k, true);
   if (u.onKill) u.onKill(u, silent);
@@ -5511,12 +5722,13 @@ function broadside(u, dt, P, d, S, px, py, pzs, msg) {
    Megaestructura del cielo (500 m de largo como mínimo, a 1500 m de altura como mínimo) con 6 torretas por costado (cañones y balistas
    alternos) que se destruyen y se fijan una a una; el núcleo (el casco) también se fija y se daña aparte. Las torretas disparan como los
    cañones de los dirigibles (mismos ángulos muertos), cada una por su costado, y giran hacia el jugador. Al caer el núcleo caen todas. */
-function addSuper(x, z, height, heading, tags) {
+function addSuper(x, z, height, heading, tags, g) {
   const S = STATS.superdirigible, ang = heading * Math.PI / 180;
   const u = newUnit('superdirigible', { tags: tags || [], label: 'Superdirigible', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang, modelKey: 'superdirigible',
     markR: 14000, lockRange: 12000, radar: 'super', crashText: 'un superdirigible', upd: updSuper, onKill: superDie });
   u.base = Math.max(groundAt(x, z) + Math.max(height || 0, S.altura_min), WL + S.altura_min);
   u.pos.set(x, u.base, z); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
+  if (g && g.hp) { u.hp = u.hpMax = g.hp; u.hpFixed = true; }   // v34: vida de la receta (Capítulo 1: 500), no la del Excel
   unitResize(u);
   const n = clamp(Math.round(S.torretas), 0, SUPER_MOUNTS.length);
   for (const side of [-1, 1]) for (let i = 0; i < n; i++) {
@@ -5539,7 +5751,8 @@ function updSuper(u, dt, P, d) {
   const t = gameTime * 0.25 + u.ph;
   if (!u.jets && u.model) superJets(u);
   if (u.jets) superJetsUpdate(u, dt, d);
-  if (u.dead) { superFall(u, dt, d); if (u.upd2) u.upd2(u, dt); return; }             // v31: cae ennegrecido y en llamas, con una estela de humo, y se estrella
+  if (u.dead) { superFall(u, dt, d); if (u.upd2) u.upd2(u, dt); if (u.beam) superBeamUpdate(u, dt, d); return; }   // v31: cae ennegrecido y en llamas, con una estela de humo, y se estrella
+  if (u.move) u.move(u, dt);                                // v34: sale del portal y avanza (6i)
   u.pos.y = u.base + Math.sin(t) * 4;                       // vaivén muy lento
   u.q.copy(u.q0).multiply(_Uq.setFromAxisAngle(_Uz, Math.sin(t * 0.8) * 0.01));
   if (u.model) { u.model.position.copy(u.pos); u.model.quaternion.copy(u.q); }
@@ -5572,6 +5785,7 @@ function updSuper(u, dt, P, d) {
     emit(fxAdd, _Ub.x, _Ub.y, _Ub.z, 0, 0, 0, 0.15, 6, 16, ARC_COLOR[0], ARC_COLOR[1], ARC_COLOR[2], 1, 0, 0);
     k.cool = Math.max(0.05, S.torreta_cadencia) * rnd(0.8, 1.2);
   }
+  if (u.beam) superBeamUpdate(u, dt, d);                    // v34: su rayo (6i)
 }
 function superDie(u) {
   toast('¡Superdirigible abatido!  +' + u.score); camShake = Math.max(camShake, 1.2);
@@ -5716,7 +5930,7 @@ function superJets(u) {
   }
 }
 function superJetsUpdate(u, dt, d) {
-  const J = SUPER_JETS, L = u.size, on = !u.dead, c = ARC_COLOR;
+  const J = SUPER_JETS, L = u.size, on = !u.dead && !u.jetsOff, c = ARC_COLOR;   // (v34: apagados mientras sale del portal)
   for (const j of u.jets) {
     j.g.visible = on;
     if (!on) continue;
@@ -5733,7 +5947,7 @@ function superJetsUpdate(u, dt, d) {
    RUN.units = [{ type, variant, x, z, heading, height, n, formation, gap, tag, … }] (formato en M1). Cada entrada pone n unidades del
    tipo en formación alrededor de (x, z), mirando al rumbo heading (°). Los dragones quietos de la galería (type 'dragon') salen después,
    en unitsStart (spawnEnemies los reinicia todos). */
-const UNIT_GAP = { artilleria: 40, barco: 260, superdirigible: 900, batallon: 90, sierpe: 1500, dragon: 90 };
+const UNIT_GAP = { artilleria: 40, barco: 260, superdirigible: 900, batallon: 90, sierpe: 1500, dragon: 90, dirigible: 500 };
 function formationPts(f, n, gap) {                          // desplazamientos { r (a la derecha), b (hacia atrás) } en m
   const pts = [];
   for (let i = 0; i < n; i++) {
@@ -5752,18 +5966,37 @@ function planUnits() {
   for (const u of UNITS) removeUnitMesh(u);
   UNITS.length = 0; unitState.kills = 0;
   if (typeof arrowsClear === 'function') arrowsClear();
-  const R = RUN.units || [];
-  R.forEach((g, gi) => {
-    const tags = g.tag ? [].concat(g.tag) : [], V = ['balista', 'catapulta', 'canon'];
-    if (g.type === 'dragon') return;                       // (unitsStart)
-    unitGroupPts(g, (x, z, i) => {
-      if (g.type === 'artilleria') addArtilleria(g.variant && g.variant !== 'mixta' ? g.variant : V[i % 3], x, z, g.heading || 0, tags);
-      else if (g.type === 'barco') addBarco(x, z, g.heading || 0, tags);
-      else if (g.type === 'superdirigible') addSuper(x, z, g.height, g.heading || 0, tags);
-      else if (g.type === 'batallon') addBatallon(x, z, g.heading || 0, tags, g.soldiers ? [].concat(g.soldiers)[i % [].concat(g.soldiers).length] : null, (SEED ^ (gi * 7919 + i * 104729)) >>> 0);
-      else if (g.type === 'sierpe') addSierpe(x, z, g.height, g.heading || 0, tags, g.mode || 'idle');
-      else console.warn('Unidad desconocida en la receta: ' + g.type);
-    });
+  const taken = [];
+  (RUN.units || []).forEach((g, gi) => { if (!g.wave) placeUnitGroup(g, gi, taken); });   // (v34: las de una oleada, cuando la pide un evento)
+}
+/* v34: el punto seco más cercano a (x, z) (en anillos de 40 m hasta 700 m) donde cabe algo de radio r m sin tocar el agua ni lo ya puesto (taken). */
+const _dry = { x: 0, z: 0 };
+function dryNear(x, z, r, taken) {
+  const ok = (px, pz) => { if (heightAt(px, pz) < WL + 1.5) return false; for (const t of taken || []) if (Math.hypot(px - t.x, pz - t.z) < r + t.r + 12) return false; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; if (heightAt(px + Math.cos(a) * r, pz + Math.sin(a) * r) < WL + 1.5) return false; } return true; };
+  for (let d = 0; d <= 700; d += 40) for (let k = 0, n = d ? Math.ceil(d / 20) : 1; k < n; k++) {
+    const a = k / n * Math.PI * 2, px = x + Math.cos(a) * d, pz = z + Math.sin(a) * d;
+    if (ok(px, pz)) { _dry.x = px; _dry.z = pz; return _dry; }
+  }
+  _dry.x = x; _dry.z = z; return _dry;
+}
+/* v34: oleada de unidades (receta: grupos con wave; acción «spawn» de un evento): las pone en su sitio en ese momento. */
+function unitsWave(name) {
+  const taken = [];
+  (RUN.units || []).forEach((g, gi) => { if (g.wave === name) placeUnitGroup(g, gi, taken); });
+}
+function placeUnitGroup(g, gi, taken) {
+  const tags = g.tag ? [].concat(g.tag) : [], V = ['balista', 'catapulta', 'canon'];
+  if (g.type === 'dragon') return;                         // (unitsStart)
+  const rh = () => Array.isArray(g.height) ? lerp(g.height[0], g.height[1], Math.random()) : g.height;
+  unitGroupPts(g, (x, z, i) => {
+    if (g.type === 'batallon' || g.type === 'artilleria') { const r = g.type === 'batallon' ? 55 : 10, p = dryNear(x, z, r, taken); x = p.x; z = p.z; taken.push({ x, z, r }); }   // (v34: nunca en un río o un lago, ni encima de otra)
+    if (g.type === 'artilleria') addArtilleria(g.variant && g.variant !== 'mixta' ? g.variant : V[i % 3], x, z, g.heading || 0, tags);
+    else if (g.type === 'barco') addBarco(x, z, g.heading || 0, tags);
+    else if (g.type === 'superdirigible') addSuper(x, z, g.height, g.heading || 0, tags, g);
+    else if (g.type === 'batallon') addBatallon(x, z, g.heading || 0, tags, g.soldiers ? [].concat(g.soldiers)[i % [].concat(g.soldiers).length] : null, (SEED ^ (gi * 7919 + i * 104729)) >>> 0);
+    else if (g.type === 'sierpe') addSierpe(x, z, g.height, g.heading || 0, tags, g.mode || 'idle');
+    else if (g.type === 'dirigible') addAirship('U' + gi + '.' + i, x, z, rh() != null ? rh() : lerp(AIRSHIP_ALT[0], AIRSHIP_ALT[1], Math.random()), g.heading || 0, tags);   // v34: dirigibles de la receta units (height: m o [mín, máx])
+    else console.warn('Unidad desconocida en la receta: ' + g.type);
   });
 }
 /* Tras spawnEnemies: los dragones enemigos quietos (galería: flotan en el sitio con la animación de hover). */
@@ -5778,7 +6011,7 @@ function applyUnitStats() {
   for (const u of UNITS) {
     const S = u.kind === 'artilleria' ? STATS.artilleria : u.kind === 'barco' ? STATS.barco_naval : u.kind === 'superdirigible' ? STATS.superdirigible : null;
     let max = S ? S.vida : u.kind === 'torreta' ? STATS.superdirigible.torreta_vida : u.kind === 'sierpe' ? STATS.sierpe.vida : u.kind === 'hechicero' ? STATS.sierpe.hechicero_vida : u.hpMax;
-    if (!u.dead && max !== u.hpMax && u.kind !== 'batallon') { u.hp = u.hp / u.hpMax * max; u.hpMax = max; }
+    if (!u.dead && max !== u.hpMax && u.kind !== 'batallon' && !u.hpFixed) { u.hp = u.hp / u.hpMax * max; u.hpMax = max; }   // (v34: salvo la vida fijada por la receta)
     if (u.kind !== 'batallon' && u.kind !== 'sierpe' && u.kind !== 'hechicero') unitResize(u);
   }
   if (typeof serpentResize === 'function') serpentResize();
@@ -5794,6 +6027,7 @@ function updateUnits(dt) {
   }
   unitTime.value = gameTime;
   if (typeof updateArrows === 'function') updateArrows(dt);
+  updatePortal(dt);                                          // v34: el portal arcano del Capítulo 1 (6i)
 }
 
 /* ============================================================
@@ -6315,6 +6549,271 @@ function updateArrows(dt) {
   }
   arrowGeo.attributes.position.needsUpdate = true; arrowGeo.setDrawRange(0, A.n * 2);
 }
+
+/* ============================================================
+   6i. PORTAL ARCANO Y RAYO DEL SUPERDIRIGIBLE (v34, Capítulo 1)
+   · Portal (acción «portal» de un evento: { dist, bearing, height, r, form, close, hp, tag, beam }): un disco vertical de energía arcana
+     (un plano con un shader: remolino morado oscuro con un anillo brillante y un halo; provisional, como pidió Jorge: «un sprite plano con
+     transparencia por ahora») que se abre en el cielo a dist m del jugador, en el rumbo de brújula bearing y a height m del suelo, de cara
+     a él. Tarda form s en abrirse; luego sale el superdirigible (con la vida hp de la receta) y, cuando ha salido entero, se cierra en
+     close s. Señales para los eventos (M2): 'portal_abierto', 'portal_fuera' (el superdirigible ya ha salido) y 'portal_cerrado'.
+   · Salida del superdirigible: nace al otro lado del plano del portal y avanza hacia el jugador a PORTAL_EMERGE m/s; lo que aún no ha
+     cruzado no se dibuja (un plano de recorte en sus materiales). Luego frena a su velocidad del Excel y sigue avanzando despacio.
+   · superLaunch: los dragones de un escuadrón con from: 'super' despegan de sus costados (la mitad por cada lado).
+   · Rayo (beam: true en el portal; stats en la pestaña «Superdirigible», sección «Rayo»): rayo_espera s después de cerrarse el portal
+     junta energía arcana en la proa (una esfera que crece durante rayo_carga s) y dispara un rayo enorme, como el del jugador pero más
+     grueso e intenso y con su mismo sonido, hacia uno de los aliados al azar. Nunca apunta al jugador (descarta a los aliados cuya línea
+     pasa a menos de BEAM_SAFE m de él y deja de seguir al blanco si se acercaría); si el jugador se mete en él, le quema (rayo_dano/s).
+     Dura rayo_duracion s siguiendo al aliado con retraso (rayo_giro °/s), quema el suelo donde choca y se repite cada rayo_repetir s.
+     Señales: 'rayo_carga', 'rayo_fuego' (dato: el id del aliado al que apunta) y 'rayo_fin'.
+   ============================================================ */
+const PORTAL_EMERGE = 85;                 // m/s del superdirigible mientras sale del portal
+const BEAM_SAFE = 320;                    // m: distancia mínima del jugador a la línea del rayo al elegir blanco
+const BEAM_COL = new THREE.Color(0.78, 0.5, 1);
+const PORTAL = { on: false, phase: '', t: 0, r: 300, form: 7, close: 3, mesh: null, glow: null, pos: new THREE.Vector3(), n: new THREE.Vector3(), plane: new THREE.Plane(), u: null, beam: false, o: null };
+const _Pa = new THREE.Vector3(), _Pb = new THREE.Vector3(), _Pc = new THREE.Vector3(), _Pd = new THREE.Vector3(), _Pq = new THREE.Quaternion(), _Pq2 = new THREE.Quaternion();
+let portalMat = null;
+function portalMaterial() {
+  if (portalMat) return portalMat;
+  portalMat = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { uTime: unitTime, uOpen: { value: 0 }, uAlpha: { value: 1 } },
+    vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform float uTime, uOpen, uAlpha; varying vec2 vUv;
+      void main(){
+        vec2 p = vUv * 2.0 - 1.0; float r = length(p), a = atan(p.y, p.x), R = max(uOpen, 0.001), rr = r / R;
+        if (rr > 1.45) discard;
+        float s1 = 0.5 + 0.5 * sin(a * 5.0 + rr * 13.0 - uTime * 2.4), s2 = 0.5 + 0.5 * sin(a * 9.0 - rr * 23.0 + uTime * 3.6);
+        float rim = exp(-pow((rr - 1.0) * 10.0, 2.0)), inside = 1.0 - smoothstep(0.97, 1.0, rr);
+        vec3 voidC = mix(vec3(0.03, 0.0, 0.07), vec3(0.34, 0.12, 0.58), s1 * (0.25 + 0.75 * rr)) + vec3(0.7, 0.45, 1.0) * s2 * 0.3 * rr * rr;
+        vec3 col = mix(voidC, vec3(0.92, 0.82, 1.0), rim);
+        float halo = (1.0 - smoothstep(1.0, 1.45, rr)) * step(1.0, rr) * (0.55 + 0.25 * s2);
+        col = mix(col, vec3(0.62, 0.36, 1.0), step(1.0, rr) * (1.0 - rim));
+        gl_FragColor = vec4(col, max(max(inside * 0.94, rim), halo) * uAlpha); }`
+  });
+  return portalMat;
+}
+/* Abre el portal (acción «portal»). */
+function portalOpen(o) {
+  portalReset();
+  const P = dragon.position, b = (o.bearing || 0) * Math.PI / 180, d = o.dist || 6000;
+  const x = P.x + Math.sin(b) * d, z = P.z - Math.cos(b) * d;
+  PORTAL.pos.set(x, groundAt(x, z) + (o.height || 1500), z);
+  PORTAL.n.set(P.x - x, 0, P.z - z).normalize();              // de cara al jugador
+  PORTAL.plane.setFromNormalAndCoplanarPoint(PORTAL.n, PORTAL.pos);
+  Object.assign(PORTAL, { on: true, phase: 'opening', t: 0, r: o.r || 300, form: o.form || 7, close: o.close || 3, u: null, beam: !!o.beam, o });
+  const s = PORTAL.r * 1.45;
+  PORTAL.mesh = new THREE.Mesh(new THREE.PlaneGeometry(2 * s, 2 * s), portalMaterial());
+  PORTAL.mesh.position.copy(PORTAL.pos); PORTAL.mesh.lookAt(_Pa.copy(PORTAL.pos).add(PORTAL.n)); PORTAL.mesh.renderOrder = 6; PORTAL.mesh.frustumCulled = false;
+  scene.add(PORTAL.mesh);
+  PORTAL.glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexW, color: 0xa070ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+  PORTAL.glow.position.copy(PORTAL.pos); PORTAL.glow.renderOrder = 7; scene.add(PORTAL.glow);
+  sfx.energyCharge(1); sfx.noise(7, 'lowpass', 260, 50, 0.7, 0.7); sfx.tone('sine', 46, 30, 7, 0.5);
+  missionSignal('portal_abre');
+}
+function portalReset() {
+  if (PORTAL.mesh) { scene.remove(PORTAL.mesh); PORTAL.mesh.geometry.dispose(); PORTAL.mesh = null; }
+  if (PORTAL.glow) { scene.remove(PORTAL.glow); PORTAL.glow.material.dispose(); PORTAL.glow = null; }
+  PORTAL.on = false; PORTAL.phase = ''; PORTAL.u = null;
+  superBeamOff();
+}
+/* Cada fotograma (desde updateUnits). */
+function updatePortal(dt) {
+  if (!PORTAL.on) return;
+  const T = PORTAL, R = T.r, U = portalMaterial().uniforms;
+  T.t += dt;
+  let open = 1;
+  if (T.phase === 'opening') {
+    const k = clamp(T.t / T.form, 0, 1); open = k * k * (3 - 2 * k);
+    if (Math.random() < dt * 9) blastBolt(_Pa.copy(T.pos).addScaledVector(portalEdge(_Pb, Math.random() * 6.283), R * open), R * rnd(0.3, 0.7), 2.5);
+    camShake = Math.max(camShake, 0.25 * k * clamp(1.4 - T.pos.distanceTo(dragon.position) / 9000, 0.2, 1));
+    if (k >= 1) { T.phase = 'open'; T.t = 0; superEmerge(); missionSignal('portal_abierto'); sfx.energyBlast(0.7); }
+  } else if (T.phase === 'open') {
+    const u = T.u;
+    if (u && u.mv && u.mv.out) { T.phase = 'closing'; T.t = 0; missionSignal('portal_fuera'); }
+  } else if (T.phase === 'closing') {
+    const k = clamp(T.t / T.close, 0, 1); open = 1 - k * k;
+    if (k >= 1) { T.phase = 'closed'; missionSignal('portal_cerrado'); sfx.energyBlast(0.5); if (T.u && T.beam) superBeamArm(T.u); scene.remove(T.mesh); scene.remove(T.glow); T.on = false; return; }
+  }
+  U.uOpen.value = open / 1.45; U.uAlpha.value = 1;
+  T.glow.material.opacity = 0.55 * open; T.glow.scale.setScalar(R * 4.2 * (0.6 + 0.4 * open) * (1 + 0.05 * Math.sin(gameTime * 7)));
+  // chispas que giran y entran por el borde
+  if (T.pos.distanceTo(dragon.position) < 14000) for (let i = 0; i < 6; i++) {
+    const a = Math.random() * 6.283; portalEdge(_Pb, a); _Pc.copy(T.pos).addScaledVector(_Pb, R * open * rnd(1.05, 1.4));
+    portalEdge(_Pd, a + 1.57).multiplyScalar(rnd(60, 160)).addScaledVector(_Pb, -rnd(30, 90));
+    emit(fxAdd, _Pc.x, _Pc.y, _Pc.z, _Pd.x, _Pd.y, _Pd.z, rnd(0.8, 1.6), rnd(10, 18), 2, 0.85, 0.65, 1, 0.9, 0.6, 0);
+  }
+}
+/* Dirección del borde del portal en el ángulo a (en su plano: lateral y vertical). */
+function portalEdge(out, a) { return out.set(-PORTAL.n.z * Math.cos(a), Math.sin(a), PORTAL.n.x * Math.cos(a)); }
+
+/* ---------- El superdirigible sale del portal ---------- */
+function superEmerge() {
+  const T = PORTAL, o = T.o, n = T.n, head = Math.atan2(n.x, -n.z) * 180 / Math.PI;
+  const u = addSuper(T.pos.x, T.pos.z, o.height || 1500, head, o.tag ? [].concat(o.tag) : [], { hp: o.hp });
+  const L = u.size;
+  u.base = T.pos.y; u.pos.set(T.pos.x - n.x * (L * 0.5 + 40), T.pos.y, T.pos.z - n.z * (L * 0.5 + 40));
+  u.vel = new THREE.Vector3(); u.jetsOff = true; u.clip = true;
+  u.mv = { dir: n.clone(), v: PORTAL_EMERGE, out: false };
+  u.move = superMove;
+  for (const k of u.kids) superPlace(u, k);
+  unitCaps(u); T.u = u;
+  if (T.beam) u.beam = { state: 'off', t: 0, n: 0, dir: new THREE.Vector3(), target: null, burstT: 0, boomT: 0 };
+  camShake = Math.max(camShake, 0.9); sfx.boom(1);
+}
+function superMove(u, dt) {
+  const m = u.mv, L = u.size, T = PORTAL;
+  const along = _Pa.subVectors(u.pos, T.pos).dot(m.dir);    // lo que ha avanzado el centro respecto al plano del portal
+  if (!m.out) {
+    if (along > L * 0.5 + 30) { m.out = true; superClip(u, false); }
+    if (u.jetsOff && along > L * 0.445 + 15) u.jetsOff = false;   // los chorros de popa, al cruzar
+  } else m.v = Math.max(STATS.superdirigible.velocidad / 3.6, m.v - dt * 25);   // ya fuera: frena hasta su velocidad (Excel)
+  if (u.clip) superClip(u, true);
+  u.pos.x += m.dir.x * m.v * dt; u.pos.z += m.dir.z * m.v * dt;
+  u.vel.copy(m.dir).multiplyScalar(m.v);
+}
+/* Recorte por el plano del portal (lo que aún está al otro lado no se ve). Los materiales se crean al cargar el modelo: se aplica cada vez. */
+function superClip(u, on) {
+  u.clip = on;
+  if (on) renderer.localClippingEnabled = true;
+  const set = mats => { if (mats) for (const m of mats) if (!!(m.clippingPlanes && m.clippingPlanes.length) !== on) { m.clippingPlanes = on ? [PORTAL.plane] : null; m.needsUpdate = true; } };
+  set(u.mats); for (const k of u.kids) set(k.mats);
+}
+/* Los dragones de un escuadrón con from: 'super' despegan de los costados del superdirigible vivo (la mitad por cada lado). */
+function superLaunch(id, q, tags) {
+  const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead);
+  if (!u) return false;
+  const n = q.n || 1, L = u.size;
+  _Pb.set(0, 0, -1).applyQuaternion(u.q); _Pc.set(1, 0, 0).applyQuaternion(u.q);
+  enemyState.squadN += n; enemyState.engaged[id] = true;
+  for (let i = 0; i < n; i++) {
+    const e = squadMember(), side = i % 2 ? 1 : -1, k = (Math.floor(i / 2) / Math.max(1, Math.ceil(n / 2) - 1) - 0.5) * 0.4;
+    e.off = false; e.squad = id; e.tags = tags; e.dead = false; e.hp = ENEMY_HP; e.hitFlash = 0; e.fireFlash = 0; e.unknown = false;
+    e.fireCool = rnd(1.5, 3); e.mslCool = rnd(8, EMSL_CD); e.mslLock = 0;
+    e.pos.copy(u.pos).addScaledVector(_Pc, side * (0.09 * L + 40)).addScaledVector(_Pb, k * L); e.pos.y -= 0.02 * L;
+    _Pd.copy(_Pc).multiplyScalar(side).addScaledVector(_Pb, 0.4).normalize();
+    e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Pd, UP));
+    e.speed = 90; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
+    setEnemyMode(e, 'extend'); e.extDir.copy(_Pd).setY(-0.15).normalize(); e.alert = 0;
+    resetTrail(e);
+  }
+  sfx.roar(1);
+  return true;
+}
+
+/* ---------- Rayo del superdirigible ---------- */
+const SB = { layers: null, balls: null };                  // mallas del rayo (compartidas: dispara uno cada vez)
+function superBeamRes() {
+  if (SB.layers) return SB;
+  // [malla, ancho (fracción de rayo_ancho), fracción en la proa, velocidad de las vetas, mezcla con blanco]
+  SB.layers = [[makeBeam(1, beamTexture(2.2, 0.9, 0.1, 3, 7)), 0.4, 0.6, 1.7, 0.85], [makeBeam(0.85, beamTexture(4.5, 0.65, 0.35, 3, 7)), 1, 0.5, 1, 0.35], [makeBeam(0.45, beamTexture(3, 0.5, 0.5, 2, 5)), 2, 0.45, 0.6, 0]];
+  SB.balls = { core: beamBall(70, 1), halo: beamBall(190, 0.75), tipCore: beamBall(80, 1), tipHalo: beamBall(240, 0.6) };
+  return SB;
+}
+function superBeamOff() {
+  if (!SB.layers) return;
+  for (const L of SB.layers) L[0].visible = false;
+  for (const k in SB.balls) SB.balls[k].visible = false;
+  sfx.extBeam(0);
+}
+function superBeamArm(u) { if (u.beam) { u.beam.state = 'wait'; u.beam.t = 0; u.beam.wait = STATS.superdirigible.rayo_espera; } }
+const _Sbow = new THREE.Vector3(), _Send = new THREE.Vector3(), _Sw = new THREE.Vector3(), _Sf = new THREE.Vector3();
+function superBeamUpdate(u, dt, d) {
+  const B = u.beam, S = STATS.superdirigible, R = superBeamRes(), L = u.size;
+  if (u.dead || state === 'menu') { if (B.state === 'charge' || B.state === 'fire') { superBeamOff(); B.state = 'off'; } return; }
+  if (B.state === 'off' || state !== 'playing') return;
+  B.t += dt;
+  _Sbow.set(0, 0.004 * L, -0.475 * L).applyQuaternion(u.q).add(u.pos);   // la punta de la proa
+  const near = clamp(1.3 - d / 7000, 0.2, 1), pulse = 1 + 0.12 * Math.sin(gameTime * 23) + 0.06 * Math.sin(gameTime * 9);
+  if (B.state === 'wait') {
+    if (B.t < B.wait) return;
+    B.state = 'charge'; B.t = 0; B.n++;
+    superBeamPick(u, B);                                   // el aliado al que apuntará: se aparta del jugador mientras carga
+    missionSignal('rayo_carga', B.n);
+    sfx.energyCharge(near); sfx.tone('sine', 70, 520, Math.max(1, S.rayo_carga), 0.12 * near); sfx.noise(Math.max(1, S.rayo_carga), 'bandpass', 300, 4200, 0.18 * near, 1.4);
+  }
+  if (B.state === 'charge') {
+    const k = clamp(B.t / Math.max(0.5, S.rayo_carga), 0, 1);
+    setBall(R.balls.core, _Sbow, (0.15 + 0.85 * k) * pulse, BEAM_COL, 0.85); setBall(R.balls.halo, _Sbow, (0.15 + 0.85 * k) * pulse, BEAM_COL, 0.15);
+    for (let i = 0; i < 10; i++) {                         // energía que converge hacia la proa
+      _Sw.set(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)).normalize(); const r = rnd(120, 320);
+      emit(fxAdd, _Sbow.x + _Sw.x * r, _Sbow.y + _Sw.y * r, _Sbow.z + _Sw.z * r, -_Sw.x * r * 1.6 + u.vel.x, -_Sw.y * r * 1.6, -_Sw.z * r * 1.6 + u.vel.z, 0.55, rnd(5, 9), 2, 0.85, 0.7, 1, 1, 0, 0);
+    }
+    if (Math.random() < dt * (3 + 10 * k)) blastBolt(_Sbow, 60 + 140 * k, 1 + 2 * k);
+    camShake = Math.max(camShake, 0.18 * k * near);
+    if (k >= 1) superBeamFire(u, B);
+    return;
+  }
+  // disparando: sigue al blanco con retraso (sin acercarse a la línea del jugador)
+  const P = dragon.position, t = B.target;
+  if (t && t.on && t.e) {
+    _Sw.subVectors(t.e.pos, _Sbow).normalize();
+    if (beamLineDist(_Sbow, _Sw, P) > BEAM_SAFE * 0.7) {
+      const ang = B.dir.angleTo(_Sw), max = S.rayo_giro * Math.PI / 180 * dt;
+      if (ang > 1e-5) { _Pq.setFromUnitVectors(B.dir, _Sw); _Pq2.identity().slerp(_Pq, Math.min(1, max / ang)); B.dir.applyQuaternion(_Pq2).normalize(); }
+    }
+  }
+  camera.getWorldPosition(_bC);
+  const tHit = beamRay(_Sbow, B.dir, S.rayo_alcance), blocked = tHit < S.rayo_alcance;
+  const len = Math.min(tHit, B.t * LASER_SHOOT * 2 + 1);   // (sale disparado de la proa)
+  const close = Math.min(1, (S.rayo_duracion - B.t) / 0.5), open = Math.min(1, B.t / 0.2) * Math.max(0, close);
+  _bS.copy(_Sbow); _bD.copy(B.dir); _Send.copy(_Sbow).addScaledVector(B.dir, len);
+  const W = S.rayo_ancho;
+  for (const [m, w, w0, sv, wh] of R.layers) { m.material.color.copy(BEAM_COL).lerp(_white, wh); setBeam(m, len, W * w, w0, open * pulse, (gameTime * 4 * sv) % 1, gameTime); }
+  setBall(R.balls.core, _Sbow, 1.1 * pulse * Math.max(open, 0.3), BEAM_COL, 0.85); setBall(R.balls.halo, _Sbow, 1.1 * pulse * Math.max(open, 0.3), BEAM_COL, 0.15);
+  const hitOn = blocked && len >= tHit - 1;
+  setBall(R.balls.tipCore, _Send, (hitOn ? 1.2 : 0.7) * pulse * open, BEAM_COL, 0.8); setBall(R.balls.tipHalo, _Send, (hitOn ? 1.2 : 0.7) * pulse * open, BEAM_COL, 0.1);
+  if (!hitOn) { R.balls.tipCore.visible = R.balls.tipHalo.visible = open > 0.05; }
+  // donde choca: llamaradas moradas, tierra y humo, quemaduras grandes y estruendo
+  if (hitOn) {
+    B.burstT -= dt;
+    if (B.burstT <= 0) {
+      B.burstT = 0.05;
+      for (let i = 0; i < 10; i++) { const a = Math.random() * 6.283, c = rnd(0, 1), sp = rnd(30, 120); emit(fxAdd, _Send.x, _Send.y + 5, _Send.z, Math.cos(a) * sp * (1 - c), c * sp + 20, Math.sin(a) * sp * (1 - c), rnd(0.5, 1.1), rnd(20, 35), rnd(50, 90), BEAM_COL.r, BEAM_COL.g * rnd(0.8, 1.1), BEAM_COL.b, 0.85, 1.4, -4); }
+      for (let i = 0; i < 4; i++) { const a = Math.random() * 6.283, sp = rnd(20, 70); emit(fxSmoke, _Send.x + rnd(-20, 20), _Send.y + 8, _Send.z + rnd(-20, 20), Math.cos(a) * sp, rnd(20, 50), Math.sin(a) * sp, rnd(2.5, 4.5), rnd(25, 40), rnd(90, 150), 0.2, 0.17, 0.2, 0.6, 0.5, -1); }
+      scorchAt(_Send.x + rnd(-15, 15), _Send.z + rnd(-15, 15), 26);
+    }
+    B.boomT -= dt; if (B.boomT <= 0) { B.boomT = 0.45; sfx.boom(clamp(1.2 - _Send.distanceTo(P) / 6000, 0.2, 0.9)); }
+    camShake = Math.max(camShake, 0.6 * clamp(1 - _Send.distanceTo(P) / 3000, 0, 1));
+  }
+  camShake = Math.max(camShake, 0.25 * near);
+  sfx.extBeam(near * open);
+  // el jugador dentro del rayo: quema (nunca le apunta; esto es si se cruza)
+  if (beamSegDist(_Sbow, _Send, P) < S.rayo_radio) hurtDragon(S.rayo_dano * dt, 'Te alcanzó el rayo del superdirigible', true);
+  if (B.t >= S.rayo_duracion) {
+    B.state = 'wait'; B.t = 0; B.wait = S.rayo_repetir; B.target = null;
+    superBeamOff(); sfx.laserOff(); missionSignal('rayo_fin', B.n);
+  }
+}
+/* Al empezar la carga: un aliado al azar, que se aparta BEAM_FLEE m a un lado de la línea proa-jugador (a.flee, 6e: «¡dispersaos!»). */
+const BEAM_FLEE = 1700;
+function superBeamPick(u, B) {
+  const live = allies.filter(a => a.on && a.e);
+  B.target = live.length ? live[Math.floor(Math.random() * live.length)] : null;
+  if (B.target) B.target.flee = { until: gameTime + STATS.superdirigible.rayo_carga + 1.5, side: Math.random() < 0.5 ? -1 : 1, from: _Sbow.clone(), d: BEAM_FLEE };
+}
+/* Dispara: al aliado elegido si la línea no pasa cerca del jugador y está delante de la proa; si no, a otro que cumpla; si ninguno, hacia
+   delante, abajo y al lado contrario al jugador. */
+function superBeamFire(u, B) {
+  const P = dragon.position, cand = [];
+  _Sf.set(0, 0, -1).applyQuaternion(u.q);
+  const ok = a => { if (!a || !a.on || !a.e) return false; _Sw.subVectors(a.e.pos, _Sbow).normalize(); return _Sw.dot(_Sf) > Math.cos(1.4) && beamLineDist(_Sbow, _Sw, P) > BEAM_SAFE; };
+  if (!ok(B.target)) { for (const a of allies) if (ok(a)) cand.push(a); B.target = cand.length ? cand[Math.floor(Math.random() * cand.length)] : null; }
+  if (B.target) {                                          // empieza un poco por detrás del aliado: le da tiempo a apartarse
+    _Sw.copy(B.target.e.vel).multiplyScalar(-1.2).add(B.target.e.pos).sub(_Sbow);
+    B.dir.copy(_Sw).normalize();
+    const a = B.target; a.flee = null; a.breakT = 3.5; a.chaseT = 0; a.breakDir.subVectors(a.e.pos, _Sbow).cross(UP).normalize().setY(0.45).normalize();   // (esquiva de lado y hacia arriba)
+  } else {                                                 // sin aliado a tiro: hacia delante, abajo y al lado contrario al jugador
+    _Sw.subVectors(P, _Sbow); const side = _Sw.dot(_Pc.set(1, 0, 0).applyQuaternion(u.q)) > 0 ? -1 : 1;
+    B.dir.copy(_Sf).addScaledVector(_Pc, side * 0.45).setY(-0.3).normalize();
+  }
+  B.state = 'fire'; B.t = 0; B.burstT = 0; B.boomT = 0;
+  missionSignal('rayo_fuego', B.target ? B.target.id : '');
+  sfx.laserOn(); camShake = Math.max(camShake, 0.8);
+}
+/* Distancia del punto p a la recta (o, dirección d) por delante de o, y al segmento a→b. */
+function beamLineDist(o, d, p) { _Pa.subVectors(p, o); const t = Math.max(0, _Pa.dot(d)); return _Pa.addScaledVector(d, -t).length(); }
+function beamSegDist(a, b, p) { return Math.sqrt(segPointDist2(a, b, p)); }
 /* ============================================================
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
@@ -6447,13 +6946,13 @@ function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); cl
 const menuEl = document.getElementById('menu'), pauseEl = document.getElementById('pause'), deadEl = document.getElementById('dead');
 function setPaused(p) {
   if (p && state === 'playing') {
-    state = 'paused'; pauseEl.hidden = false; W.lmb = W.rmb = W.shotQ = false; sfx.breath(0, 0); sfx.quiet(); if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
+    state = 'paused'; pauseEl.hidden = false; W.lmb = W.rmb = W.shotQ = false; sfx.breath(0, 0); sfx.quiet(); voicePause(); if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }   // (v34: y la voz que suene)
     document.getElementById('pRetry').textContent = mission.free ? 'Reiniciar partida' : 'Reintentar misión';
   }
 }
 function resumeGame() {
   if (state !== 'paused') return;
-  pauseEl.hidden = true; state = 'playing'; requestLock(); canvasGL.focus();
+  pauseEl.hidden = true; state = 'playing'; requestLock(); canvasGL.focus(); voiceResume();
 }
 pauseEl.addEventListener('click', resumeGame);
 /* v15: botones de la pausa (el clic no llega al fondo, que reanuda) */
@@ -6475,7 +6974,7 @@ function showResult(win, why) {
   state = win ? 'victory' : 'failed'; W.lmb = W.rmb = false; sfx.breath(0, 0); sfx.quiet(); cineEnd(true); devPanel(false);
   deadEl.hidden = pauseEl.hidden = true; toastEl.classList.remove('on');
   if (document.pointerLockElement) { F.lockRequested = false; document.exitPointerLock(); }
-  music.game.stop(2); music.menu.play(2.5);
+  music.stopGame(2); music.menu.play(2.5); storyStop(true);   // (v34: también la de tensión; las voces, fuera; el fundido a negro se queda detrás)
   const pct = (a, b) => b ? Math.round(100 * a / b) + ' %' : '—';
   const rows = [
     ['Tiempo', fmtClock(stats.time)], ['Puntos', towerState.score],
@@ -6520,14 +7019,14 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true); devPanel(false);   // (v27: panel de pruebas)
-  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet();
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset();   // (v34)
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
-  music.game.stop(1.5); music.menu.play(1.5);
+  music.stopGame(1.5); music.menu.play(1.5);
 }
 function restartGame() { vicEl.hidden = pauseEl.hidden = deadEl.hidden = true; state = 'menu'; startGame(); }   // (v15: también desde la pausa)
 /* Salir: un juego en una página no puede cerrar su pestaña (salvo que la abriera un script): se intenta y, si no, despedida en negro. */
 function quitGame() {
-  music.menu.stop(0.8); music.game.stop(0.8); sfx.breath(0, 0);
+  music.menu.stop(0.8); music.stopGame(0.8); sfx.breath(0, 0); storyStop(false);
   vicEl.hidden = true; menuEl.hidden = true; closePanels(); state = 'menu';
   try { window.close(); } catch (err) { }
   setTimeout(() => { byeEl.hidden = false; }, 250);
@@ -6542,7 +7041,7 @@ function startGame() {
   if (worldNeedsGen()) { beginWorldGen(); return; }        // v19: otro mundo → pantalla de carga; al acabar, startGame otra vez
   resetRun(true);
   sfx.init(); menuEl.hidden = true; state = 'playing';
-  music.menu.stop(1.6); music.game.play(2.5);              // la música del menú se funde y entra la de la partida
+  music.menu.stop(1.6); music.tension.stop(1); music.game.play(2.5);   // la música del menú se funde y entra la de la partida (v34: y fuera la de tensión, al reintentar)
   F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
@@ -6558,24 +7057,29 @@ function startGame() {
    control con la mira delante del morro. Duración: «intro» en la receta (s; 0 = sin entrada) o CINE_T. Mientras dura: sin armas, hover,
    escudo, vuelo recto, cámara al objetivo ni daño; Esc pausa, C cambia la cámara y M silencia. La llama missionStart. */
 const CINE_T = 7;
-const cine = { on: false, t: 0, dur: CINE_T, dir: new THREE.Vector3(0, 0, -1) };
+/* v34 (Capítulo 1): dur puede ser Infinity (dura hasta que un evento la acaba: «cine: 'end'») y o trae: title [desde, hasta] (s en que se
+   ve el título), shots (planos de cámara, 19e), to (un punto hacia el que gira el dragón, despacio), y (altitud a la que va) y skip (Intro
+   corta la voz que suena: la entrada acaba con ella). */
+const cine = { on: false, t: 0, dur: CINE_T, dir: new THREE.Vector3(0, 0, -1), title: [0.6, CINE_T - 1], to: null, y: null, skip: false };
 const cineEl = document.getElementById('cine'), cineNameEl = document.getElementById('cineName'), cineSubEl = document.getElementById('cineSub');
-function cineStart(dur, name, sub) {
-  cine.on = true; cine.t = 0; cine.dur = dur;
+function cineStart(dur, name, sub, o) {
+  o = o || {};
+  cine.on = true; cine.t = 0; cine.dur = dur; cine.title = o.title || [0.6, dur - 1]; cine.to = o.to || null; cine.y = o.y != null ? o.y : null; cine.skip = !!o.skip;
   cine.dir.set(0, 0, -1).applyQuaternion(dragon.quaternion); cine.dir.y = 0; if (cine.dir.lengthSq() < 1e-4) cine.dir.set(0, 0, -1); cine.dir.normalize();
   cineNameEl.textContent = name || ''; cineSubEl.textContent = sub || '';
-  cineEl.classList.remove('title'); cineEl.classList.add('show', 'on', 'snap'); hudEl.classList.add('cine', 'snap');   // de golpe: ya están al aparecer
+  cineEl.classList.remove('title'); cineEl.classList.toggle('skip', cine.skip); cineEl.classList.add('show', 'on', 'snap'); hudEl.classList.add('cine', 'snap');   // de golpe: ya están al aparecer
   void cineEl.offsetWidth; cineEl.classList.remove('snap'); hudEl.classList.remove('snap');
+  cineCamStart(o.shots);                                   // (v34: planos de cámara, 19e)
 }
 function cineUpdate(dt) {
   cine.t += dt;
-  cineEl.classList.toggle('title', cine.t > 0.6 && cine.t < cine.dur - 1);
+  cineEl.classList.toggle('title', cine.t > cine.title[0] && cine.t < cine.title[1] && !!cineNameEl.textContent);
   if (cine.t >= cine.dur) cineEnd(false);
 }
 /* Fin: las bandas se retiran y vuelve el HUD (instant: de golpe, al salir de la partida). El control vuelve con la mira delante del morro. */
 function cineEnd(instant) {
   if (cine.on) { F.aimWorld.set(0, 0, -1).applyQuaternion(dragon.quaternion); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; }
-  cine.on = false;
+  cine.on = false; cine.to = null; cine.skip = false; cineEl.classList.remove('skip');
   if (instant) { cineEl.classList.add('snap'); hudEl.classList.add('snap'); }
   cineEl.classList.remove('on', 'title'); hudEl.classList.remove('cine');
   if (instant) { void cineEl.offsetWidth; cineEl.classList.remove('snap', 'show'); hudEl.classList.remove('snap'); }
@@ -6633,6 +7137,7 @@ function hurtDragon(n, why, light) {
   if (cine.on || devCheat('god')) return;                  // v26: la entrada de cine no se interrumpe (v27: ni en Dev Test con «invulnerable»)
   F.lastHit = gameTime; stats.dmgTaken += n;
   const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
+  if (n - a > 0 && F.health > 0) storyChatter(F.health < heroHpMax() * 0.3 ? 'lowhp' : !light ? 'hurt' : '');   // v34: los compañeros reaccionan (19e)
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
   else { vigAlpha = 1; camShake = Math.max(camShake, 0.7); sfx.hurt(); const p = dragon.position; explode(p.x, p.y - 2, p.z, 0.35); }
   if (F.health <= 0) { F.health = 0; crash(why || 'Te derribaron'); }
@@ -7117,14 +7622,18 @@ function updateAim(dt, auto) {
   if (!auto) updateLook(dt);
   if (!auto && cine.on) {
     // v26: entrada de cine: rumbo de salida y nivelado (solo sube si hay terreno o una isla delante); el ratón no mueve la mira
-    const p = dragon.position, hx = cine.dir.x, hz = cine.dir.z;
+    // v34: con cine.to gira despacio hacia ese punto, y con cine.y va hacia esa altitud (también bajando, poco a poco)
+    const p = dragon.position;
+    if (cine.to) { _l.set(cine.to.x - p.x, 0, cine.to.z - p.z); if (_l.lengthSq() > 1) cine.dir.lerp(_l.normalize(), 1 - Math.exp(-dt * 0.9)).normalize(); }
+    const hx = cine.dir.x, hz = cine.dir.z;
     let wantY = Math.max(heightAt(p.x, p.z), WL) + 120;
     for (const d of [200, 500, 900, 1400, 2000]) wantY = Math.max(wantY, heightAt(p.x + hx * d, p.z + hz * d) + 160);
     for (const d of [0, 150, 400, 800, 1300]) {
       const isl = islandColumn(p.x + hx * d, p.z + hz * d, p.y - 60, p.y + 60, 60);
       if (isl) { wantY = Math.max(wantY, isl.yMax + 150); break; }
     }
-    const pit = clamp(Math.atan2(wantY - p.y, 1000), 0, 0.3);   // (mira lejos: sube pronto y poco a poco)
+    if (cine.y != null) wantY = Math.max(wantY, cine.y);
+    const pit = clamp(Math.atan2(wantY - p.y, 1000), cine.y != null ? -0.12 : 0, 0.3);   // (mira lejos: sube pronto y poco a poco)
     F.aimWorld.set(hx * Math.cos(pit), Math.sin(pit), hz * Math.cos(pit)); F.pdx = F.pdy = 0;
   } else if (auto) {
     // piloto automático del menú: rumbo suave y altura segura sobre el terreno
@@ -7152,7 +7661,9 @@ function updateAim(dt, auto) {
     F.aimWorld.copy(_l).applyQuaternion(q);
   } else if (!F.lookHeld && !F.tgtCam && !DEV.open) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
     const t = Math.tan(camera.fov * Math.PI / 360);
-    _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize().applyQuaternion(camera.quaternion).applyQuaternion(q);
+    _l.set(F.ndcX * t * camera.aspect, F.ndcY * t, -1).normalize();
+    if (CC.k < 0.01) _l.applyQuaternion(camera.quaternion);  // (v34: mientras se retira un plano de cine, desde el morro: la cámara mira a otro lado)
+    _l.applyQuaternion(q);
     F.aimWorld.copy(_l);
   }
   _iq.copy(q).invert();
@@ -7496,7 +8007,7 @@ function drawEnemyMarkers() {
   for (const e of enemies) {
     if (e.dead || e.off) continue;
     const d = e.pos.distanceTo(_camP), locked = e === lock, tgt = isTgt(e);
-    if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;
+    if (d > (e.squad ? 15000 : 9000) || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;   // (v34: los escuadrones, desde más lejos)
     const onScreen = onScreenAt(a);
     if (!onScreen && !nearScreen(a)) continue;
     let top = 14, half = 0;
@@ -7505,7 +8016,7 @@ function drawEnemyMarkers() {
     hctx.globalAlpha = locked ? 1 : !tgt ? 0.6 : e.mode === 'patrol' ? 0.82 : 1;
     hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
     hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
+    hudText((e.unknown && e.mode === 'cruise' ? 'DESCONOCIDO  ' : tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');   // (v34: sin identificar)
     if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
   }
   let nearAir = null, nearAirD = Infinity;                  // v23: de lejos (más de 4 km) solo el más cercano lleva texto (una flota no se amontona)
@@ -7587,16 +8098,18 @@ function superBar(u, a, half) {
   hctx.strokeStyle = 'rgba(241,230,211,.55)'; hctx.lineWidth = 1; hctx.strokeRect(bx - w / 2 - 0.5, by - 0.5, w + 1, h + 1);
   hudText('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '   ·   TORRETAS ' + left + ' / ' + u.kids.length, bx, by + h + 14, FM(11), C_BONE, 'center');
 }
-/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). */
+/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. */
 const C_ALLY = '#5ab4ff';
 function drawAllyMarker(a) {
-  if (!ally.on) return;
-  const e = ally.e, d = e.pos.distanceTo(_camP);
-  if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a) || !onScreenAt(a)) return;
-  const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
-  hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
-  hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
-  hudText(allyName().toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
+  for (const al of allies) {
+    if (!al.on) continue;
+    const e = al.e, d = e.pos.distanceTo(_camP);
+    if (d > 9000 || !proj(e.pos.x, e.pos.y, e.pos.z, a) || !onScreenAt(a)) continue;
+    const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
+    hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
+    hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
+    hudText(allyName(al).toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
+  }
 }
 /* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
 const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
@@ -7714,8 +8227,9 @@ function drawRadar(heading, fwd) {
   }
   const L = enemyLock.e;
   if (L && !L.dead) { const q = at(L.pos.x, L.pos.z); hctx.strokeStyle = C_GOLD; hctx.lineWidth = 1.5; hctx.beginPath(); hctx.arc(q.x, q.y, 8.5, 0, 6.283); hctx.stroke(); }
-  if (ally.on) {                                           // v23: el aliado, triángulo azul hueco
-    const e = ally.e, q = at(e.pos.x, e.pos.z); _Eef.set(0, 0, -1).applyQuaternion(e.q);
+  for (const al of allies) {                               // v23: el aliado, triángulo azul hueco (v34: todos)
+    if (!al.on) continue;
+    const e = al.e, q = at(e.pos.x, e.pos.z); _Eef.set(0, 0, -1).applyQuaternion(e.q);
     hctx.save(); hctx.translate(q.x, q.y); hctx.rotate(Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz));
     hctx.strokeStyle = C_ALLY; hctx.lineWidth = 1.8; hctx.beginPath(); hctx.moveTo(0, -6.5); hctx.lineTo(-4.5, 4.5); hctx.lineTo(4.5, 4.5); hctx.closePath(); hctx.stroke();
     hctx.restore();
@@ -7946,7 +8460,7 @@ function drawHUD() {
   let oy = 36;
   if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); hudText('TIEMPO  ' + fmtClock(left), HW - 28, oy, FM(15), left < 30 ? C_DANGER : C_BONE, 'right'); oy += 22; }
   for (const o of MS.objs) {
-    if (!o.shown) continue;
+    if (!o.shown || (o.done && MS.t - o.doneT > 8)) continue;   // (v34: los cumplidos se van a los 8 s: en un capítulo se acumulan)
     hudText((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, HW - 28, oy, FM(15), o.done ? C_GOLD : C_BONE, 'right'); oy += 22;
   }
   if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
@@ -7982,7 +8496,7 @@ function updateWorld(dt) {
   const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
   let headAim = F.aimLocal, aimPt = null;
   if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam, menu: state === 'menu', hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam || CC.k > 0.02, menu: state === 'menu',   // (v34: con un plano de cine, el jinete entero) hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
     effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
@@ -8010,7 +8524,8 @@ function updateWorld(dt) {
     camera.rotation.y += (Math.sin(t * 64 + 0.7) * 0.6 + Math.sin(t * 47 + 2.1) * 0.4) * bsh;
     camera.rotation.z += Math.sin(t * 58 + 0.3) * bsh * 0.6;
   }
-  const fov = lerp(FOV_BASE[0], FOV_BASE[1], clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
+  let fov = lerp(FOV_BASE[0], FOV_BASE[1], clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
+  if (CC.fov && CC.k > 0.001) fov = lerp(fov, CC.fov, CC.k);   // v34: el zoom de un plano de cine (19e)
   if (Math.abs(fov - camera.fov) > 0.05) { camera.fov = fov; camera.updateProjectionMatrix(); }
   updateWind(F.boostFx);
   const sc = renderer.domElement.height / (2 * Math.tan(camera.fov * Math.PI / 360));
@@ -8054,21 +8569,23 @@ const MUSIC_EXT = ['mp3', 'ogg', 'm4a', 'wav', 'aac', 'flac', 'opus', 'webm'], M
 const MUSIC_MENU_LEAD = 0.45;   // v14: silencio al principio de «Dragon's Ascent» (s; medido): la intro empieza la canción ahí. Si se cambia la canción, ajustar
 /* Volúmenes (0-1) de «Opciones»: música del menú, música de la partida (por defecto más baja, que no canse) y efectos. Se guardan en el
    navegador. La M silencia todo (musicMix.muted y sfx). */
-const audioVol = { menu: 0.7, game: 0.28, sfx: 1 };
-const musicMix = { muted: false, tracks: [] };
+const audioVol = { menu: 0.7, game: 0.28, sfx: 1, voice: 1 };   // (v34: voces de los mensajes mentales)
+const musicMix = { muted: false, tracks: [], duck: 1, duckTo: 1 };   // v34: duck = la música baja mientras habla una voz (19e)
 try {
   const a = JSON.parse(localStorage.getItem(AUDIO_KEY) || 'null');
   if (a) { for (const k in audioVol) if (typeof a[k] === 'number') audioVol[k] = clamp(a[k], 0, 1); }
   else { const o = JSON.parse(localStorage.getItem(MUSIC_KEY) || '{}'); if (typeof o.vol === 'number') { audioVol.menu = clamp(o.vol, 0, 1); audioVol.game = audioVol.menu * 0.4; } }
 } catch (err) { }
 function saveAudio() { try { localStorage.setItem(AUDIO_KEY, JSON.stringify(audioVol)); } catch (err) { } }
-/* Una pista: musica/<nombre>.<extensión> junto al HTML (o ../musica/ desde fuentes/), en bucle, con fundidos. */
-function musicTrack(name, key) {
-  const el = new Audio(); el.loop = true; el.preload = 'auto';
-  const dirs = /\/fuentes\//.test(location.pathname) ? ['../musica/', 'musica/'] : ['musica/', '../musica/'];
-  const cands = []; for (const d of dirs) for (const x of MUSIC_EXT) cands.push(d + name + '.' + x);
-  let i = -1, found = false, want = false, fade = 0, fadeTo = 0, fadeSpeed = 10;
-  const apply = () => { el.volume = clamp((musicMix.muted ? 0 : audioVol[key]) * fade, 0, 1); };
+/* Una pista: musica/<nombre>.<extensión> junto al HTML (o ../musica/ desde fuentes/), en bucle, con fundidos. v34: files = archivos a probar
+   antes (rutas desde la carpeta del HTML, p. ej. la música de tensión de audio/); lazy = no se carga hasta que se usa (prime o play). */
+function musicTrack(name, key, files, lazy) {
+  const el = new Audio(); el.loop = true; el.preload = lazy ? 'none' : 'auto';
+  const inF = /\/fuentes\//.test(location.pathname), dirs = inF ? ['../musica/', 'musica/'] : ['musica/', '../musica/'];
+  const cands = []; for (const f of files || []) cands.push(...(inF ? ['../' + f, f] : [f, '../' + f]));
+  for (const d of dirs) for (const x of MUSIC_EXT) cands.push(d + name + '.' + x);
+  let i = -1, found = false, want = false, fade = 0, fadeTo = 0, fadeSpeed = 10, started = !lazy;
+  const apply = () => { el.volume = clamp((musicMix.muted ? 0 : audioVol[key]) * fade * musicMix.duck, 0, 1); };
   const next = () => {                                     // siguiente candidato (carpeta y extensión) hasta dar con el archivo
     if (++i < cands.length) { el.src = cands[i]; el.load(); }
     else console.warn('Sin música: falta musica/' + name + ' (.mp3, .ogg, .wav…) junto al HTML');
@@ -8076,10 +8593,12 @@ function musicTrack(name, key) {
   el.addEventListener('error', () => { if (!found) next(); });
   let startAt = null;                                       // (v14) segundo de la canción por el que empezar (lo pide play)
   el.addEventListener('loadedmetadata', () => { found = true; apply(); if (want) { if (startAt != null) { el.currentTime = Math.min(startAt, el.duration || 0); startAt = null; } el.play().catch(() => { }); } });
-  next(); apply();
+  if (started) next(); apply();
   const T = {
     el, apply, get found() { return found; },
+    prime() { if (!started) { started = true; el.preload = 'auto'; next(); } },   // (v34: empezar a cargarla)
     play(fadeIn, from) {                                   // sin fundido (o muy corto): a su volumen al momento. from: empezar en ese segundo
+      T.prime();
       if (from != null) { if (found) el.currentTime = from; else startAt = from; }
       want = true; fadeTo = 1; fadeSpeed = 1 / Math.max(fadeIn || 0, 0.02); if (!(fadeIn > 0.3)) fade = 1; apply();
       if (found && el.paused) el.play().catch(() => { });
@@ -8095,12 +8614,18 @@ function musicTrack(name, key) {
 const music = {
   menu: musicTrack('musica_menu', 'menu'),                 // menú, «Elige tu dragón» y victoria
   game: musicTrack('musica_game', 'game'),                 // partida
+  tension: musicTrack('musica_tension', 'game', ['audio/apex tension music.mpeg'], true),   // v34: Capítulo 1, desde que aparece el superdirigible (volumen: el de la partida)
   get muted() { return musicMix.muted; },
   setMuted(m) { musicMix.muted = !!m; musicMix.tracks.forEach(t => t.apply()); },
-  update(dt) { musicMix.tracks.forEach(t => t.update(dt)); }
+  duck(k) { musicMix.duckTo = k; },                        // v34: bajar la música mientras habla una voz (1 = normal)
+  stopGame(fade) { music.game.stop(fade); music.tension.stop(fade); },   // v34: fuera la música de la partida (la normal y la de tensión)
+  update(dt) {
+    if (musicMix.duck !== musicMix.duckTo) { const s = dt * 1.6; musicMix.duck = musicMix.duck < musicMix.duckTo ? Math.min(musicMix.duckTo, musicMix.duck + s) : Math.max(musicMix.duckTo, musicMix.duck - s); musicMix.tracks.forEach(t => t.apply()); }
+    musicMix.tracks.forEach(t => t.update(dt));
+  }
 };
 /* ---------- Menú principal: botones y paneles ---------- */
-const optEls = { menu: ['volMenu', 'volMenuV'], game: ['volGame', 'volGameV'], sfx: ['volSfx', 'volSfxV'] };
+const optEls = { menu: ['volMenu', 'volMenuV'], game: ['volGame', 'volGameV'], sfx: ['volSfx', 'volSfxV'], voice: ['volVoice', 'volVoiceV'] };   // (v34: voces)
 function syncAudioUI() {
   for (const k in optEls) { const v = Math.round(audioVol[k] * 100); document.getElementById(optEls[k][0]).value = v; document.getElementById(optEls[k][1]).textContent = String(v); }
 }
@@ -8559,6 +9084,9 @@ function updateIntro(now) {
          · dragons: n (refuerzos: n dragones más en el total) · squad: id (o [ids]) de squads · win: segundos de espera · fail: motivo
    Las misiones de la campaña las define Jorge (premisa, escenario, encuentros). «mision1» es la suya (Fase 1, v23); las otras tres son
    solo para probar el motor.
+   v34: el Modo Historia. Cada capítulo va en su propio módulo (18b_capitulo1.js: Capítulo 01, Trial by Fire), con los campos nuevos
+   (chapter, card, voices, intro con planos, world.relief, allies, squads en formación, oleadas de unidades, chatter y las condiciones y
+   acciones nuevas de los eventos) explicados en su cabecera.
    ============================================================ */
 const MISSIONS = {
   /* v23: Misión 1 (diseño de Jorge): una flota de 10 dirigibles huye hacia el borde del mapa; hay que destruirla antes de que salga (si
@@ -8748,6 +9276,240 @@ const MISSIONS = {
 };
 
 /* ============================================================
+   M1b. MODO HISTORIA · CAPÍTULO 01: TRIAL BY FIRE (v34)
+   Diseño de Jorge (31-oct): el jugador (Percival, Paladin 3), su maestra (Seraphin, Paladin 1) y tres jinetes más (Lance, Paladin 2;
+   Minotaur, Paladin 4; Jester, Paladin 5) patrullan sobre la cordillera de Skyreach y salen a ver qué hace una escuadra de dragones sin
+   identificar en su espacio aéreo. Fases: la patrulla de 5 (a 9 km al norte) → dos escuadrones de 6 (este y oeste, a 8 km) → un ejército
+   en las llanuras del norte (4 batallones de 1000 soldados, 10 piezas de artillería y 6 dirigibles de escolta a 400-600 m) → un portal
+   arcano a 6 km y 1500 m de altura del que sale el superdirigible (500 de vida) con 6 dragones, y a los 60 s su rayo contra los aliados.
+   Guion (voces y radio) escrito por Claude al estilo de Ace Combat salvo las dos primeras líneas (las grabadas de Jorge). Los textos van
+   en inglés (para grabar las voces) y en castellano (los subtítulos salen en el idioma de Opciones). Oracle es el Mando.
+   Campos nuevos de la v34 (formato completo en M1):
+   · chapter: { n, title, squad, brief } = sale en «Modo Historia»; card = pantalla de capítulo (19e); voices = voces que usa (VOICES).
+   · intro: { title, shots } = entrada de cine hasta que la acaba un evento, con planos de cámara (19e).
+   · world.relief / world.islands: cordillera alrededor del inicio, llanura al norte y sin islas (M3).
+   · allies (6e), squads con rel, y, gap, cruise, unknown y from: 'super' (6b), units con wave (6f), chatter (reacciones, 19e).
+   · Eventos: when.card, quiet, engaged, calm, close, signal (+ n, nMin; each: true = cada vez que llega), near, unitHp;
+     do: say + voice, sayFor, hush, spawn, engage, portal, cine, music, fade, chatter, hint.
+   ============================================================ */
+const SAY = (who, en, es, voice) => voice ? { say: [who, { en, es }], voice } : { say: [who, { en, es }] };   // (atajo para escribir el guion)
+MISSIONS.capitulo1 = {
+  name: 'Capítulo 01: Trial by Fire', place: 'Cordillera de Skyreach', callsign: 'Percival',
+  chapter: { n: 1, title: 'Trial by Fire', squad: 'Escuadrón Paladin', brief: 'Una escuadra de dragones sin identificar ha entrado en vuestro espacio aéreo sobre la cordillera de Skyreach. El Escuadrón Paladin sale a interceptarla.' },
+  world: {
+    seed: 3401, biome: 'valle', islands: false,
+    relief: [{ x: 0, z: -3000, r: 15000, edge: 3500, m: 1 },          // la cordillera de Skyreach, alrededor del inicio
+             { x: 0, z: -21500, r: 7500, edge: 3200, m: 0 }]          // las llanuras del norte: colinas, bosques, ríos y lagos (el ejército)
+  },
+  start: { x: 0, z: 0, heading: 0, y: 1000 },             // hacia el norte, a 1000 m de altitud
+  area: { x: 0, z: -11000, r: 26000 },
+  death: 'fail', timeLimit: null, autoWin: false,
+  towers: { total: 0 }, dragons: { total: 0, atOnce: 0 },
+  voices: ['seraphin_01', 'volger_01'],
+  card: { speed: 22, gap: 0.45, hold: 3, fade: 1.6, lines: [
+    { text: 'Chapter 01:', big: true }, { text: 'Trial By Fire', big: true }, { pause: 2 },
+    { text: '-Paladin Squadron-', space: true }, { text: 'Mission Briefing:' }, { text: 'Unknown threat interception above the Skyreach Mountains' }] },
+  // Entrada de cine durante el mensaje de Seraphin (32,9 s): tres planos (posiciones respecto a Percival: x derecha, y arriba, z atrás; fov: zoom)
+  intro: { title: [0, 0], shots: [
+    { dur: 11, from: [24, 7, 62], to: [16, 5, 48], look: [-60, 6, -60], fov: 48 },           // detrás de Percival: él delante a la derecha, Seraphin por delante
+    { dur: 12, from: [-70, 75, 330], to: [25, 52, 255], look: [0, 0, -160], fov: 58 },        // detrás y por encima: los cinco, rumbo norte, sobre la cordillera
+    { dur: 10, from: [27, 6, -24], to: [18, 5, -9], look: [0, 1.5, 0], fov: 55 }] },          // de cerca: Percival y Volger
+  allies: [
+    { id: 'seraphin', slot: [-130, 120], y: 15, style: 'escort', lines: { protect: [{ en: "I've got the one on your tail.", es: 'Tengo al que llevas en la cola.' }, { en: "Keep flying, Percival. I'm on him.", es: 'Tú sigue volando, Percival. Ya voy yo a por él.' }] } },
+    { id: 'lance', slot: [-100, -100], y: 5, style: 'escort', lines: { protect: [{ en: 'Bandit behind you, Percival! Moving in!', es: '¡Enemigo detrás de ti, Percival! ¡Voy!' }, { en: "I've got your six!", es: '¡Te cubro la espalda!' }] } },
+    { id: 'minotaur', slot: [0, -105], y: 0, style: 'escort', lines: { protect: [{ en: "Hey, ugly! Over here!", es: '¡Eh, feo! ¡Aquí!' }, { en: "This one's mine. Nobody touches the rookie!", es: 'Este es mío. ¡Nadie toca al novato!' }] } },
+    { id: 'jester', slot: [100, -100], y: 5, style: 'escort', lines: { protect: [{ en: "Shoo! Get away from him!", es: '¡Fuera! ¡Apártate de él!' }, { en: "Distracting the big scary one, as usual.", es: 'Distrayendo al grandote, como siempre.' }] } }
+  ],
+  radio: {
+    oracle: { name: 'Oracle', tag: 'Mando', color: '#f2b84b', icon: 'O' },
+    seraphin: { name: 'Seraphin', tag: 'Paladin 1', color: '#e3cfff', icon: 'S' },
+    lance: { name: 'Lance', tag: 'Paladin 2', color: '#5ab4ff', icon: 'L' },
+    minotaur: { name: 'Minotaur', tag: 'Paladin 4', color: '#ff9a5c', icon: 'M' },
+    jester: { name: 'Jester', tag: 'Paladin 5', color: '#9fe07a', icon: 'J' },
+    volger: { name: 'Volger', tag: 'Tu dragón', color: '#ff6a3d', icon: 'V' }
+  },
+  squads: {
+    patrulla: { n: 5, rel: { bearing: 0, dist: 9000 }, y: 1050, gap: 110, cruise: { speed: 200, engage: 1200 }, unknown: true },
+    este: { n: 6, rel: { bearing: 90, dist: 8000 }, y: 1100, gap: 100, cruise: { speed: 480, engage: 3000 } },
+    oeste: { n: 6, rel: { bearing: 270, dist: 8000 }, y: 950, gap: 100, cruise: { speed: 480, engage: 3000 } },
+    escolta: { n: 6, from: 'super' }
+  },
+  // El ejército de las llanuras (sale con la fase 3): mirando al sur, hacia las tierras de los Paladin
+  units: [
+    { wave: 'ejercito', tag: 'ejercito', type: 'batallon', n: 4, soldiers: 1000, formation: 'rejilla', gap: 260, x: 0, z: -21500, heading: 180 },
+    { wave: 'ejercito', tag: 'ejercito', type: 'artilleria', variant: 'mixta', n: 5, formation: 'linea', gap: 120, x: 0, z: -21130, heading: 180 },
+    { wave: 'ejercito', tag: 'ejercito', type: 'artilleria', variant: 'mixta', n: 5, formation: 'linea', gap: 120, x: 0, z: -21880, heading: 180 },
+    { wave: 'ejercito', tag: 'ejercito', type: 'dirigible', n: 3, formation: 'columna', gap: 480, x: -700, z: -21500, heading: 180, height: [400, 600] },
+    { wave: 'ejercito', tag: 'ejercito', type: 'dirigible', n: 3, formation: 'columna', gap: 480, x: 700, z: -21500, heading: 180, height: [400, 600] }
+  ],
+  objectives: [
+    { id: 'patrulla', text: 'Derriba a la patrulla enemiga', hud: 'PATRULLA', tag: 'patrulla', hidden: true },
+    { id: 'este', text: 'Derriba al escuadrón del este', hud: 'ESCUADRÓN ESTE', tag: 'este', hidden: true },
+    { id: 'oeste', text: 'Derriba al escuadrón del oeste', hud: 'ESCUADRÓN OESTE', tag: 'oeste', hidden: true },
+    { id: 'batallones', text: 'Quema los batallones', hud: 'BATALLONES', target: 'batallon', tag: 'ejercito', hidden: true },
+    { id: 'artilleria', text: 'Destruye la artillería', hud: 'ARTILLERÍA', target: 'artilleria', tag: 'ejercito', hidden: true },
+    { id: 'dirigibles', text: 'Derriba los dirigibles de escolta', hud: 'DIRIGIBLES', target: 'airship', tag: 'ejercito', hidden: true },
+    { id: 'super', text: 'Destruye el superdirigible', hud: 'SUPERDIRIGIBLE', target: 'superdirigible', hidden: true },
+    { id: 'escolta', text: 'Derriba a su escolta', hud: 'ESCOLTA', tag: 'escolta', hidden: true }
+  ],
+  // Reacciones de los compañeros a lo que pasa (19e): [quién, texto]
+  chatter: {
+    kill: [
+      ['lance', { en: 'Splash one! Nice shot, Percival!', es: '¡Uno menos! ¡Buen tiro, Percival!' }],
+      ['minotaur', { en: 'Ha! He went down in flames!', es: '¡Ja! ¡Ha caído envuelto en llamas!' }],
+      ['jester', { en: 'Remind me never to make you angry.', es: 'Recordadme que nunca te haga enfadar.' }],
+      ['seraphin', { en: 'Good kill. Next target.', es: 'Buen derribo. Siguiente objetivo.' }],
+      ['oracle', { en: 'Hostile down.', es: 'Hostil abatido.' }],
+      ['volger', { en: "That's how it's done, boy!", es: '¡Así se hace, chico!' }],
+      ['jester', { en: 'Was that your first kill? Looked like your tenth.', es: '¿Ese era tu primer derribo? Parecía el décimo.' }],
+      ['minotaur', { en: 'Save some for the rest of us!', es: '¡Déjanos alguno a los demás!' }]
+    ],
+    ship: [
+      ['lance', { en: 'Airship down! Beautiful!', es: '¡Dirigible abatido! ¡Precioso!' }],
+      ['oracle', { en: 'Airship destroyed.', es: 'Dirigible destruido.' }],
+      ['minotaur', { en: 'Look at it burn!', es: '¡Mira cómo arde!' }]
+    ],
+    battalion: [
+      ['minotaur', { en: "Ha! That's a whole battalion turned to ash!", es: '¡Ja! ¡Un batallón entero reducido a cenizas!' }],
+      ['volger', { en: 'They will remember this fire!', es: '¡Recordarán este fuego!' }],
+      ['jester', { en: "Well... that's going to leave a mark.", es: 'Vaya... eso va a dejar marca.' }],
+      ['oracle', { en: 'Battalion destroyed.', es: 'Batallón destruido.' }]
+    ],
+    unit: [
+      ['oracle', { en: 'Artillery piece destroyed.', es: 'Pieza de artillería destruida.' }],
+      ['lance', { en: 'One less cannon pointed at our villages.', es: 'Un cañón menos apuntando a nuestras aldeas.' }]
+    ],
+    hurt: [
+      ['seraphin', { en: "Percival, you're taking hits! Shake him off!", es: '¡Percival, te están dando! ¡Quítatelo de encima!' }],
+      ['volger', { en: 'Agh! Watch it, boy! That one burned!', es: '¡Agh! ¡Cuidado, chico! ¡Esa ha quemado!' }],
+      ['lance', { en: "I'm coming, Percival! Hang on!", es: '¡Ya voy, Percival! ¡Aguanta!' }]
+    ],
+    missile: [
+      ['jester', { en: 'Missile on your six, Percival! Dodge it!', es: '¡Bola guiada a tus seis, Percival! ¡Esquívala!' }],
+      ['seraphin', { en: 'Incoming! Break, break!', es: '¡Viene una! ¡Rompe, rompe!' }],
+      ['volger', { en: 'Something is chasing us! Move!', es: '¡Algo nos persigue! ¡Muévete!' }]
+    ],
+    lowhp: [
+      ['volger', { en: "I can't take much more of this, Percival!", es: '¡No aguanto mucho más, Percival!' }],
+      ['seraphin', { en: 'Percival, pull back! Let your armor recover!', es: '¡Percival, retírate! ¡Deja que se recupere tu armadura!' }]
+    ]
+  },
+  events: [
+    // ---------- Entrada: pantalla de capítulo → Seraphin (voz) con la entrada de cine → el control → Volger (voz) ----------
+    { id: 'briefing', when: { card: true }, do: [SAY('seraphin',
+      "Alright, squad, listen up. We've got an unidentified dragon patrol crossing into our airspace. No identification, no response to our hails. They're either lost, stupid, or looking for trouble. None of those options makes me particularly happy. Stay sharp, hold formation, and keep your eyes on them. Don't make any sudden moves, but be ready for anything. We're here to assess the situation, not start a war.",
+      'Muy bien, escuadrón, atentos. Una patrulla de dragones sin identificar está cruzando nuestro espacio aéreo. Sin identificación y sin responder a nuestras llamadas. O se han perdido, o son idiotas, o buscan problemas. Ninguna de las tres opciones me hace especialmente feliz. Atentos, mantened la formación y no les quitéis el ojo de encima. Nada de movimientos bruscos, pero estad listos para cualquier cosa. Hemos venido a evaluar la situación, no a empezar una guerra.',
+      'seraphin_01')] },
+    { id: 'control', when: { after: { event: 'briefing', t: 1 }, quiet: true }, do: [{ cine: 'end' }, { squad: 'patrulla' }] },
+    { id: 'volger1', when: { after: { event: 'control', t: 2 } }, do: [SAY('volger',
+      "I have a bad feeling about this, Percival... I don't trust them. Who would enter our airspace without permission? Unless... it's an invasion. Stay focused, boy! We might be about to be put to the test.",
+      'Esto me da mala espina, Percival... No me fío de ellos. ¿Quién entraría en nuestro espacio aéreo sin permiso? A no ser que... sea una invasión. ¡Concéntrate, chico! Puede que estemos a punto de ponernos a prueba.',
+      'volger_01')] },
+    // ---------- Fase 1: la patrulla ----------
+    { id: 'contacto', when: { after: { event: 'volger1', t: 0.4 }, quiet: true, calm: 'patrulla' }, do: [
+      SAY('oracle', 'Paladins, Oracle. Five unknowns dead ahead, closing.', 'Paladins, aquí Oracle. Cinco desconocidos justo delante.'),
+      SAY('seraphin', 'Copy. Nobody fires unless I say so.', 'Recibido. Que nadie dispare sin mi orden.')] },
+    { id: 'aviso', when: { after: { event: 'contacto', t: 0.3 }, quiet: true, calm: 'patrulla' }, do: [
+      SAY('seraphin', 'Unidentified dragons, this is Paladin One. Turn back now, or be escorted down.', 'Dragones sin identificar, aquí Paladin Uno. Dad media vuelta u os escoltaremos a tierra.'),
+      SAY('oracle', "No response... They're speeding up!", 'No responden... ¡Están acelerando!')] },
+    { id: 'rompen', when: { after: { event: 'aviso', t: 0.2 }, quiet: true, calm: 'patrulla' }, do: [{ engage: 'patrulla' }] },
+    { id: 'combate1', when: { engaged: 'patrulla' }, do: [{ hush: true }, { show: 'patrulla' }, { chatter: true },
+      SAY('seraphin', "They're breaking formation! Hostile intent confirmed! Paladins, weapons free!", '¡Rompen la formación! ¡Intención hostil confirmada! ¡Paladins, fuego a discreción!'),
+      SAY('seraphin', "Percival, they're yours. Show me what I taught you. We'll keep them off your back.", 'Percival, son tuyos. Demuéstrame lo que te he enseñado. Nosotros te los quitamos de encima.'),
+      { hint: 'Clic central: fijar un blanco  ·  F (mantener): mirar al blanco fijado  ·  A / D: esquivar' }] },
+    { when: { kills: { patrulla: 3 }, pending: ['patrulla'] }, do: [SAY('oracle', 'Three down. Two left.', 'Tres abatidos. Quedan dos.')] },
+    { id: 'fase1', when: { cleared: ['patrulla'] }, do: [{ hush: true }, { chatter: false },
+      SAY('oracle', 'All five hostiles down. Good kills, Paladin Three.', 'Los cinco hostiles, abatidos. Buenos derribos, Paladin Tres.'),
+      SAY('seraphin', 'Not bad, Percival. Not bad at all.', 'Nada mal, Percival. Nada mal.'),
+      SAY('minotaur', 'Who were they? No colors, no banners...', '¿Quiénes eran? Sin colores, sin estandartes...'),
+      SAY('seraphin', "Scouts. And scouts never fly alone.", 'Exploradores. Y los exploradores nunca vuelan solos.')] },
+    // ---------- Fase 2: dos escuadrones, este y oeste ----------
+    { id: 'fase2', when: { after: { event: 'fase1', t: 1.5 }, quiet: true }, do: [
+      SAY('oracle', 'Alert! Two more squadrons inbound, east and west, eight kilometers out! Six dragons each!', '¡Alerta! Dos escuadrones más se acercan, por el este y por el oeste, a ocho kilómetros. ¡Seis dragones cada uno!'),
+      { squad: ['este', 'oeste'] }, { show: 'este' }, { show: 'oeste' }, { chatter: true },
+      SAY('jester', 'Oh, great. They brought friends.', 'Genial. Han traído amigos.'),
+      SAY('seraphin', "They want to catch us in a pincer. Percival, pick a side and hit them hard. Paladins, keep his tail clean!", 'Quieren cogernos en una pinza. Percival, elige un flanco y golpea fuerte. ¡Paladins, mantened limpia su cola!')] },
+    { when: { cleared: ['este'], pending: ['oeste'] }, do: [SAY('oracle', 'Eastern squadron eliminated. The western one is still coming.', 'Escuadrón del este, eliminado. El del oeste sigue ahí.')] },
+    { when: { cleared: ['oeste'], pending: ['este'] }, do: [SAY('oracle', 'Western squadron eliminated. Turn east, Percival.', 'Escuadrón del oeste, eliminado. Gira al este, Percival.')] },
+    { id: 'fase2b', when: { done: ['este', 'oeste'] }, do: [{ hush: true }, { chatter: false },
+      SAY('oracle', 'Both squadrons destroyed. The sky over Skyreach is yours, Paladin.', 'Los dos escuadrones, destruidos. El cielo de Skyreach es vuestro, Paladin.'),
+      SAY('lance', 'Seventeen dragons... This was no patrol, Seraphin.', 'Diecisiete dragones... Esto no era una patrulla, Seraphin.'),
+      SAY('seraphin', 'No. It was a screen. They were clearing the sky for something else.', 'No. Era una pantalla. Estaban despejando el cielo para otra cosa.'),
+      SAY('volger', 'I smell smoke on the wind, Percival. Smoke and steel. From the north.', 'Huelo humo en el viento, Percival. Humo y acero. Viene del norte.')] },
+    // ---------- Fase 3: el ejército de las llanuras ----------
+    { id: 'fase3', when: { after: { event: 'fase2b', t: 1 }, quiet: true }, do: [{ spawn: 'ejercito' },
+      SAY('oracle', 'Paladin, the watchtowers on the northern plains just went dark. Large ground force, fifteen kilometers north of you: thousands of soldiers, siege artillery and an airship escort.', 'Paladin, las torres de vigía de las llanuras del norte acaban de apagarse. Una gran fuerza terrestre a quince kilómetros al norte: miles de soldados, artillería de asedio y una escolta de dirigibles.'),
+      SAY('minotaur', 'An army? On our soil?', '¿Un ejército? ¿En nuestras tierras?'),
+      SAY('seraphin', 'Then it IS an invasion. Paladins, north, full speed! We stop them on the plains, before they reach the villages.', 'Entonces sí es una invasión. ¡Paladins, al norte, a toda velocidad! Los detenemos en las llanuras, antes de que lleguen a las aldeas.'),
+      { show: 'batallones' }, { show: 'artilleria' }, { show: 'dirigibles' }, { chatter: true },
+      SAY('seraphin', 'Percival, burn those battalions. Fly low and straight, and let your flame do the work.', 'Percival, quema esos batallones. Vuela bajo y recto, y deja que tu llamarada haga el trabajo.'),
+      { hint: 'Boost (Shift) para llegar antes  ·  Mantén Espacio para volar recto y barre los batallones con la llamarada (clic dcho.)' }] },
+    { when: { near: { tag: 'ejercito', d: 6000 } }, do: [
+      SAY('jester', "By the gods... look at them. It's a sea of spears down there.", 'Por todos los dioses... Miradlos. Ahí abajo hay un mar de lanzas.'),
+      SAY('oracle', 'Airships escorting the column. Careful: their cannons cover the flanks.', 'Dirigibles escoltando la columna. Cuidado: sus cañones cubren los costados.'),
+      SAY('seraphin', 'Hit them from the bow or the stern, Percival. Never the broadside.', 'Atácalos por la proa o por la popa, Percival. Nunca por el costado.')] },
+    { when: { done: ['dirigibles'], pending: ['batallones'] }, do: [SAY('lance', "Their air cover's gone! Now the ground troops!", '¡Ya no tienen cobertura aérea! ¡Ahora, las tropas de tierra!')] },
+    { when: { kills: { artilleria: 5 }, pending: ['artilleria'] }, do: [SAY('oracle', 'Half of their artillery is down.', 'La mitad de su artillería, destruida.')] },
+    { id: 'fase3b', when: { done: ['batallones', 'artilleria', 'dirigibles'] }, do: [{ hush: true }, { chatter: false },
+      SAY('oracle', 'Ground force neutralized. The plains are clear.', 'Fuerza terrestre neutralizada. Las llanuras están despejadas.'),
+      SAY('jester', "Is it over? Tell me it's over.", '¿Se acabó? Decidme que se acabó.'),
+      SAY('seraphin', "Stay sharp. Something about this still doesn't...", 'Atentos. Hay algo en todo esto que todavía no...', null)] },
+    // ---------- Fase 4: el portal y el superdirigible ----------
+    { id: 'portal', when: { after: { event: 'fase3b', t: 0.6 }, quiet: true }, do: [
+      SAY('oracle', "Paladin, wait! Massive arcane surge, six kilometers north of you! I've never seen readings like this!", '¡Paladin, esperad! ¡Una oleada arcana enorme, a seis kilómetros al norte! ¡Nunca había visto lecturas así!'),
+      { portal: { dist: 6000, bearing: 0, height: 1500, r: 480, form: 7, close: 3, hp: 500, tag: 'fortaleza', beam: true } },
+      { cine: { to: 'portal', climb: 350, shots: [
+        { dur: 9, from: [38, 26, 95], to: [24, 18, 62], lookAt: 'portal', fov: 34 },        // detrás de Percival, con teleobjetivo hacia el portal
+        { dur: 16, from: [1500, 260, -2300], to: [1350, 220, -2050], lookAt: 'super', fov: 42 }] } },   // de lado, lejos: sale el superdirigible
+      SAY('volger', 'Percival... the sky itself is tearing open.', 'Percival... el propio cielo se está desgarrando.'),
+      SAY('jester', 'Is that... a door? In the sky?', '¿Eso es... una puerta? ¿En el cielo?')] },
+    { when: { signal: 'portal_abierto' }, do: [{ music: 'tension' },
+      SAY('minotaur', "That's not a ship. That's a fortress!", '¡Eso no es un barco! ¡Es una fortaleza!'),
+      SAY('oracle', "Paladin, that thing is over a kilometer long! It's heading south... toward the capital!", '¡Paladin, esa cosa mide más de un kilómetro! Va hacia el sur... ¡hacia la capital!')] },
+    { when: { signal: 'portal_fuera' }, do: [SAY('seraphin', "Everyone, listen to me. If that thing reaches the capital, it's over. We bring it down here. Now.", 'Escuchadme todos. Si esa cosa llega a la capital, se acabó. La derribamos aquí. Ahora.')] },
+    { id: 'fase4', when: { signal: 'portal_cerrado' }, do: [{ cine: 'end' }, { squad: 'escolta' }, { show: 'super' }, { show: 'escolta' }, { chatter: true },
+      SAY('lance', 'Dragons launching from its hull! Six of them!', '¡Salen dragones de su casco! ¡Seis!'),
+      SAY('seraphin', "Percival, hit the core with everything you've got! We'll keep the escorts busy!", '¡Percival, dale al núcleo con todo lo que tengas! ¡Nosotros entretenemos a la escolta!'),
+      { hint: 'El núcleo es el casco: las bolas guiadas y el rayo de fuego le hacen mucho daño. Sus torretas disparan por los costados' }] },
+    // el rayo de la proa (6i): avisos y quién tiene que apartarse
+    { when: { signal: 'rayo_carga', n: 1 }, do: [{ hush: true },
+      SAY('jester', 'Uh... why is the front of that thing glowing?', 'Eh... ¿por qué brilla la proa de esa cosa?'),
+      SAY('oracle', "Energy spike at the bow! It's charging a weapon!", '¡Pico de energía en la proa! ¡Está cargando un arma!'),
+      SAY('seraphin', "Everyone, spread out! Don't stay in front of it!", '¡Dispersaos! ¡Que nadie se quede delante!')] },
+    { when: { signal: 'rayo_carga', nMin: 2 }, each: true, do: [SAY('oracle', "It's charging again! Spread out!", '¡Está cargando otra vez! ¡Dispersaos!')] },
+    { when: { signal: 'rayo_fuego' }, each: true, do: [{ hush: true }, { sayFor: { signal: 'rayo_fuego', lines: {
+      seraphin: ['lance', { en: "Seraphin, it's targeting you! Break!", es: '¡Seraphin, te apunta a ti! ¡Apártate!' }],
+      lance: ['seraphin', { en: "Lance, it's aiming at you! BREAK!", es: '¡Lance, te está apuntando! ¡APÁRTATE!' }],
+      minotaur: ['seraphin', { en: 'Minotaur, break right! NOW!', es: '¡Minotaur, rompe a la derecha! ¡YA!' }],
+      jester: ['seraphin', { en: 'Jester! Get out of there!', es: '¡Jester! ¡Sal de ahí!' }] } } }] },
+    { when: { signal: 'rayo_fin' }, each: true, do: [{ sayFor: { signal: 'rayo_fuego', lines: {
+      seraphin: ['seraphin', { en: 'Close. Too close. Percival, end this!', es: 'Cerca. Demasiado cerca. ¡Percival, acaba con esto!' }],
+      lance: ['lance', { en: 'That was too close! I felt the heat through my armor!', es: '¡Por los pelos! ¡He sentido el calor a través de la armadura!' }],
+      minotaur: ['minotaur', { en: 'Ha! Missed me, you overgrown bathtub!', es: '¡Ja! ¡Has fallado, bañera con alas!' }],
+      jester: ['jester', { en: "I'm okay! I'm okay... I think my eyebrows are gone.", es: '¡Estoy bien! Estoy bien... Creo que me he quedado sin cejas.' }] } } }] },
+    { when: { signal: 'rayo_fin', n: 1 }, do: [SAY('volger', "Percival, that weapon could melt a mountain. Don't let it fire again!", 'Percival, esa arma podría fundir una montaña. ¡No dejes que vuelva a disparar!')] },
+    { when: { unitHp: { target: 'superdirigible', below: 0.5 } }, do: [SAY('oracle', 'The core is failing! Keep it up!', '¡El núcleo está cediendo! ¡Seguid así!')] },
+    { when: { unitHp: { target: 'superdirigible', below: 0.2 } }, do: [SAY('seraphin', "It's breaking apart! Finish it, Percival!", '¡Se está haciendo pedazos! ¡Remátala, Percival!')] },
+    { when: { done: ['super'] }, do: [{ hush: true },
+      SAY('oracle', "The fortress is going down! I repeat, it's going down!", '¡La fortaleza cae! ¡Repito, la fortaleza cae!'),
+      SAY('minotaur', 'YEAH! Burn, you monster!', '¡SÍ! ¡Arde, monstruo!')] },
+    { when: { done: ['super'], pending: ['escolta'] }, do: [SAY('seraphin', 'Clean up the rest, Percival!', '¡Acaba con los que quedan, Percival!')] },
+    // ---------- Final ----------
+    { id: 'final', when: { done: ['super', 'escolta'], quiet: true }, do: [{ chatter: false },
+      SAY('oracle', 'All hostiles eliminated. The skies over Skyreach are clear. Paladin Squadron... you did it.', 'Todos los hostiles eliminados. El cielo de Skyreach está despejado. Escuadrón Paladin... lo habéis conseguido.'),
+      SAY('jester', 'Remind me to never complain about boring patrols again.', 'Recordadme que nunca más me queje de las patrullas aburridas.'),
+      SAY('lance', 'You flew like a veteran out there, Percival.', 'Hoy has volado como un veterano, Percival.'),
+      SAY('seraphin', "He did. Trial by fire, Percival. And you didn't burn.", 'Así es. Una prueba de fuego, Percival. Y no te has quemado.'),
+      SAY('seraphin', 'But that portal... Whoever opened it is still out there. This was only the beginning.', 'Pero ese portal... Quien lo abriera sigue ahí fuera. Esto solo ha sido el principio.'),
+      SAY('volger', "We were put to the test, boy. And we're still flying. Let's go home.", 'Nos han puesto a prueba, chico. Y seguimos volando. Volvamos a casa.'),
+      SAY('seraphin', "Paladin Squadron, form up. We're going home.", 'Escuadrón Paladin, en formación. Volvemos a casa.')] },
+    { id: 'fundido', when: { after: { event: 'final', t: 1 }, quiet: true }, do: [{ fade: 3 }] },
+    { when: { after: { event: 'fundido', t: 3.4 } }, do: [{ win: 0 }] },
+    { when: { hp: 30 }, repeat: 35, do: [SAY('oracle', "Paladin Three, you're badly hurt! Pull back and let your armor recover!", '¡Paladin Tres, estás muy tocado! ¡Retírate y deja que tu armadura se recupere!')] }
+  ]
+};
+
+/* ============================================================
    M2. MISIONES: MOTOR (v15)
    Ejecuta la receta de M1: prepara la partida (torres y dragones → RUN), lleva la cuenta de los objetivos, dispara los eventos,
    muestra la radio, vigila el área de la misión (barrera invisible con cuenta atrás) y decide el final: MISIÓN CUMPLIDA o FALLIDA
@@ -8756,6 +9518,8 @@ const MISSIONS = {
    · missionSetup(id): al empezar, antes de resetRun (v19: si la misión trae otro mundo, startGame lo genera antes, M3). missionStart(): tras spawnEnemies.
    · missionUpdate(dt): cada fotograma de partida (desde updateFlight) y, muerto, desde el bucle. missionDeath(): al acabar la caída.
    · missionFail(motivo) / missionWin(espera): final.
+   v34 (Capítulo 1): señales (missionSignal: el portal, el rayo del superdirigible…), radio con voz grabada y subtítulos (19e), pantalla de
+   capítulo, entrada de cine que dura hasta que la acaba un evento, oleadas de unidades y más condiciones y acciones (formato en M1).
    ============================================================ */
 const AREA_GRACE = 15;                    // s para volver al área antes de fallar
 const AREA_HYST = 60;                     // m hacia dentro para dar por vuelto (que no parpadee el aviso justo en el borde)
@@ -8766,14 +9530,15 @@ let mission = MISSIONS.libre;             // receta en juego
 const MS = {
   t: 0, objs: [], fired: new Map(), ended: true, endAt: 0, kills: {}, planned: {},       // v21: destruidos por tipo y etiqueta; cuántos hay por etiqueta
   out: false, outT: AREA_GRACE, tick: -1, edge: '',      // área: fuera, s que quedan, último segundo mostrado, distancia mostrada
-  radio: [], radioT: 0, radioOn: false                     // cola de mensajes, tiempo del actual (o de la pausa entre dos), ¿se ve?
+  radio: [], radioT: 0, radioOn: false,                    // cola de mensajes, tiempo del actual (o de la pausa entre dos), ¿se ve?
+  sig: {}, cur: null                                       // v34: señales { nombre: { t, n, data } } y el mensaje que suena (con sus subtítulos)
 };
 const radioEl = document.getElementById('radio'), radioIconEl = document.getElementById('radioIcon'), radioNameEl = document.getElementById('radioName'), radioTextEl = document.getElementById('radioText');
 const areaEl = document.getElementById('area'), areaCountEl = document.getElementById('areaCount'), areaEdgeEl = document.getElementById('areaEdge');
 
 function chooseMission(id) {
   missionId = MISSIONS[id] ? id : 'libre';
-  document.getElementById('start').textContent = MISSIONS[missionId].free ? 'Empezar partida' : 'Empezar misión';
+  document.getElementById('start').textContent = MISSIONS[missionId].free ? 'Empezar partida' : MISSIONS[missionId].chapter ? 'Empezar capítulo' : 'Empezar misión';
   enterSelect();
 }
 const tagList = t => t ? [].concat(t) : [];
@@ -8799,22 +9564,31 @@ function airshipEdgeDist() {
 }
 function missionStart() {
   MS.t = 0; MS.fired.clear(); MS.ended = false; MS.endAt = 0; MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1;
-  MS.kills = {}; MS.planned = {};
+  MS.kills = {}; MS.planned = {}; MS.sig = {};
   unitsStart();                                            // v29: dragones quietos de la galería (tras spawnEnemies)
   MS.objs = (mission.objectives || []).map(o => Object.assign({}, o, { hud: o.hud || o.text.toUpperCase(), n: 0, done: false, shown: !o.hidden }));
-  for (const o of MS.objs) if (o.count == null) o.count = plannedCount(o);   // v21: sin count, todos los de la misión que cumplen su selección
+  for (const o of MS.objs) if (o.count == null) { o.count = plannedCount(o); o.auto = true; }   // v21: sin count, todos los de la misión que cumplen su selección (v34: se recuenta al mostrarlo)
   missionHideHUD();
-  allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae
+  storyStart();                                            // v34: voces, pantalla de capítulo, fundido y reacciones (19e)
+  allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae (v34: varios)
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
-  const intro = mission.intro != null ? mission.intro : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
-  if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
+  const I = mission.intro, intro = I != null ? I : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
+  if (I && typeof I === 'object') cineStart(Infinity, mission.name, mission.place, { title: I.title, shots: I.shots, skip: true });   // v34: hasta que la acaba un evento («cine: 'end'»), con planos de cámara
+  else if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
   else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
+  if (mission.card) cardStart(mission.card);               // v34: pantalla de capítulo en negro (19e), encima de la entrada de cine
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
-  MS.radio.length = 0; MS.radioT = 0; MS.radioOn = false; radioEl.classList.remove('on');
+  MS.radio.length = 0; MS.radioT = 0; MS.radioOn = false; radioEl.classList.remove('on'); MS.cur = null; voiceStop();
   areaEl.classList.remove('on');
 }
+/* v34: una señal de otro módulo (el portal, el rayo del superdirigible…) para las condiciones de los eventos (signal). */
+function missionSignal(name, data) {
+  const s = MS.sig[name] || (MS.sig[name] = { t: 0, n: 0, data: null });
+  s.t = MS.t; s.n++; s.data = data;
+}
+const radioQuiet = () => !MS.radioOn && !MS.radio.length;
 
 /* ---------- Cuentas ----------
    v21: cada blanco destruido (torre, dragón, dirigible; ver 6d) suma en MS.kills por su tipo y por cada etiqueta, y en los objetivos
@@ -8864,13 +9638,14 @@ function missionUpdate(dt) {
   updateRadio(dt);
   // objetivos
   for (const o of MS.objs) {                               // (o.n lo lleva missionKill)
-    if (o.shown && !o.done && o.n >= o.count) { o.done = true; toast('Objetivo cumplido  ·  ' + o.text); sfx.locked(); }
+    if (o.shown && !o.done && o.n >= o.count) { o.done = true; o.doneT = MS.t; toast('Objetivo cumplido  ·  ' + txt(o.text)); sfx.locked(); }
   }
+  if (MS.card && MS.card.on) cardUpdate(dt);               // v34: pantalla de capítulo (19e)
   // eventos
   const evs = mission.events || [];
   for (let i = 0; i < evs.length; i++) {
-    const ev = evs[i], key = ev.id || i, last = MS.fired.get(key);
-    if (last != null && !(ev.repeat && MS.t - last >= ev.repeat)) continue;
+    const ev = evs[i], key = ev.id || i, last = MS.fired.get(key), sg = ev.each && ev.when && MS.sig[ev.when.signal];
+    if (last != null && !(ev.repeat && MS.t - last >= ev.repeat) && !(sg && sg.t > last)) continue;   // (v34: each = otra vez cada vez que llega su señal)
     if (!eventReady(ev.when || {})) continue;
     MS.fired.set(key, MS.t);
     for (const a of ev.do || []) { runAction(a); if (MS.ended) return; }
@@ -8909,14 +9684,33 @@ function eventReady(w) {
   if (w.hp != null && !(state === 'playing' && F.health < w.hp)) return false;
   if (w.inside && !(state === 'playing' && Math.hypot(dragon.position.x - w.inside.x, dragon.position.z - w.inside.z) <= w.inside.r)) return false;
   if (w.after) { const ft = MS.fired.get(w.after.event); if (ft == null || MS.t - ft < (w.after.t || 0)) return false; }
+  // v34
+  if (w.card && !(MS.card && MS.card.done)) return false;  // la pantalla de capítulo ya se fue
+  if (w.quiet && !radioQuiet()) return false;              // nadie hablando ni esperando turno en la radio
+  if (w.engaged && !enemyState.engaged[w.engaged]) return false;   // ese escuadrón ya ha roto la formación y ataca
+  if (w.calm && enemyState.engaged[w.calm] !== false) return false;   // ese escuadrón está en el aire y aún no ataca
+  if (w.close) { let ok = false; for (const e of enemies) if (!e.dead && !e.off && e.squad === w.close.squad && e.pos.distanceTo(dragon.position) < w.close.d) ok = true; if (!ok) return false; }
+  if (w.signal) { const s = MS.sig[w.signal]; if (!s || (w.n != null && s.n !== w.n) || (w.nMin != null && s.n < w.nMin)) return false; }
+  if (w.near) { let ok = false; for (const u of UNITS) if (!u.dead && matchSel(w.near, u) && Math.hypot(u.pos.x - dragon.position.x, u.pos.z - dragon.position.z) < w.near.d) ok = true; if (!ok) return false; }
+  if (w.unitHp) { const u = UNITS.find(x => !x.dead && matchSel(w.unitHp, x)); if (!u || u.hp / u.hpMax >= w.unitHp.below) return false; }
   return true;
 }
 function runAction(a) {
-  if (a.say) radioSay(a.say[0], a.say[1], a.say[2]);
-  if (a.show) { const o = objById(a.show); if (o && !o.shown) { o.shown = true; toast('Nuevo objetivo  ·  ' + o.text); sfx.lock(); } }
+  if (a.hush) MS.radio.length = 0;                         // v34: fuera los mensajes que esperaban turno (lo que pasa ahora manda)
+  if (a.spawn) unitsWave(a.spawn);                         // v34: oleada de unidades (grupos de units con wave)
+  if (a.say) radioSay(a.say[0], a.say[1], a.say[2], a.voice);   // (v34: voice = voz grabada, 19e)
+  if (a.sayFor) { const s = MS.sig[a.sayFor.signal], L = s && a.sayFor.lines[s.data]; if (L) radioSay(L[0], L[1]); }   // v34: según el dato de una señal
+  if (a.show) { const o = objById(a.show); if (o && !o.shown) { o.shown = true; if (o.auto) o.count = plannedCount(o); toast('Nuevo objetivo  ·  ' + txt(o.text)); sfx.lock(); } }
   if (a.toast) toast(a.toast);
   if (a.dragons) RUN.dragons.total += a.dragons;           // refuerzos: van saliendo según caen los que hay en el aire
   if (a.squad) for (const id of [].concat(a.squad)) spawnSquad(id);   // v21: escuadrón de la receta (squads), todos a la vez
+  if (a.engage) for (const id of [].concat(a.engage)) squadEngage(id);   // v34: el escuadrón rompe la formación y ataca
+  if (a.portal) portalOpen(a.portal);                      // v34: el portal arcano (6i)
+  if (a.cine) storyCine(a.cine);                           // v34: 'end' = acaba la entrada de cine; { … } = otra (19e)
+  if (a.music) storyMusic(a.music);                        // v34: 'tension' = la música de tensión
+  if (a.fade) fadeBlack(a.fade);                           // v34: fundido a negro (s)
+  if (a.chatter != null) STORY.chatter = !!a.chatter;      // v34: reacciones de los compañeros (19e), sí o no
+  if (a.hint) hintShow(txt(a.hint));                       // v34: consejo en pantalla (más largo que un aviso)
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
 }
@@ -8935,20 +9729,34 @@ function missionDeath() {
 
 /* ---------- Radio ----------
    Un mensaje cada vez, abajo en el centro: icono (provisional: una letra en el color del personaje), nombre y texto. Duración: la del
-   evento o, si no, según lo largo del texto. Los que llegan mientras habla otro esperan su turno. */
-function radioSay(who, text, dur) {
+   evento o, si no, según lo largo del texto. Los que llegan mientras habla otro esperan su turno.
+   v34: el texto puede venir en dos idiomas ({ en, es }: los subtítulos van en el de Opciones, txt) y con voz grabada (voice: su id en
+   VOICES, 19e): entonces dura lo que la voz y el texto sale en trozos (frases) a lo largo de ella, como subtítulos. */
+function radioSay(who, text, dur, voice) {
   const c = (mission.radio && mission.radio[who]) || { name: who, color: '#f2b84b', icon: String(who || '?').charAt(0).toUpperCase() };
-  MS.radio.push({ c, text, dur: dur || clamp(2.2 + text.length * 0.055, 3, 9) });
+  MS.radio.push({ c, text, voice: voice || null, wait: 0, dur: dur || clamp(2.2 + txt(text).length * 0.055, 3, 9) });
 }
 function updateRadio(dt) {
   MS.radioT -= dt;
+  if (MS.cur) radioSubs(MS.cur);
   if (MS.radioT > 0) return;
-  if (MS.radioOn) { MS.radioOn = false; radioEl.classList.remove('on'); MS.radioT = RADIO_GAP; return; }   // pausa entre mensajes
-  const m = MS.radio.shift(); if (!m) return;
+  if (MS.radioOn) { MS.radioOn = false; radioEl.classList.remove('on'); MS.radioT = RADIO_GAP; MS.cur = null; voiceStop(); return; }   // pausa entre mensajes
+  const m = MS.radio[0]; if (!m) return;
+  if (m.voice && voiceState(m.voice) === 'loading' && m.wait < 5) { m.wait += dt; return; }   // (v34: la voz aún se está decodificando)
+  MS.radio.shift();
   radioIconEl.textContent = m.c.icon || '?'; radioIconEl.style.background = m.c.color || '#f2b84b';
-  radioNameEl.textContent = m.c.name; radioNameEl.style.color = m.c.color || '#f2b84b'; radioEl.style.borderLeftColor = m.c.color || '#f2b84b';
-  radioTextEl.textContent = m.text;
+  radioNameEl.textContent = m.c.name + (m.c.tag ? '  ·  ' + m.c.tag : ''); radioNameEl.style.color = m.c.color || '#f2b84b'; radioEl.style.borderLeftColor = m.c.color || '#f2b84b';   // (v34: tag = su designación, «Paladin 1»)
+  const vd = m.voice ? voicePlay(m.voice) : 0;             // v34: la voz grabada (si está): el mensaje dura lo que ella
+  if (vd > 0) m.dur = vd + 0.35;
+  m.t0 = MS.t; m.chunks = subChunks(txt(m.text), vd > 0 ? vd : m.dur); m.ci = -1;
+  MS.cur = m; radioSubs(m);
   radioEl.classList.add('on'); MS.radioOn = true; MS.radioT = m.dur; sfx.radio();
+}
+/* v34: el trozo de subtítulo que toca según el tiempo del mensaje. */
+function radioSubs(m) {
+  const t = MS.t - m.t0; let i = 0;
+  while (i < m.chunks.length - 1 && t >= m.chunks[i + 1].t) i++;
+  if (i !== m.ci) { m.ci = i; radioTextEl.textContent = m.chunks[i].s; }
 }
 /* ============================================================
    M3. MUNDO POR MISIÓN (v19)
@@ -8973,10 +9781,11 @@ function missionWorld(m) {
   const w = m.world || {}, s = Object.assign({}, START_DEFAULT, m.start || {});
   let biome = w.biome || 'valle';
   if (!BIOMES[biome]) { console.warn('Bioma desconocido: ' + biome + ' (de momento solo «valle» y «pruebas»)'); biome = 'valle'; }
-  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)) };
+  return { seed: w.seed != null ? (w.seed | 0) : SEED_BOOT, biome, start: s, lakes: (w.lakes || []).map(L => Object.assign({}, L)),
+    relief: (w.relief || []).map(R => Object.assign({ edge: 2000, m: 1 }, R)), islands: w.islands !== false };   // (v34: relieve forzado y sin islas)
 }
 const startKey = s => [s.x, s.z, s.heading, s.height, s.y].join(',');
-const shapeKey = w => w.biome + JSON.stringify(w.lakes || []);   // v29: bioma y lagos (el relieve del mundo llano)
+const shapeKey = w => w.biome + JSON.stringify(w.lakes || []) + JSON.stringify(w.relief || []) + (w.islands === false ? '/sin islas' : '');   // v29: bioma y lagos (el relieve del mundo llano); v34: relieve e islas
 function worldNeedsGen() {
   const w = RUN.world; return !!w && (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape || startKey(w.start) !== WORLD.startKey);
 }
@@ -8985,6 +9794,7 @@ function setBiome(w) {
   const B = BIOMES[w.biome];
   FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
   terrainUniforms.uGrid.value = FLAT ? 1 : 0;
+  RELIEF = w.relief || []; NO_ISL = w.islands === false;   // v34: cordilleras y llanuras de la receta; sin islas
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {
@@ -9309,7 +10119,17 @@ const STATS_SCHEMA = {
     ['vel', 'Velocidad del proyectil', 'm/s', 800, ''],
     ['dispersion', 'Dispersión', '°', 1.72, ''],
     ['muerto_proa', 'Ángulo muerto a proa y a popa', '°', 35, 'Como los dirigibles: medido desde el eje del casco.'],
-    ['muerto_vertical', 'Elevación máxima', '°', 70, '']
+    ['muerto_vertical', 'Elevación máxima', '°', 70, ''],
+    { sec: 'Rayo de la proa (v34, Capítulo 1)' },
+    ['rayo_espera', 'Primer rayo', 's', 60, 'Desde que empieza el combate (se cierra el portal). Petición de Jorge: a los 60 s.'],
+    ['rayo_carga', 'Carga del rayo', 's', 10, 'La esfera de energía crece en la proa; los aliados avisan.'],
+    ['rayo_duracion', 'Duración del rayo', 's', 4, ''],
+    ['rayo_repetir', 'Pausa entre rayos', 's', 45, 'Desde que acaba uno hasta que empieza a cargar el siguiente.'],
+    ['rayo_dano', 'Daño si te cruzas', 'puntos/s', 30, 'Nunca apunta al jugador: dispara a los aliados (que no reciben daño).'],
+    ['rayo_radio', 'Radio de daño', 'm', 30, ''],
+    ['rayo_ancho', 'Ancho del rayo', 'm', 70, 'Aspecto: el halo; el núcleo blanco es un 40 % y el aura, el doble.'],
+    ['rayo_alcance', 'Alcance', 'm', 12000, ''],
+    ['rayo_giro', 'Giro siguiendo al blanco', '°/s', 2, 'Lo que tarda en seguir al aliado: le da tiempo a apartarse (el rayo pasa rozándole).']
   ],
   sierpe: [
     { sec: 'Vida y tamaño' },
@@ -9352,7 +10172,13 @@ const STATS_SCHEMA = {
     ['proteger_prob', 'Probabilidad de protegerte', '%', 60, 'Al cambiar de blanco, elige a uno de esos dragones con esta probabilidad.'],
     ['proteger_urgente', 'Distancia de protección urgente', 'm', 600, 'Un dragón que va a por ti a menos de esto: Lance va a por él al momento.'],
     ['blanco_min', 'Tiempo con el mismo blanco (mínimo)', 's', 5, ''],
-    ['blanco_max', 'Tiempo con el mismo blanco (máximo)', 's', 10, '']
+    ['blanco_max', 'Tiempo con el mismo blanco (máximo)', 's', 10, ''],
+    { sec: 'Escolta (v34: los compañeros del Capítulo 1)' },
+    ['escolta_radio', 'Radio de las vueltas a tu alrededor', 'm', 550, 'Casi no atacan: te dan vueltas y te defienden de vez en cuando.'],
+    ['escolta_persecucion', 'Tiempo persiguiendo a un dragón', 's', 5, 'Cuando persiguen a uno que va a por ti.'],
+    ['escolta_pausa', 'Pausa entre persecuciones', 's', 14, 'Cada aliado (con algo de azar).'],
+    ['escolta_dano', 'Su daño', '%', 25, 'Del daño normal del aliado.'],
+    ['escolta_vida_min', 'Vida mínima en que dejan a un enemigo', '%', 40, 'No rematan: los derribos son tuyos.']
   ]
 };
 /* Pestañas del Excel → unidad del juego (las de los dragones, con el id de DRAGONS). */
@@ -9459,7 +10285,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"armadura":50,"armadura_espera":5,"armadura_regen":5,"escudos":2,"escudo_duracion":5,"escudo_por_derribo":1,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":20,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
@@ -9524,7 +10350,8 @@ function applyStats(vals, src) {
   ALLY_GUN_DMG = L.basico_dano; ALLY_GUN_CD[0] = L.basico_pausa_min; ALLY_GUN_CD[1] = Math.max(L.basico_pausa_min, L.basico_pausa_max); ALLY_GUN_RANGE = L.basico_alcance; ALLY_AIM_ERR = L.basico_error / 100;
   ALLY_FLAME_DPS = L.llamas_dano; ALLY_FLAME_RANGE = L.llamas_alcance; ALLY_VMAX = L.vel_max / 3.6; ALLY_ENGAGE = L.combate_distancia;
   ALLY_PROTECT = L.proteger_dist; ALLY_PROTECT_P = L.proteger_prob / 100; ALLY_URGENT = L.proteger_urgente; ALLY_PICK[0] = L.blanco_min; ALLY_PICK[1] = Math.max(L.blanco_min, L.blanco_max);
-  if (ally.e) ally.e.vmax = ALLY_VMAX;
+  ALLY_ESC = { radius: L.escolta_radio, chase: L.escolta_persecucion, rest: L.escolta_pausa, dmg: L.escolta_dano / 100, hpMin: L.escolta_vida_min / 100 };   // (v34)
+  for (const a of allies) if (a.e) a.e.vmax = ALLY_VMAX;   // (v34: todos los aliados)
   if (typeof applyUnitStats === 'function') applyUnitStats();   // v29: tamaños y vidas de las unidades nuevas (6f; el resto lo leen al usarlo)
   applyHeroStats();
   if (typeof refreshDragonButtons === 'function' && DRAGONS.tyrant) refreshDragonButtons();
@@ -9800,7 +10627,7 @@ function devDebug() {
   const put = (cyl, color, x, y, z, r, h) => { const m = devHitBox(n++, cyl, color); m.position.set(x, y, z); m.scale.set(r, h, r); };
   if (mission.dev && DEV.hitbox && devInGame()) {
     for (const e of enemies) if (!e.dead && !e.off) put(false, 0xff4a3a, e.pos.x, e.pos.y, e.pos.z, ENEMY_HIT_R, ENEMY_HIT_R);
-    if (ally.e && ally.on) { const p = ally.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }
+    for (const a of allies) if (a.e && a.on) { const p = a.e.pos, r = ENEMY_HIT_R / ENEMY_SCALE; put(false, 0x5ab4ff, p.x, p.y, p.z, r, r); }   // (v34: todos)
     const P = dragon.position; put(false, 0xf2b84b, P.x, P.y, P.z, PLAYER_HIT_R, PLAYER_HIT_R);
     for (const t of towers.values()) if (!t.dead && Math.hypot(t.x - P.x, t.z - P.z) < 4000) put(true, 0xff7a2e, t.x, t.y + TOWER_TOP / 2, t.z, TOWER_R, TOWER_TOP);
     for (const u of UNITS) {                                 // v29: cápsulas de las unidades nuevas (cilindro a lo largo y una esfera en cada punta)
@@ -9850,6 +10677,211 @@ function galleryGo(fn) {
   const P = dragon.position; refreshTerrainSelection(P.x, P.y, P.z, true); updateTowerStreaming(P.x, P.z);
   devPanel(false);
 }
+
+/* ============================================================
+   M4. MODO HISTORIA (v34): capítulos, pantalla de capítulo, voces y subtítulos, planos de cámara y reacciones de los compañeros
+   Petición de Jorge (31-oct): «Jugar → Modo Historia» abre la selección de capítulos (de momento, el Capítulo 01: Trial by Fire; receta
+   capitulo1 en 18b_capitulo1.js). Todo en castellano salvo las voces, que serán en inglés.
+   · Subtítulos: los textos de la radio pueden venir en dos idiomas ({ en, es }); txt() da el de Opciones (subLang, guardado en el navegador).
+   · Voces (VOICES: id → [recurso incrustado, archivo de audio/]): mensajes mentales grabados. La radio (M2) las reproduce, dura lo que
+     ellas y saca el texto a trozos (subChunks: frases repartidas por su largo). Se paran con la pausa y siguen al reanudar; la música baja
+     mientras suenan. Sin el archivo, solo subtítulos.
+   · Pantalla de capítulo (receta: card): negro, textos que se escriben solos con una fuente militar (Graduate), una pausa, unos segundos
+     quietos y fundido. Encima de la entrada de cine (que empieza a la vez). Intro la salta.
+   · Planos de cámara de las entradas de cine (receta: intro.shots, o los de la acción cine): posiciones respecto al dragón del jugador
+     (m: x a la derecha, y arriba, z hacia atrás) y hacia dónde mirar (look: un punto respecto al dragón, o lookAt: 'portal' | 'super').
+   · Reacciones (receta: chatter { kill, ship, battalion, unit, hurt, missile, lowhp: [[quién, texto], …] }): los compañeros comentan
+     lo que pasa (como en Ace Combat), como mucho uno cada CHATTER_GAP s y nunca encima de otro mensaje.
+   · Menú: botón «Modo Historia» en «Modo de juego» y la ventana de capítulos (los MISSIONS con chapter).
+   ============================================================ */
+const STORY = { chatter: false, chatT: -99, last: {} };
+const CHATTER_GAP = 7, CHATTER_P = 0.75;
+
+/* ---------- Subtítulos: idioma ---------- */
+const SUB_KEY = 'skyApex.subtitulos';
+let subLang = 'es';
+try { const v = localStorage.getItem(SUB_KEY); if (v === 'en' || v === 'es') subLang = v; } catch (err) { }
+const txt = t => t == null ? '' : typeof t === 'string' ? t : (t[subLang] || t.es || t.en || '');
+{ const sel = document.getElementById('subLang'); sel.value = subLang; sel.addEventListener('change', () => { subLang = sel.value; try { localStorage.setItem(SUB_KEY, subLang); } catch (err) { } }); }
+
+/* ---------- Voces ---------- */
+const VOICES = {                                           // id: [recurso incrustado en sky_apex.html, archivo (desde fuentes/)]
+  seraphin_01: ['voz-seraphin-01', '../audio/audio Seraphin test 01.mpeg'],
+  volger_01: ['voz-volger-01', '../audio/audio Volger test 01.mpeg']
+};
+const VO = { bufs: {}, state: {}, src: null, id: null, t0: 0, off: 0, paused: false };
+function voicesLoad(ids) {
+  if (!ids.length) return;
+  sfx.init();
+  for (const id of ids) {
+    if (VO.state[id]) continue;
+    const f = VOICES[id]; if (!f) { VO.state[id] = 'none'; continue; }
+    VO.state[id] = 'loading';
+    loadBytes(f[0], f[1]).then(b => sfx.decode(b)).then(buf => { VO.bufs[id] = buf; VO.state[id] = 'ready'; })
+      .catch(err => { VO.state[id] = 'none'; console.warn('Voz «' + id + '» no cargada (solo subtítulos):', err); });
+  }
+}
+const voiceState = id => VO.state[id] || 'none';
+/* Empieza la voz id; devuelve su duración (s) o 0 si no está. */
+function voicePlay(id) {
+  voiceStop();
+  const buf = VO.bufs[id]; if (!buf || !sfx.ready) return 0;
+  VO.src = sfx.voice(buf, 0); VO.id = id; VO.off = 0; VO.t0 = sfx.now; VO.paused = false;
+  music.duck(0.45);
+  return buf.duration;
+}
+function voiceStop() {
+  if (VO.src) { try { VO.src.stop(); } catch (err) { } VO.src = null; }
+  VO.id = null; VO.paused = false; music.duck(1);
+}
+function voicePause() { if (VO.src && !VO.paused) { VO.off += sfx.now - VO.t0; try { VO.src.stop(); } catch (err) { } VO.src = null; VO.paused = true; } }
+function voiceResume() { if (VO.paused && VO.id && VO.bufs[VO.id]) { VO.src = sfx.voice(VO.bufs[VO.id], VO.off); VO.t0 = sfx.now; VO.paused = false; } }
+/* Subtítulos: el texto en frases (las cortas, juntas; nunca más de ~130 caracteres) y cuándo empieza cada una en dur s (por su largo). */
+function subChunks(s, dur) {
+  const parts = s.match(/[^.!?…]+(?:[.!?…]+["»”']?|$)\s*/g) || [s], out = [];
+  for (let p of parts) {
+    p = p.trim(); if (!p) continue;
+    const L = out.length - 1;
+    if (L >= 0 && (out[L].length < 45 || p.length < 20) && out[L].length + p.length < 130) out[L] += ' ' + p; else out.push(p);
+  }
+  if (!out.length) out.push(s);
+  const w = out.map(p => p.length + 8), tot = w.reduce((a, b) => a + b, 0);
+  let t = 0;
+  return out.map((p, i) => { const c = { s: p, t }; t += dur * w[i] / tot; return c; });
+}
+
+/* ---------- Al empezar y al acabar ---------- */
+const cardEl = document.getElementById('card'), fadeEl = document.getElementById('fade'), hintEl = document.getElementById('hint');
+function storyStart() {
+  STORY.chatter = false; STORY.chatT = -99; STORY.last = {};
+  MS.card = null; cardEl.hidden = true; fadeReset(); hintHide(); portalReset(); CC.on = false; CC.k = 0;
+  voicesLoad(mission.voices || []);
+  if (mission.chapter) music.tension.prime();             // (la música de tensión: que vaya cargando)
+}
+/* Al salir de la partida (resultados, menú, reintentar): fuera las voces, la pantalla de capítulo y el consejo; el fundido, al volver al menú. */
+function storyStop(keepFade) {
+  voiceStop(); if (MS.card) { MS.card.on = false; } cardEl.hidden = true; hintHide();
+  if (!keepFade) fadeReset();
+}
+
+/* ---------- Pantalla de capítulo ---------- */
+const cardTopEl = document.getElementById('cardTop'), cardBotEl = document.getElementById('cardBot');
+function cardStart(def) {
+  const C = MS.card = { on: true, done: false, def, t: 0, li: 0, ci: 0, acc: 0, wait: def.delay != null ? def.delay : 0.9, phase: 'type', els: [], tickT: 0 };
+  cardTopEl.innerHTML = ''; cardBotEl.innerHTML = '';
+  for (const L of def.lines) {
+    if (L.pause) { C.els.push(null); continue; }
+    const d = document.createElement('div'); d.className = 'card-line' + (L.big ? ' big' : '') + (L.space ? ' space' : '');
+    (L.big ? cardTopEl : cardBotEl).appendChild(d); C.els.push(d);
+  }
+  cardEl.style.opacity = '1'; cardEl.hidden = false; cardEl.classList.remove('done');
+}
+function cardUpdate(dt) {
+  const C = MS.card, D = C.def, L = D.lines;
+  if (C.phase === 'type') {
+    if (C.wait > 0) { C.wait -= dt; return; }
+    const line = L[C.li];
+    if (!line) { C.phase = 'hold'; C.wait = D.hold != null ? D.hold : 3; cardEl.classList.add('done'); return; }
+    if (line.pause) { C.li++; C.wait = line.pause; return; }
+    const el = C.els[C.li], full = line.text;
+    for (const e of C.els) if (e) e.classList.toggle('cur', e === el);
+    C.acc += dt * (D.speed || 20);
+    let n = C.ci; while (C.acc >= 1 && n < full.length) { C.acc -= 1; n++; }
+    if (n > C.ci) { C.tickT -= dt; if (C.tickT <= 0 && full[n - 1] !== ' ') { C.tickT = 0.045; sfx.tick(); } }
+    C.ci = n; el.textContent = full.slice(0, n);
+    if (n >= full.length) { C.li++; C.ci = 0; C.acc = 0; C.wait = D.gap != null ? D.gap : 0.45; }
+  } else if (C.phase === 'hold') { C.wait -= dt; if (C.wait <= 0) { C.phase = 'fade'; C.t = 0; } }
+  else if (C.phase === 'fade') {
+    C.t += dt; const k = clamp(C.t / (D.fade || 1.5), 0, 1);
+    cardEl.style.opacity = String(1 - k * k * (3 - 2 * k));
+    if (k >= 1) { C.on = false; C.done = true; cardEl.hidden = true; }
+  }
+}
+function cardSkip() {
+  const C = MS.card; if (!C || !C.on || C.phase === 'fade') return;
+  C.def.lines.forEach((L, i) => { if (C.els[i]) C.els[i].textContent = L.text; });
+  C.phase = 'fade'; C.t = (C.def.fade || 1.5) * 0.4; cardEl.classList.add('done');
+}
+
+/* ---------- Fundido a negro y consejos ---------- */
+function fadeBlack(s) { fadeEl.style.transition = 'opacity ' + s + 's linear'; fadeEl.hidden = false; void fadeEl.offsetWidth; fadeEl.classList.add('on'); }
+function fadeReset() { fadeEl.style.transition = 'none'; fadeEl.classList.remove('on'); fadeEl.hidden = true; }
+let hintTimer = 0;
+function hintShow(s) { hintEl.textContent = s; hintEl.classList.add('on'); clearTimeout(hintTimer); hintTimer = setTimeout(hintHide, 9000); }
+function hintHide() { hintEl.classList.remove('on'); }
+
+/* ---------- Saltar (Intro): la pantalla de capítulo y la voz de la entrada de cine ---------- */
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.repeat || state !== 'playing' || DESIGN.on) return;
+  if (MS.card && MS.card.on) { e.preventDefault(); cardSkip(); return; }
+  if (cine.on && cine.skip && MS.cur) { e.preventDefault(); MS.radioT = 0; voiceStop(); }   // corta el mensaje que suena (la entrada acaba con él)
+});
+
+/* ---------- Entradas de cine de la receta y música ---------- */
+/* a = 'end' (acaba la que haya) o { shots, to ('portal' | 'super': el dragón vuela hacia allí), climb (m que sube como mucho), name, sub }. */
+function storyCine(a) {
+  if (a === 'end') { if (cine.on) cineEnd(false); return; }
+  const P = dragon.position, to = ccTarget(a.to);
+  cineStart(a.dur || Infinity, txt(a.name), txt(a.sub), { shots: a.shots, to, y: a.climb != null ? Math.max(P.y, groundAt(P.x, P.z) + 250) + a.climb : null });
+}
+function storyMusic(m) {
+  if (m === 'tension') { music.game.stop(2.5); music.tension.play(2.5, 0); }
+  else if (m === 'game') { music.tension.stop(2.5); music.game.play(2.5); }
+}
+
+/* ---------- Planos de cámara ---------- */
+const CC = { on: false, k: 0, shots: null, t: 0, fov: null, pos: new THREE.Vector3(), tgt: new THREE.Vector3() };   // (fov: el del plano, o null)
+const _cc1 = new THREE.Vector3(), _cc2 = new THREE.Vector3(), _ccq = new THREE.Quaternion(), _ccq2 = new THREE.Quaternion();
+function cineCamStart(shots) { CC.shots = shots && shots.length ? shots : null; CC.t = 0; CC.on = !!CC.shots; }
+function ccTarget(name) {
+  if (name === 'portal') return PORTAL.mesh ? PORTAL.pos : null;
+  if (name === 'super') { const u = UNITS.find(x => x.kind === 'superdirigible' && !x.dead); return u ? u.bc : null; }
+  return null;
+}
+/* Al final de animateHero: mezcla la cámara normal con la del plano que toca (CC.k sube al empezar y baja al acabar). */
+function cineCamApply(dt) {
+  CC.k += ((CC.on && cine.on ? 1 : 0) - CC.k) * (1 - Math.exp(-dt * 1.5));
+  if (CC.k < 0.002) { CC.k = 0; return; }
+  if (cine.on && CC.shots && !(MS.card && MS.card.on)) CC.t += dt;   // (los planos empiezan cuando se va la pantalla de capítulo)
+  const S = CC.shots || [];
+  let t = CC.t, s = S[S.length - 1], u = 1;
+  for (const x of S) { if (t < x.dur) { s = x; u = t / x.dur; break; } t -= x.dur; }
+  if (!s) return;
+  CC.fov = s.fov || null;                                  // (campo de visión del plano, °: lo aplica updateWorld)
+  const e = u * u * (3 - 2 * u), f = s.from, o = s.to || s.from;
+  CC.pos.set(lerp(f[0], o[0], e), lerp(f[1], o[1], e), lerp(f[2], o[2], e));
+  const W = s.lookAt && ccTarget(s.lookAt);
+  if (W) CC.tgt.copy(W); else { const l = s.look || [0, 0, 0]; CC.tgt.set(l[0], l[1], l[2]); dragon.localToWorld(CC.tgt); }
+  _cc1.copy(camera.position); _ccq.copy(camera.quaternion);
+  camera.position.copy(CC.pos); camera.lookAt(CC.tgt);
+  _cc2.copy(camera.position); _ccq2.copy(camera.quaternion);
+  const k = CC.k * CC.k * (3 - 2 * CC.k);
+  camera.position.lerpVectors(_cc1, _cc2, k); camera.quaternion.copy(_ccq).slerp(_ccq2, k);
+}
+
+/* ---------- Reacciones de los compañeros ---------- */
+function storyChatter(kind) {
+  if (!STORY.chatter || MS.ended || cine.on || state !== 'playing') return;
+  const C = mission.chatter && mission.chatter[kind];
+  if (!C || !C.length || gameTime - STORY.chatT < CHATTER_GAP || !radioQuiet() || Math.random() > CHATTER_P) return;
+  let i = Math.floor(Math.random() * C.length); if (C.length > 1 && i === STORY.last[kind]) i = (i + 1) % C.length;
+  STORY.last[kind] = i; STORY.chatT = gameTime;
+  radioSay(C[i][0], C[i][1]);
+}
+
+/* ---------- Menú: Modo Historia ---------- */
+function storyMenu() {
+  const list = document.getElementById('storyList'); let html = '';
+  for (const id in MISSIONS) {
+    const m = MISSIONS[id], c = m.chapter; if (!c) continue;
+    html += `<button class="chap" data-id="${id}"><span class="chap-n">Capítulo ${String(c.n).padStart(2, '0')}</span><span class="chap-t">${c.title}</span>`
+      + `<span class="chap-p">${m.place}  ·  ${c.squad}</span><span class="chap-b">${c.brief}</span><span class="chap-go">Jugar ›</span></button>`;
+  }
+  html += '<div class="chap locked"><span class="chap-n">Capítulo 02</span><span class="chap-t">Próximamente</span></div>';
+  list.innerHTML = html;
+  for (const b of list.querySelectorAll('.chap[data-id]')) b.addEventListener('click', () => { closePanels(); chooseMission(b.dataset.id); });
+  openPanel('pStory');
+}
 /* ---------- Bucle ---------- */
 let lastT = performance.now(), loadTotal = 1;
 const loadBar = document.getElementById('loadbar'), goBtn = document.getElementById('go');
@@ -9890,6 +10922,7 @@ function frame(now) {
   loadTotal = Math.max(1, terrainState.pending.length);
   planTowers();
   goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
+  document.getElementById('mStory').addEventListener('click', storyMenu);                          // v34: Modo Historia → capítulos (19e)
   document.getElementById('mM1').addEventListener('click', () => chooseMission('mision1'));        // v23: Misión 1 (Fase 1)
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
@@ -9898,8 +10931,9 @@ function frame(now) {
   document.getElementById('mGal').addEventListener('click', () => chooseMission('galeria'));           // v29: galería de enemigos
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); loadUnits(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible; v29: las unidades nuevas
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
-    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally,   // (v21; v23: ally)
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)
+    PORTAL, STORY, VO, CC, cine, missionSignal, squadEngage, unitsWave, storySkip: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })),   // (v34)
     get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
   requestAnimationFrame(frame);
 })();

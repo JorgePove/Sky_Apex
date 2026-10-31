@@ -38,6 +38,7 @@ function frame(now) {
   loadTotal = Math.max(1, terrainState.pending.length);
   planTowers();
   goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
+  document.getElementById('mStory').addEventListener('click', storyMenu);                          // v34: Modo Historia → capítulos (19e)
   document.getElementById('mM1').addEventListener('click', () => chooseMission('mision1'));        // v23: Misión 1 (Fase 1)
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
@@ -46,8 +47,9 @@ function frame(now) {
   document.getElementById('mGal').addEventListener('click', () => chooseMission('galeria'));           // v29: galería de enemigos
   loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); loadUnits(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible; v29: las unidades nuevas
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
-    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, ally,   // (v21; v23: ally)
+    airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)
+    PORTAL, STORY, VO, CC, cine, missionSignal, squadEngage, unitsWave, storySkip: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })),   // (v34)
     get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
   requestAnimationFrame(frame);
 })();

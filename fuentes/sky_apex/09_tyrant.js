@@ -320,6 +320,7 @@ function animateHero(dt, st) {
   } else A.aimT = null;
   // v32: esquiva en 3ª persona: la cámara se queda atrás lo que el dragón se ha desplazado de lado (st.dodgeOff, en el mundo; ya con DODGE_CAM)
   if (st.dodgeOff && c > 0.001) camera.position.sub(_kA.copy(st.dodgeOff).applyQuaternion(_kRi.copy(qd).invert()).multiplyScalar(c));
+  cineCamApply(dt);                                        // v34: planos de cámara de las entradas de cine (19e), mezclados encima
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
 const _kR = new THREE.Vector3(), _kU = new THREE.Vector3(), _kF = new THREE.Vector3(), _kZ = new THREE.Vector3(0, 0, 1);
