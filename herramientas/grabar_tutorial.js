@@ -674,7 +674,7 @@
       each(t, S) { aimAt(S.u.bc, 0.12); },
       callouts: [[0.6, 3.2, () => { const a = {}; camera.getWorldPosition(_camP); return proj(S.u.bc.x, S.u.bc.y - S.u.size * 0.06, S.u.bc.z, a) ? [a.x - 125, a.y + 12, 250, 40] : null; }, 'NÚCLEO Y TORRETAS']]
     },
-    sierpe: {                                                // v35: en hover junto a ella: los disparos rebotan en el escudo; luego, fuego rápido a un hechicero (la guiada choca con el cuerpo)
+    sierpe: {                                                // v35: en hover junto a ella: los disparos rebotan en el escudo; luego, fuego rápido a un hechicero (al torso: a los pies, los disparos dan en el lomo)
       place: { x: 0, z: 0, heading: 3.5, agl: 1900, speed: 0, hover: true }, dur: 11.5, show: ['mouse'], seed: 23,
       clicks: [...taps(0.8, 2.4, 0.2), [1, 4.3, 4.4], ...taps(4.8, 8.9, 0.19)],
       setup(S) { const B = S.base, p = rel(B, -120, 520); S.u = addSierpe(p.x, p.z, B.y - groundAt(p.x, p.z) - 70, hdg(B) + 75, [], 'idle'); },

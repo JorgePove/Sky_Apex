@@ -129,13 +129,13 @@ function segPointDist2(p, q, c) {                           // distancia² del p
 }
 /* Segmento p→q (proyectil, llamarada, rayo, mira) contra las unidades: la primera que toca (con pad m de margen), o null; el punto donde
    entra en ella (en su superficie, no dentro) queda en _Uhit. v30: antes era el punto más cercano al eje (dentro del casco) y la caja de los
-   batallones pisaba el vector q. */
+   batallones pisaba el vector q. v35: skip = una unidad que no cuenta (la que lleva montado al blanco de una bola guiada: ver abajo). */
 const _Use = new THREE.Vector3(), _Upt = new THREE.Vector3(), _Uray = new THREE.Vector3();
-function unitSegHit(p, q, pad) {
+function unitSegHit(p, q, pad, skip) {
   let best = null, bestT = Infinity;
   _Use.subVectors(q, p); const len = _Use.length(); if (len < 1e-6) return null; _Use.divideScalar(len);
   for (const u of UNITS) {
-    if (u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
+    if (u === skip || u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
     if (u.boxHit) {                                         // (batallones: una caja baja, no una cápsula)
       const t = u.boxHit(u, p, q, pad) * len;
       if (t >= 0 && t < bestT) { bestT = t; best = u; _Uhit.copy(p).addScaledVector(_Use, t); }

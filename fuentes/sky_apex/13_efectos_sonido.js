@@ -300,7 +300,9 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
-        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
+        // (v35: una guiada fijada a algo montado —un hechicero de la sierpe, una torreta del superdirigible— atraviesa a quien lo lleva: antes
+        //  reventaba contra el cuerpo de la sierpe, con escudo, y no le hacía nada al hechicero)
+        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1, msl && f.target && f.target.parent); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
         byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }

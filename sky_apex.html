@@ -3935,7 +3935,9 @@ function updateFireballs(dt) {
           if (msl) explode(_sdc.x, _sdc.y, _sdc.z, 1.3);
           break;
         }
-        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
+        // (v35: una guiada fijada a algo montado —un hechicero de la sierpe, una torreta del superdirigible— atraviesa a quien lo lleva: antes
+        //  reventaba contra el cuerpo de la sierpe, con escudo, y no le hacía nada al hechicero)
+        if (!hit) { const u = unitSegHit(_fo, f.pos, msl ? 4 : 1, msl && f.target && f.target.parent); if (u) { hit = onTarget = true; const at = _Uhit.clone(); damageUnit(u, f.dmg, false, at, msl ? 'msl' : 'gun'); if (msl) explode(at.x, at.y, at.z, 1.3); } }   // v29: unidades nuevas (6f)
         byAlly = false;
       }
       if (!hit && islandAt(f.pos.x, f.pos.y, f.pos.z, 0)) { hit = true; if (fast) sparks(f.pos.x, f.pos.y, f.pos.z, 6, 0, 6, 0); else explode(f.pos.x, f.pos.y, f.pos.z, msl ? 1.3 : 0.75); }
@@ -5926,13 +5928,13 @@ function segPointDist2(p, q, c) {                           // distancia² del p
 }
 /* Segmento p→q (proyectil, llamarada, rayo, mira) contra las unidades: la primera que toca (con pad m de margen), o null; el punto donde
    entra en ella (en su superficie, no dentro) queda en _Uhit. v30: antes era el punto más cercano al eje (dentro del casco) y la caja de los
-   batallones pisaba el vector q. */
+   batallones pisaba el vector q. v35: skip = una unidad que no cuenta (la que lleva montado al blanco de una bola guiada: ver abajo). */
 const _Use = new THREE.Vector3(), _Upt = new THREE.Vector3(), _Uray = new THREE.Vector3();
-function unitSegHit(p, q, pad) {
+function unitSegHit(p, q, pad, skip) {
   let best = null, bestT = Infinity;
   _Use.subVectors(q, p); const len = _Use.length(); if (len < 1e-6) return null; _Use.divideScalar(len);
   for (const u of UNITS) {
-    if (u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
+    if (u === skip || u.dead || !u.caps.length || segPointDist2(p, q, u.bc) > (u.br + pad) ** 2) continue;
     if (u.boxHit) {                                         // (batallones: una caja baja, no una cápsula)
       const t = u.boxHit(u, p, q, pad) * len;
       if (t >= 0 && t < bestT) { bestT = t; best = u; _Uhit.copy(p).addScaledVector(_Use, t); }
@@ -9218,7 +9220,7 @@ const TUTORIAL = [
       'Cuidado con su <b>rayo</b>: una esfera de energía crece en la proa durante unos segundos y luego sale un rayo enorme que barre el cielo y quema el suelo. No va a por ti, pero si te cruzas te quita {superdirigible.rayo_dano} por segundo y el escudo no lo para: cuando veas la esfera, apártate de la proa.'] },
     { id: 'sierpe', title: 'Sierpe', sum: 'Un dragón serpiente gigante protegido por hechiceros.', keys: [[['Clic central'], 'Fijar a cada hechicero']], text: [
       'Un minijefe: un dragón serpiente de {sierpe.largo} m que vuela en grandes círculos a mucha altura. Sobre ella, un rombo doble con su nombre; en el radar, un círculo doble.',
-      'Mientras lleve el <b>ESCUDO</b> (una piel de energía que brilla y destella con cada impacto), nada le hace daño: primero hay que abatir a los {sierpe.hechiceros} <b>hechiceros</b> de su lomo (un círculo sobre cada uno; {sierpe.hechicero_vida} de vida). Al caer el último, el escudo se rompe con un destello y ya puedes dañarla.',
+      'Mientras lleve el <b>ESCUDO</b> (una piel de energía que brilla y destella con cada impacto), nada le hace daño: primero hay que abatir a los {sierpe.hechiceros} <b>hechiceros</b> de su lomo (un círculo sobre cada uno; {sierpe.hechicero_vida} de vida): fíjalos uno a uno y usa el fuego rápido o una bola guiada. Al caer el último, el escudo se rompe con un destello y ya puedes dañarla.',
       'Te ataca con bolas de fuego ({sierpe.bola_dano}) y, si te pones delante de su cabeza, con una llamarada enorme de {sierpe.llamas_alcance} m ({sierpe.llamas_dano} por segundo): no te cruces por delante, o usa el escudo (' + K('R') + '), que sí la para.',
       'Aguanta {sierpe.vida} de daño y da {sierpe.puntos} puntos. Al morir cae envuelta en explosiones.'] }
   ] },

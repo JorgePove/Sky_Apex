@@ -2,7 +2,9 @@
 
 Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho hasta ahora: qué es el juego, cómo funciona por dentro, qué se pidió y en qué orden, qué se probó, qué se aprendió y por dónde seguir.
 
-Fecha de este resumen: 1 de noviembre de 2026, v35 (la primera versión es del 16 de octubre).
+Fecha de este resumen: 1 de noviembre de 2026, v36 (la primera versión es del 16 de octubre).
+
+> **v36 (1-nov): la bola guiada abate hechiceros y torretas** (sección 7c, «v36»): fijada a una pieza montada (hechicero de la sierpe, torreta del superdirigible), la guiada atraviesa a quien la lleva; antes reventaba contra el cuerpo escudado de la sierpe sin hacer nada. Entregada, sin jugar aún.
 
 > **v35 (1-nov): tutorial puesto al día** (sección 7c, «v35»): para dárselo a un jugador nuevo. 29 secciones (7 nuevas: superdirigible, sierpe, artillería, batallones, barcos, «Escuadrón y radio» y «Misiones y objetivos») con todos los controles, armas y enemigos de la v34 y los números del Excel; los 29 vídeos regrabados con el juego actual (el grabador, puesto al día); la º fuera de Controles. Entregada, sin jugar aún.
 
@@ -30,7 +32,8 @@ Fecha de este resumen: 1 de noviembre de 2026, v35 (la primera versión es del 1
 > **27-oct, al cerrar el chat:** v20 corregida tras jugarla Jorge (el jinete de Fulgor flotaba muy atrás y la 1ª persona iba muy atrás y baja); sin nueva respuesta suya aún. Blender enlazado al proyecto (sección 8.3).
 
 Estado:
-- **v35 entregada** (1-nov, sin jugar aún): tutorial puesto al día (sección 7c, «v35»). Queda pendiente para Jorge un hallazgo: la bola guiada no daña a los hechiceros de la sierpe (choca con su cuerpo escudado). Para cambiar un texto del tutorial: `TUTORIAL` en `17_intro_menu_tutorial.js`; para regrabar un vídeo: `REC.record('id')` (cabecera de `herramientas/grabar_tutorial.js`). Lo demás pendiente, como en el punto de abajo (el último de «Lo de antes» ya está hecho).
+- **v36 entregada** (1-nov, sin jugar aún): la guiada ya abate a los hechiceros de la sierpe y a las torretas del superdirigible (sección 7c, «v36»; lo encontró Claude al grabar el tutorial y Jorge pidió arreglarlo).
+- **v35 entregada** (1-nov, sin jugar aún): tutorial puesto al día (sección 7c, «v35»). Para cambiar un texto del tutorial: `TUTORIAL` en `17_intro_menu_tutorial.js`; para regrabar un vídeo: `REC.record('id')` (cabecera de `herramientas/grabar_tutorial.js`). Lo demás pendiente, como en el punto de abajo (el último de «Lo de antes» ya está hecho).
 - **Para el chat nuevo (31-oct-2026, tras la v34)**: la **v34 está aprobada** por Jorge («Está perfecto. Me ha gustado todo. Siempre hay cosas que mejorar pero está estupendo en principio») y subida (etiqueta `v34`); con ella acaba este chat. En él se hizo el **Modo Historia** con el **Capítulo 01, «Trial by Fire»** (sección 7c, «v34»): pantalla de capítulo, voces con subtítulos ES/EN, entrada de cine con planos de cámara, Escuadrón Paladin (Seraphin 1, Lance 2, Percival 3 = jugador, Minotaur 4, Jester 5; Volger = su dragón; Oracle = el Mando), cinco fases y final. Jorge no ha dicho qué toca ahora: preguntarle. Lo pendiente o anunciado:
   - Del capítulo 01, al jugarlo más: el ritmo del guion (frases y esperas en `18b_capitulo1.js`), la ayuda de los aliados (Excel, «Lance (aliado)», sección Escolta), el rayo del superdirigible (Excel, «Superdirigible», sección Rayo), los planos de cine (`intro.shots` y los del portal), el volumen de las voces (Opciones), la dificultad y el rendimiento en la Vega 10 con los 4000 soldados a la vista. No hay puntos de control: caer = reintentar desde la pantalla de capítulo (Intro la salta).
   - Voces: Jorge irá grabando las líneas en inglés (el texto está en `18b_capitulo1.js`; hoy solo suenan Seraphin y Volger). Cada voz nueva: archivo en `audio/`, entrada en `VOICES` (19e), `<script id>` en `02_dom.html` y `--extra` en `construir.mjs`; en la receta, `SAY(quién, en, es, 'id_voz')`.
@@ -829,9 +832,16 @@ Petición de Jorge (31-oct, chat nuevo): «Actualizar el tutorial con todos los 
 - **Textos** (`17_intro_menu_tutorial.js`): 29 secciones en 7 categorías (Vuelo 5, Velocidad 3, Ataques 5, Defensa 4, **Enemigos del aire** 5, **Enemigos de tierra y mar** 4, Partida 3). Puestas al día: esquiva (con sus números), acelerar (aleteo con W), picados (alas plegadas y desplegadas al remontar), fuego (adelanto solo con blancos rápidos), **fijar** (v31: lo más cercano a la mira; otro clic sin mover la mira, el siguiente; alcances), guiada (cualquier blanco; en parábola contra tierra y mar), llamarada (pasadas rasantes con Espacio; batallones), rayo, escudo (qué para y qué no: choques y rayo del superdirigible), recarga del escudo (los derribos de los compañeros no cuentan), vida (todos los daños y choques), dragones (patrullas, DESCONOCIDO), esquivar guiadas (también con A/D), dirigibles, torres, HUD (radar con todos los símbolos). Nuevas: `superdirigible`, `sierpe`, `artilleria`, `batallones`, `barcos`, `escuadron` y `misiones` (sustituye a `objetivo`). Todos los números salen del Excel (`{clave}`, `{unidad.clave}`).
 - **Controles** (`02_dom.html`): fuera la º (sigue funcionando); Intro (saltar en el Modo Historia); el objetivo, como del combate libre, con remisión al Tutorial.
 - **Vídeos**: los 29 regrabados (`tutorial/<id>.webm`) con `herramientas/grabar_tutorial.js` puesto al día (cambios en su cabecera); `tutorial/objetivo.webm` borrado. Escenas nuevas: esquiva (3ª persona), dirigible de costado disparando, superdirigible (núcleo y luego una torreta), sierpe en hover (los disparos destellan en el escudo; un hechicero abatido), artillería y batallón de 1000 en hover con cámara exterior alta (llamarada y fuego rápido), barco hundido por una guiada en el lago al sur del inicio, Escuadrón Paladin en formación con Seraphin por radio, y misiones (objetivos, «Nuevo objetivo», salir del área con la cuenta atrás).
-- **Hallazgo, sin tocar (para Jorge)**: la bola guiada fijada a un hechicero de la sierpe choca con el cuerpo escudado y no le hace daño; el fuego rápido apuntado a sus pies, igual (al torso, sí).
+- **Hallazgo**: la bola guiada fijada a un hechicero de la sierpe chocaba con el cuerpo escudado y no le hacía daño; el fuego rápido apuntado a sus pies, igual (al torso, sí). Arreglado en la v36.
 - Probado (navegador integrado): las 29 secciones sin huecos `{…}` con los valores del Excel de Jorge; cada escena revisada con hojas de fotogramas antes de grabar; vídeos reproducidos en la ventana del tutorial; HTML generado. Sin comprobar: lo que le parece a un jugador nuevo.
 - Etiqueta `v35`.
+
+### v36 (1-nov): la bola guiada abate hechiceros y torretas
+Jorge, tras el hallazgo de la v35: «Sí, arréglalo».
+- **Causa**: los proyectiles del jugador chocan con la primera cápsula de cualquier unidad (`unitSegHit`, 6f), y la guiada con 4 m de margen. El hechicero va sobre el lomo de la sierpe (a un 1,45 % del largo por encima del eje), así que la bola tocaba antes el cuerpo, escudado, y reventaba sin daño.
+- **Arreglo**: `unitSegHit(p, q, pad, skip)` acepta una unidad que no cuenta; la bola guiada (13) pasa como `skip` al portador de su blanco (`f.target.parent`). Vale para los hechiceros y para las torretas del superdirigible (la bola ya no se queda en el casco, el núcleo). El fuego rápido no cambia (a los pies del hechicero sigue dando en el lomo, como es lógico). Texto del tutorial (sierpe): «fíjalos uno a uno y usa el fuego rápido o una bola guiada».
+- Probado (navegador integrado, fuente y HTML generado): hechicero fijado → una guiada lo abate (60 de 60) y el escudo sigue con los otros dos; torreta fijada → destruida y el núcleo intacto (1500/1500).
+- Etiqueta `v36`.
 
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.
