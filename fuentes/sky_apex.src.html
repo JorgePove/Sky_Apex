@@ -1806,7 +1806,9 @@ function setupHero(gltf) {
       const m = o.material;
       for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].encoding = THREE.LinearEncoding;   // como el resto de la escena (salida lineal)
       if (m.emissive && m.emissive.getHex()) m.emissiveIntensity = HERO_EMISSIVE;
-      m.side = THREE.DoubleSide; m.needsUpdate = true;     // membranas de las alas: visibles por las dos caras
+      // v37: solo las caras delanteras. La membrana tiene dos capas (arriba oscura, abajo clara) y al reducir la malla se cruzan:
+      // dibujando las dos caras, la de abajo asomaba por la de arriba (las «manchas»). El modelo no tiene zonas de una sola capa.
+      m.side = THREE.FrontSide; m.needsUpdate = true;
     }
   });
   gltf.animations.filter(c => c.name === 'vuelo' || c.name === 'hover').forEach(c => c.tracks.forEach(t => hero.animated.add(t.name.split('.')[0])));

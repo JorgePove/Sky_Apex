@@ -2,7 +2,9 @@
 
 Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho hasta ahora: qué es el juego, cómo funciona por dentro, qué se pidió y en qué orden, qué se probó, qué se aprendió y por dónde seguir.
 
-Fecha de este resumen: 1 de noviembre de 2026, v36 (la primera versión es del 16 de octubre).
+Fecha de este resumen: 1 de noviembre de 2026, v37 (la primera versión es del 16 de octubre).
+
+> **v37 (1-nov): sin manchas en el Tyrant** (sección 7c, «v37»): las manchas claras de las alas de Alientormenta (y de los enemigos y aliados, que usan el mismo modelo) eran la capa de abajo de la membrana asomando por la de arriba: la reducción de la malla al 32 % cruza las dos capas y el juego dibujaba las dos caras de cada triángulo. Ahora el Tyrant solo dibuja las caras delanteras; el modelo, los huesos y los clips no cambian. Entregada, sin jugar aún.
 
 > **v36 (1-nov): la bola guiada abate hechiceros y torretas** (sección 7c, «v36»): fijada a una pieza montada (hechicero de la sierpe, torreta del superdirigible), la guiada atraviesa a quien la lleva; antes reventaba contra el cuerpo escudado de la sierpe sin hacer nada. Entregada, sin jugar aún.
 
@@ -32,6 +34,7 @@ Fecha de este resumen: 1 de noviembre de 2026, v36 (la primera versión es del 1
 > **27-oct, al cerrar el chat:** v20 corregida tras jugarla Jorge (el jinete de Fulgor flotaba muy atrás y la 1ª persona iba muy atrás y baja); sin nueva respuesta suya aún. Blender enlazado al proyecto (sección 8.3).
 
 Estado:
+- **v37 entregada** (1-nov, sin jugar aún): sin manchas en las alas del Tyrant (sección 7c, «v37»; Jorge lo arrastraba desde hace tiempo y preguntó si se podía arreglar con Blender).
 - **v36 entregada** (1-nov, sin jugar aún): la guiada ya abate a los hechiceros de la sierpe y a las torretas del superdirigible (sección 7c, «v36»; lo encontró Claude al grabar el tutorial y Jorge pidió arreglarlo).
 - **v35 entregada** (1-nov, sin jugar aún): tutorial puesto al día (sección 7c, «v35»). Para cambiar un texto del tutorial: `TUTORIAL` en `17_intro_menu_tutorial.js`; para regrabar un vídeo: `REC.record('id')` (cabecera de `herramientas/grabar_tutorial.js`). Lo demás pendiente, como en el punto de abajo (el último de «Lo de antes» ya está hecho).
 - **Para el chat nuevo (31-oct-2026, tras la v34)**: la **v34 está aprobada** por Jorge («Está perfecto. Me ha gustado todo. Siempre hay cosas que mejorar pero está estupendo en principio») y subida (etiqueta `v34`); con ella acaba este chat. En él se hizo el **Modo Historia** con el **Capítulo 01, «Trial by Fire»** (sección 7c, «v34»): pantalla de capítulo, voces con subtítulos ES/EN, entrada de cine con planos de cámara, Escuadrón Paladin (Seraphin 1, Lance 2, Percival 3 = jugador, Minotaur 4, Jester 5; Volger = su dragón; Oracle = el Mando), cinco fases y final. Jorge no ha dicho qué toca ahora: preguntarle. Lo pendiente o anunciado:
@@ -843,6 +846,14 @@ Jorge, tras el hallazgo de la v35: «Sí, arréglalo».
 - Probado (navegador integrado, fuente y HTML generado): hechicero fijado → una guiada lo abate (60 de 60) y el escudo sigue con los otros dos; torreta fijada → destruida y el núcleo intacto (1500/1500).
 - Etiqueta `v36`.
 
+### v37 (1-nov): sin manchas en el Tyrant
+Jorge, con dos capturas: manchas lisas azul claro en la membrana de las alas (y algo en el cuerpo) de Alientormenta, «como si la textura no se mapeara bien o faltaran píxeles». Preguntó si con Blender se podía arreglar sin estropear el modelo ni las animaciones.
+- **Lo que no era** (comprobado con `herramientas/blender/tyrant/01_analizar.py`): las 5 casillas UDIM son opacas (sin alfa ni huecos, con relleno en los bordes), las UV del FBX no se salen de su casilla y el atlas del GLB está bien.
+- **Causa**: la membrana tiene **dos capas**, la de arriba con la textura oscura y la de abajo con la crema. `preparar_fbx.mjs` reduce el cuerpo al 32 % (`--ratio 0.32`, error 0,02) y mueve los vértices de cada capa por separado, así que en algunas zonas la de abajo atraviesa la de arriba. Como el material del Tyrant dibujaba las dos caras de cada triángulo (`DoubleSide`), en esas zonas se veía la capa crema por arriba (y la oscura por abajo); con la piel teñida, el tinte (`tintSkinMaterial`, tope de 2,6 veces la luminancia media) la dejaba en un azul claro plano. Comprobado con `02_caras.py`: el FBX original y el GLB sin reducir (`--ratio 1`) no tienen manchas; el GLB del juego sí.
+- **Arreglo** (`09_tyrant.js`, `setupHero`): el Tyrant solo dibuja las **caras delanteras** (`FrontSide`). Desde arriba la capa de abajo queda de espaldas y no se dibuja aunque asome, y al revés. El modelo no tiene zonas de una sola capa (el FBX y el GLB, sin caras traseras, se ven enteros por arriba y por abajo). Los enemigos y los aliados copian el material (`cloneTyrant`), así que también se arreglan. **El GLB no cambia**: ni malla, ni UV, ni huesos, ni clips; los otros tres dragones siguen con sus materiales a dos caras.
+- Probado (navegador integrado, fuente y HTML generado, con la piel azul): «Elige tu dragón» en planeo (antes y después en la misma imagen), reposo, hover y rugido; vuelo en 3ª persona desde arriba, abajo y los lados en varias fases del aleteo; 1ª persona; enemigos de cerca por arriba y por abajo; los cinco clips y 459 huesos como antes; sin errores en la consola. Sin comprobar: la sensación jugando.
+- Etiqueta `v37`.
+
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.
 - El Tyrant del jugador cuesta unos 2 ms de render y 0,3–0,6 ms de CPU de animación.
@@ -981,11 +992,15 @@ Petición de Jorge: riggear y animar `Syrax_whole.stl` para ver qué tal sale el
 9. `10_video.py`: renders con Cycles (OptiX, 32 muestras y eliminación de ruido; vista «Standard»: AgX y Filmic lavan el dorado) → `herramientas/blender/salida/syrax/syrax_<clip>.mp4` y hojas `10_fotos_<clip>.png`.
 Integrado en el juego en la v20 como **Fulgor**, cuarto dragón (sección 7c, «v20»). Licencia: personaje de HBO, como el Tyrant: solo local.
 
+#### Manchas del Tyrant (v37, 1-nov-2026)
+Scripts en `herramientas/blender/tyrant/`: `01_analizar.py` (materiales, UV por casilla UDIM y vistas del FBX con su textura UDIM frente al GLB del juego) y `02_caras.py` (vistas de arriba y de abajo con y sin caras traseras; `-- nombre=ruta.glb` para otros GLB y `fbx` para el original). Renders en `herramientas/blender/salida/tyrant/`. La textura UDIM se carga en Blender como imagen `TILED` con `<UDIM>` en la ruta.
+
 #### Enemigos de la v29 (30-oct-2026)
 Scripts en `herramientas/blender/enemigos/` (ver 7c, «v29»): analizar, preparar (los seis modelos de Jorge), el soldado y el hechicero desde cero y sondear (rayos para montar las torretas y medir el cuerpo de la sierpe). Lo aprendido: los GLB de Sketchfab traen piezas que no se ven (planos de rayos, mallas «invisible») y texturas de normales y rugosidad que el juego no usa (fuera: el barco pasó de 74 MB a 2,5 MB); `bpy.ops.object.convert(target='MESH')` aplica el esqueleto y deja la pose; el soldado salió con dos atributos de color (COLOR_0 blanco y el bueno en COLOR_1): el juego usa `color_1` si lo hay.
 
 ## 9. Lecciones y errores resueltos
 
+- (v37) Una membrana de dos capas (arriba y abajo con texturas distintas) no aguanta una reducción fuerte de la malla: las capas se cruzan. Si además el material dibuja las dos caras, la de abajo asoma en manchas. Con mallas cerradas o de dos capas, `FrontSide`; `DoubleSide` solo para mallas de una sola capa.
 - (v30) Cuando varias funciones de puntería devuelven «el más cercano», comparar con `<=` entre valores que pueden ser `Infinity` elige al primero aunque no haya tocado nada (Infinity <= Infinity): la mira saltaba al punto viejo de un dragón. Comparar con el mínimo calculado.
 - (v30) Un GLB «estático» de Sketchfab puede traer la pose del esqueleto mal aplicada (hombros estirados): mirar el FBX original si lo hay. Y al guardar datos en un canal UV para el juego, glTF invierte la V.
 - (v29) Un cuerpo de serpiente de 500 m no necesita esqueleto: basta con una columna de puntos (posición y orientación) en uniformes y que el shader coloque cada vértice en la suya según su posición a lo largo del modelo (recto en reposo). Así el cuerpo sigue exactamente el camino de la cabeza.
