@@ -13,7 +13,13 @@
      3. await REC.peek('boost', [0, 2, 4, 6])  → hoja de 4 fotogramas en pantalla (para revisar una escena)
         await REC.record('boost')            → graba y guarda tutorial/boost.webm      ·   await REC.recordAll()
    Las escenas están en SCENES (abajo). Entradas: keys [código, desde, hasta], clicks [botón, desde, hasta], moves [desde, hasta, dx, dy] (píxeles
-   de ratón, como con el puntero bloqueado), show = mandos que se dibujan, each(t, S) para lo demás. */
+   de ratón, como con el puntero bloqueado), show = mandos que se dibujan, each(t, S) para lo demás.
+   v35 (puesto al día con el juego de la v34): prepare pasa la pantalla de carga y quita la entrada de cine; place y clearWorld reinician lo
+   nuevo (armadura, vuelo recto, esquiva, unidades, dirigibles, aliados, quemaduras, radio, área, objetivos); teclas de la v26/v32 (Ctrl, X,
+   A, D, R, Intro); se dibujan también la radio y el aviso del área; 29 escenas (las nuevas: esquiva, dirigibles, superdirigible, sierpe,
+   artillería, batallones, barcos, escuadron, misiones). Los rumbos con enemigos dejan el sol a la espalda; artillería y batallones van en
+   llanos sin árboles y con cámara exterior alta (en la del jinete, la cabeza del dragón tapa el blanco). Las escenas con valores que dependen
+   del Excel (vida de los dragones, daño de la guiada y de la llamarada) ponen a los títeres ya tocados para que se vea el derribo. */
 (() => {
   'use strict';
   const CSS_W = 1024, CSS_H = 576, PR = 1, OUT_W = 1024, OUT_H = 576, FPS = 30, SUB = 2, DT = 1 / (FPS * SUB);   // ventana de 1024×576 (el HUD cabe sin solaparse)
@@ -64,6 +70,9 @@
       updateTowerStreaming(dragon.position.x, dragon.position.z); updateIslandStreaming(dragon.position.x, dragon.position.z); pumpIslands(4000);
       enterSelect(); leaveSelect(true);                   // → startGame (enemigos, armas, estadísticas)
     }
+    for (let i = 0; i < 50000 && state === 'worldgen'; i++) updateWorldGen();   // (v35: desde la v19, startGame puede pasar antes por la pantalla de carga)
+    cineEnd(true); missionHideHUD();                      // (v35: sin la entrada de cine de la v26: las escenas empiezan ya en vuelo)
+    if (!orig.mission) { orig.mission = mission; orig.objs = MS.objs.map(o => Object.assign({}, o)); }   // objetivos del combate libre (torres y dragones), para volver a ellos
     if (!sfx.muted) sfx.toggleMute(); music.setMuted(true);
     F.lockRequested = false; F.locked = true;
     log('preparado · semilla', SEED, '· estado', state);
@@ -135,7 +144,10 @@
     F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; F.pdx = F.pdy = 0; dragonVel.copy(dir).multiplyScalar(F.speed);
     F.hover = !!o.hover; F.hoverK = o.hover ? 1 : 0; F.hvy = 0; if (o.hover) F.speed = 0;
     F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-    F.third = !!o.third; F.health = o.health != null ? o.health : 100; F.lastHit = -99; F.fireFlash = 0;
+    F.third = !!o.third; F.health = o.health != null ? o.health : heroHpMax(); F.armor = o.armor != null ? o.armor : ARMOR_MAX; F.lastHit = -99; F.fireFlash = 0;   // (v24: vida del dragón y armadura)
+    F.lookVY = F.lookVP = 0; F.tgtCam = F.tgtBack = F.straight = false; F.effort = F.diveT = F.spreadT = 0;   // (v26-v32: vuelo recto, cámara al blanco, aleteo)
+    F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null; dodgeReset();
+    F.aimPt.copy(dir).multiplyScalar(1400).add(dragon.position); cineEnd(true);
     resetWeapons(true);
     if (o.ult != null) { W.ult = o.ult; W.ultFull = o.ult >= 1; }
     if (o.msl != null) W.msl = o.msl;
@@ -176,6 +188,12 @@
     W.lmb = W.rmb = false;
     for (const k in stats) stats[k] = 0;
     shieldMesh.visible = false;
+    // v35: lo que llegó después de la v12: unidades nuevas, dirigibles, aliados, quemaduras, radio, área y objetivos de la misión
+    RUN.units = []; planUnits(); unitState.kills = 0;
+    for (const a of airships) removeAirshipMesh(a); airships.length = 0; airshipState.kills = 0;
+    allyOff(); scorchClear(); if (W.shieldT > 0) { W.shieldT = 0; W.shieldFade = 0; }
+    mission = orig.mission || mission; MS.objs = (orig.objs || []).map(o => Object.assign({}, o)); MS.kills = {}; MS.ended = false; MS.endAt = 0;
+    MS.out = false; MS.outT = AREA_GRACE; MS.tick = -1; missionHideHUD(); hintHide(); STORY.chatter = false;
   }
 
   /* ---------- Entradas ---------- */
@@ -233,6 +251,7 @@
     updateWorld(DT);
     if (S.noAA) for (const tw of towers.values()) tw.cool = 1e9;
     for (const e of S.puppets) if (S.ev.has(e) !== e.dead) { S.ev.add(e); if (e.dead) log('  t=' + t.toFixed(2), 'dragón derribado'); }
+    for (const u of UNITS) if (u.dead && !S.ev.has(u)) { S.ev.add(u); log('  t=' + t.toFixed(2), (u.label || u.kind) + ' destruido'); }   // (v35: unidades nuevas)
     if (stats.blocked !== S.blocked) { S.blocked = stats.blocked; log('  t=' + t.toFixed(2), 'el escudo para un proyectil'); }
     if (Math.round(F.health) < S.hp - 4) { S.hp = Math.round(F.health); log('  t=' + t.toFixed(2), 'vida', S.hp); }
     if (state !== S.state) { S.state = state; log('  t=' + t.toFixed(2), 'estado', state); }
@@ -269,6 +288,15 @@
       cx.fillStyle = '#f2b84b'; cx.shadowColor = 'rgba(0,0,0,.8)'; cx.shadowBlur = 12; cx.shadowOffsetY = 2;
       cx.fillText(tt.msg, W2 / 2 + 1.4, 78); cx.restore();
     }
+    if (radioEl.classList.contains('on')) drawRadio(W2, H2); // v35: #radio (compañeros y Mando), abajo en el centro
+    if (areaEl.classList.contains('on')) {                   // v35: #area (fuera del área de la misión: cuenta atrás)
+      cx.save(); cx.textAlign = 'center'; cx.textBaseline = 'top'; cx.fillStyle = '#ff4a3a'; cx.shadowColor = 'rgba(255,60,40,.6)'; cx.shadowBlur = 16;
+      const y0 = H2 * 0.29;
+      cx.font = "700 21px 'Cinzel'"; cx.letterSpacing = '5px'; cx.fillText('ABANDONANDO EL ÁREA DE LA MISIÓN', W2 / 2 + 2.5, y0);
+      cx.font = "700 66px 'Cinzel'"; cx.letterSpacing = '0px'; cx.fillText(areaCountEl.textContent, W2 / 2, y0 + 26);
+      cx.shadowBlur = 8; cx.shadowColor = 'rgba(0,0,0,.85)'; cx.font = "13px 'Share Tech Mono'"; cx.letterSpacing = '1.8px'; cx.fillStyle = 'rgba(241,230,211,.9)'; cx.fillText(areaEdgeEl.textContent, W2 / 2 + 0.9, y0 + 98);
+      cx.restore();
+    }
     if (state === 'dead') {                                  // #dead
       cx.save(); cx.fillStyle = 'rgba(13,10,15,.55)'; cx.fillRect(0, 0, W2, H2);
       cx.textAlign = 'center'; cx.textBaseline = 'middle';
@@ -276,6 +304,26 @@
       cx.font = "12px 'Share Tech Mono'"; cx.letterSpacing = '3.4px'; cx.fillStyle = '#ff7a2e'; cx.fillText(document.getElementById('deadwhy').textContent.toUpperCase(), W2 / 2 + 1.7, H2 / 2 + 26);
       cx.restore();
     }
+  }
+  /* v35: la caja de la radio como en el CSS (#radio: 364 px de ancho a 1024, 66 px sobre el borde de abajo): icono con la inicial, nombre y texto. */
+  function drawRadio(W2, H2) {
+    const w = clamp(W2 - 660, 300, 560), pad = 12, tx = 40 + 12, maxW = w - pad * 2 - tx - 3;
+    cx.save();
+    const words = radioTextEl.textContent.split(/\s+/), lines = []; let cur = '';
+    cx.font = "15px 'Share Tech Mono'";
+    for (const wd of words) { const t = cur ? cur + ' ' + wd : wd; if (cx.measureText(t).width > maxW && cur) { lines.push(cur); cur = wd; } else cur = t; }
+    if (cur) lines.push(cur);
+    const h = Math.max(40, 18 + lines.length * 21) + 21, x = (W2 - w) / 2, y = H2 - 66 - h, col = radioIconEl.style.background || '#f2b84b';
+    cx.fillStyle = 'rgba(13,10,15,.66)'; cx.fillRect(x, y, w, h);
+    cx.strokeStyle = 'rgba(241,230,211,.16)'; cx.lineWidth = 1; cx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    cx.fillStyle = col; cx.fillRect(x, y, 3, h);
+    cx.fillRect(x + 3 + pad, y + 10, 40, 40);
+    cx.fillStyle = '#140d10'; cx.font = "700 21px 'Cinzel'"; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(radioIconEl.textContent, x + 3 + pad + 20, y + 31);
+    cx.textAlign = 'left'; cx.textBaseline = 'top';
+    cx.fillStyle = radioNameEl.style.color || col; cx.font = "11px 'Share Tech Mono'"; cx.letterSpacing = '2.6px'; cx.fillText(radioNameEl.textContent.toUpperCase(), x + 3 + pad + tx, y + 11);
+    cx.fillStyle = '#f1e6d3'; cx.font = "15px 'Share Tech Mono'"; cx.letterSpacing = '0px';
+    lines.forEach((l, i) => cx.fillText(l, x + 3 + pad + tx, y + 29 + i * 21));
+    cx.restore();
   }
   /* Recuadros que señalan partes del HUD: [desde, hasta, caja [x, y, w, h] o función(t) → caja, texto] */
   function drawCallouts(t) {
@@ -297,12 +345,13 @@
     }
   }
   /* Mandos de la escena, abajo en el centro: teclas que se iluminan al pulsarlas y el ratón (botones y flecha de movimiento). */
-  const CAP = { KeyW: 'W', KeyS: 'S', KeyQ: 'Q', KeyE: 'E', KeyR: 'R', KeyC: 'C', KeyZ: 'Z', KeyF: 'F', ShiftLeft: 'SHIFT', Space: 'ESPACIO' };
+  const CAP = { KeyW: 'W', KeyS: 'S', KeyQ: 'Q', KeyE: 'E', KeyR: 'R', KeyC: 'C', KeyZ: 'Z', KeyF: 'F', KeyX: 'X', KeyA: 'A', KeyD: 'D', ShiftLeft: 'SHIFT', Space: 'ESPACIO', ControlLeft: 'CTRL', Enter: 'INTRO' };   // (v35: teclas de la v26 y la v32)
+  const KEY_W = { Space: 96, ShiftLeft: 64, ControlLeft: 56, Enter: 64 };
   function drawInputs() {
     const show = S.scene.show || []; if (!show.length) return;
-    const items = show.map(k => k === 'mouse' ? { k, w: 34 } : { k, w: k === 'Space' ? 96 : k === 'ShiftLeft' ? 64 : 34 });
+    const items = show.map(k => k === 'mouse' ? { k, w: 34 } : { k, w: KEY_W[k] || 34 });
     const gap = 9, total = items.reduce((s, it) => s + it.w, 0) + gap * (items.length - 1), K = 1.35;   // K: escala de los mandos
-    cx.save(); cx.translate(CSS_W / 2, CSS_H - 48); cx.scale(K, K);                                     // abajo en el centro, encima de la barra de vida
+    cx.save(); cx.translate(CSS_W / 2, S.scene.showTop ? 132 : CSS_H - 71); cx.scale(K, K);           // abajo en el centro, encima de la vida y la armadura (v35: showTop = arriba, si abajo va la radio)
     let x = -total / 2; const y = -46;
     const pad = 8;
     cx.fillStyle = 'rgba(13,10,15,.6)'; cx.beginPath(); cx.roundRect(x - pad, y - pad, total + pad * 2, 40 + pad * 2, 8); cx.fill();
@@ -407,8 +456,8 @@
   };
   REC.show = function (src) {
     let im = document.getElementById('recPeek');
-    if (!im) { im = document.createElement('img'); im.id = 'recPeek'; im.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;object-fit:contain;z-index:99;background:#000'; document.body.appendChild(im); }
-    im.src = src; im.hidden = false;
+    if (!im) { im = document.createElement('img'); im.id = 'recPeek'; im.style.cssText = 'position:fixed;left:0;top:0;object-fit:contain;z-index:99;background:#000'; document.body.appendChild(im); }
+    im.style.width = '780px'; im.style.height = '585px'; im.src = src; im.hidden = false;   // (v35: tamaño fijo: con innerWidth fijado a 1024, el panel del navegador recortaba la vista)
   };
   REC.hide = () => { const im = document.getElementById('recPeek'); if (im) im.hidden = true; };
 
@@ -477,32 +526,53 @@
   const H0 = () => Math.atan2(START.dir.x, -START.dir.z);       // rumbo del punto de partida
   const towerBox = S => { const t = S.tower, p = {}; camera.getWorldPosition(_camP); return proj(t.x, t.y + TOWER_CRYSTAL_Y, t.z, p) ? [p.x - 26, p.y - 30, 52, 60] : null; };
   const aimBox = () => { const a = {}; camera.getWorldPosition(_camP); return proj(_camP.x + F.aimWorld.x * 1000, _camP.y + F.aimWorld.y * 1000, _camP.z + F.aimWorld.z * 1000, a) ? [a.x - 30, a.y + 25, 60, 22] : null; };
+  /* v35: ayudantes de las escenas nuevas. rel: punto a r m a la derecha y f m por delante del inicio; hdg: rumbo del inicio en grados (el de
+     las recetas); ptBox: recuadro de w × h px alrededor de un punto del mundo (si se ve); hold: lista de clics seguidos (fuego rápido). */
+  const rel = (B, r, f) => ({ x: B.x + B.right.x * r + B.dir.x * f, z: B.z + B.right.z * r + B.dir.z * f });
+  const hdg = B => Math.atan2(B.dir.x, -B.dir.z) * 180 / Math.PI;
+  const ptBox = (p, w, h, dy) => { const a = {}; camera.getWorldPosition(_camP); return p && proj(p.x, p.y, p.z, a) && a.x > 0 && a.x < CSS_W && a.y > 0 && a.y < CSS_H ? [a.x - w / 2, a.y - h / 2 + (dy || 0), w, h] : null; };
+  const noseBox = (w, h) => { camera.getWorldPosition(_camP); const f = _w.set(0, 0, -1).applyQuaternion(dragon.quaternion); return ptBox(_v.copy(_camP).addScaledVector(f, 1000), w, h, -10); };   // el marcador del morro
+  const sizePx = (p, m) => { camera.getWorldPosition(_camP); return m * CSS_H / (2 * Math.max(1, p.distanceTo(_camP)) * Math.tan(camera.fov * Math.PI / 360)); };   // m metros a esa distancia, en px
+  const taps = (a, b, gap, btn) => { const c = []; for (let t = a; t < b; t += gap) c.push([btn || 0, t, t + 0.06]); return c; };
+  const nearestAlive = (list, P) => { let best = null, bd = 1e9; for (const u of list) if (!u.dead) { const d = u.pos.distanceTo(P); if (d < bd) { bd = d; best = u; } } return best; };
+  /* Recuadros del HUD a 1024×576 (medidos en los fotogramas de la v35) */
+  const BOX = { speed: [16, 232, 156, 106], boost: [16, 336, 156, 56], left: [16, 216, 156, 176], alt: [850, 232, 162, 132], agl: [850, 300, 162, 70],
+    compass: [246, 8, 532, 76], objs: [790, 16, 222, 74], radar: [16, 392, 158, 182], weapons: [650, 358, 362, 200], ammo: [650, 376, 362, 42],
+    msl: [650, 418, 362, 42], ult: [650, 502, 362, 44], health: [352, 508, 320, 60] };
+  /* v35: las escenas con enemigos van con rumbo de ~3,5-3,8 rad (el sol, a 0,6, queda a la espalda: si no, salen a contraluz). */
   const SCENES = {
     direccion: {
-      place: { x: 0, z: 0, heading: 0, agl: 380, speed: 430, throttle: 0.7, path: 3500 }, dur: 8, show: ['mouse'],
-      moves: [[0.6, 1.3, 230, 0], [2.6, 3.6, -460, 0], [4.8, 5.4, 230, -60], [6.2, 6.8, 0, 90]]
+      place: { x: 0, z: 0, heading: 0, agl: 380, speed: 430, throttle: 0.7, path: 4500 }, dur: 11, show: ['mouse', 'Space'],
+      keys: [['Space', 6.6, 10.6]],
+      moves: [[0.6, 1.3, 230, 0], [2.6, 3.6, -460, 0], [4.6, 5.2, 230, -60], [7.2, 8.0, 380, 60], [8.6, 9.6, -560, 0]],   // con Espacio: la mira se mueve y el dragón sigue recto
+      callouts: [[7.0, 10.6, () => noseBox(150, 44), 'VUELO RECTO']]
     },
     alabeo: {
-      place: { x: 0, z: 0, heading: 3.3, agl: 420, speed: 420, throttle: 0.7, third: true, path: 3500 }, dur: 8, show: ['KeyQ', 'KeyE', 'KeyR'],
-      keys: [['KeyE', 0.7, 1.35], ['KeyQ', 2.4, 3.65], ['KeyR', 4.8, 6.6]]
+      place: { x: 0, z: 0, heading: 3.3, agl: 420, speed: 420, throttle: 0.7, third: true, path: 3500 }, dur: 8, show: ['KeyQ', 'KeyE', 'KeyX'],
+      keys: [['KeyE', 0.7, 1.35], ['KeyQ', 2.4, 3.65], ['KeyX', 4.8, 6.6]]
+    },
+    esquiva: {
+      place: { x: 0, z: 0, heading: 3.3, agl: 420, speed: 420, throttle: 0.7, third: true, path: 3500 }, dur: 8, show: ['KeyA', 'KeyD'],
+      keys: [['KeyD', 1.0, 1.12], ['KeyA', 4.4, 4.52]]
     },
     hover: {
-      place: { x: 0, z: 0, heading: 3.9, agl: 160, speed: 320, throttle: 0.6, third: true, path: 1500 }, dur: 9.5, show: ['Space', 'KeyW', 'KeyS'],
-      keys: [['Space', 0.8, 0.95], ['KeyW', 3.4, 5.0], ['KeyS', 5.6, 6.9], ['Space', 7.8, 7.95]]
+      place: { x: 0, z: 0, heading: 3.9, agl: 160, speed: 320, throttle: 0.6, third: true, path: 1500 }, dur: 9.5, show: ['ControlLeft', 'KeyW', 'KeyS'],
+      keys: [['ControlLeft', 0.8, 0.95], ['KeyW', 3.4, 5.0], ['KeyS', 5.6, 6.9], ['ControlLeft', 7.8, 7.95]]
     },
     camara: {
-      place: { x: 0, z: 0, heading: 0.6, agl: 350, speed: 380, throttle: 0.6, path: 3500 }, dur: 9, show: ['KeyC', 'KeyZ', 'mouse'],
-      keys: [['KeyC', 0.8, 0.95], ['KeyZ', 2.4, 5.4], ['KeyC', 7.0, 7.15]], moves: [[2.6, 5.0, 1300, -60]]
+      place: { x: 0, z: 0, heading: 0.6, agl: 350, speed: 380, throttle: 0.6, path: 4000 }, dur: 12, show: ['KeyC', 'KeyZ', 'KeyF', 'mouse'], seed: 2,
+      keys: [['KeyC', 0.8, 0.95], ['KeyZ', 2.4, 5.4], ['KeyC', 6.4, 6.55], ['KeyF', 8.0, 11.0]], moves: [[2.6, 5.0, 1300, -60]],
+      setup(S, A) { S.e1 = A.puppet({ at: [-900, 120, -300], dir: 0.6, speed: 110 }); enemyLock.e = S.e1; }   // fijado, a la izquierda y por detrás: F lo busca
     },
     acelerar: {
       place: { x: 0, z: 0, heading: -0.8, agl: 380, speed: 250, throttle: 0.15, path: 3000 }, dur: 9, show: ['KeyW', 'KeyS'],
       keys: [['KeyW', 0.5, 2.6], ['KeyS', 5.6, 7.6]],
-      callouts: [[0.4, 8.6, [16, 232, 156, 106], 'VELOCIDAD Y ACELERADOR']]
+      callouts: [[0.4, 8.6, BOX.speed, 'VELOCIDAD Y ACELERADOR']]
     },
     boost: {
-      place: { x: 0, z: 0, heading: 0, agl: 140, speed: 550, throttle: 1, path: 3200, clear: 110 }, dur: 8.5, show: ['ShiftLeft'],
+      place: { x: 0, z: 0, heading: 0, agl: 140, speed: 550, throttle: 1, path: 3600, clear: 110 }, dur: 8.5, show: ['ShiftLeft'],
       keys: [['ShiftLeft', 0.9, 4.6]],
-      callouts: [[5.0, 8.4, [16, 336, 156, 56], 'BARRA DE BOOST']]
+      callouts: [[5.0, 8.4, BOX.boost, 'BARRA DE BOOST']]
     },
     picados: {
       place: { x: 0, z: 0, heading: 0.3, agl: 950, speed: 550, throttle: 1, path: 3500 }, dur: 9.5, show: ['mouse'],
@@ -511,39 +581,40 @@
     },
     fuego: {
       place: { x: 0, z: 0, heading: 0.9, agl: 420, speed: 420, throttle: 0.6, path: 2500 }, dur: 8.5, show: ['mouse'], seed: 7,
-      clicks: (() => { const c = []; for (let t = 0.8; t < 4.9; t += 0.19) c.push([0, t, t + 0.07]); return c; })(),
+      clicks: [[1, 0.5, 0.6], ...taps(0.9, 4.9, 0.19)],
       setup(S, A) { S.e1 = A.puppet({ at: [-330, 20, 480], dir: -1.25, speed: 105 }); },
-      each(t, S) { if (!S.e1.dead) aimAt(leadPoint(S.e1, _v), 0.5); },
-      callouts: [[1.0, 7.9, [650, 376, 362, 42], 'MUNICIÓN']]
+      each(t, S) { if (!S.e1.dead && t > 0.4) aimAt(t > 0.7 ? leadPoint(S.e1, _v) : S.e1.pos, 0.5); },
+      callouts: [[1.0, 7.9, BOX.ammo, 'MUNICIÓN']]
     },
     fijar: {
-      place: { x: 0, z: 0, heading: 1.6, agl: 420, speed: 380, throttle: 0.6, path: 2500 }, dur: 8.5, show: ['mouse'],
-      clicks: [[1, 0.9, 1.0], [1, 3.2, 3.3]], moves: [[5.0, 6.2, 520, 0]],
-      setup(S, A) { S.e1 = A.puppet({ at: [230, 30, 650], dir: -0.5, speed: 110 }); S.e2 = A.puppet({ at: [-330, -10, 1200], dir: 0.5, speed: 110 }); }
+      place: { x: 0, z: 0, heading: 1.6, agl: 420, speed: 380, throttle: 0.6, path: 2500 }, dur: 9, show: ['mouse'],
+      clicks: [[1, 0.9, 1.0], [1, 2.6, 2.7]], moves: [[5.0, 6.2, 560, 0]],
+      setup(S, A) { S.e1 = A.puppet({ at: [140, 30, 650], dir: -0.5, speed: 110 }); S.e2 = A.puppet({ at: [-330, -10, 1200], dir: 0.5, speed: 110 }); },
+      each(t, S) { if (t < 0.9) aimAt(S.e1.pos, 0.3); }
     },
     guiada: {
       place: { x: 0, z: 0, heading: 2.4, agl: 450, speed: 420, throttle: 0.7, path: 3500 }, dur: 10, show: ['mouse'], seed: 3,
-      clicks: [[1, 0.5, 0.6], [0, 1.3, 5.2]],
-      setup(S, A) { S.e1 = A.puppet({ at: [-70, 40, 850], dir: 0.25, speed: 95 }); },
-      each(t, S) { if (!S.e1.dead && t > 0.9) aimAt(S.e1.pos, 0.35); }
+      clicks: [[1, 0.5, 0.6], [0, 1.3, 4.6]],
+      setup(S, A) { S.e1 = A.puppet({ at: [-70, 40, 850], dir: 0.25, speed: 95, hp: Math.min(ENEMY_HP, STATS.base.guiado_dano * 0.85) }); },   // (ya tocado: una bola lo derriba; con las stats de Jorge, 60 < 70 de vida)
+      each(t, S) { if (!S.e1.dead) aimAt(S.e1.pos, t > 0.9 ? 0.35 : 0.2); }
     },
     llamarada: {
       place: { x: 0, z: 0, heading: -1.9, agl: 430, speed: 360, throttle: 0.36, path: 2500 }, dur: 9, show: ['mouse'], seed: 5,
-      clicks: [[2, 0.7, 6.4]],
-      setup(S, A) { S.e1 = A.puppet({ at: [0, 4, 105], dir: 0, speed: 100, trail: false }); },
+      clicks: [[2, 0.7, 4.9]],
+      setup(S, A) { S.e1 = A.puppet({ at: [0, 4, 105], dir: 0, speed: 100, trail: false, hp: Math.min(ENEMY_HP, STATS.base.llamas_dano * 3) }); },   // (tocado: cae en unos 3 s de llamarada)
       each(t, S) { if (!S.e1.dead) aimAt(S.e1.pos, 0.3); },
-      callouts: [[3.0, 8.8, aimBox, '']]
+      callouts: [[2.4, 8.8, aimBox, 'CALOR']]
     },
     rayo: {
       place: { x: 0, z: 0, heading: 3.7, agl: 500, speed: 380, throttle: 0.6, ult: 1, third: true, path: 3000 }, dur: 8.5, orbit: 1.0, show: ['mouse'], seed: 11,
       clicks: [[0, 1.2, 1.32], [2, 1.2, 1.32]],
       setup(S, A) { S.e1 = A.puppet({ at: [-150, 20, 900], dir: -1.2, speed: 120 }); S.e2 = A.puppet({ at: [250, 60, 1500], dir: 1.0, speed: 120 }); },
       each(t, S) { const e = !S.e1.dead ? S.e1 : !S.e2.dead ? S.e2 : null; if (e) aimAt(e.pos, t > 1.5 ? 0.12 : 0.4); F.lookYaw = (S.scene.orbit || 0) * smooth(1.0, 2.2, t) * (1 - smooth(6.6, 7.8, t)); },   // cámara de lado para ver el rayo entero
-      callouts: [[0.0, 1.2, [650, 502, 362, 44], 'BARRA LLENA']]
+      callouts: [[0.0, 1.2, BOX.ult, 'BARRA LLENA']]
     },
     escudo: {
-      place: { x: 0, z: 0, heading: 3.5, agl: 420, speed: 380, throttle: 0.6, third: true, path: 2500 }, dur: 9, show: ['KeyF'], seed: 9, cam: [10, 40],
-      keys: [['KeyF', 3.0, 3.12]],
+      place: { x: 0, z: 0, heading: 3.5, agl: 420, speed: 380, throttle: 0.6, third: true, path: 2500 }, dur: 9, show: ['KeyR'], seed: 9, cam: [10, 40],
+      keys: [['KeyR', 3.0, 3.12]],
       setup(S, A) { S.e1 = A.puppet({ at: [-500, 120, 1700], dir: 'toward', speed: 110 }); },
       each(t, S) {
         if (!S.fired && t >= 0.4) { S.fired = true; const m = enemyMouth(S.e1, new THREE.Vector3()); spawnFireball(m, _w.subVectors(dragon.position, m).normalize(), true, 1, 'emsl'); S.e1.fireFlash = 1; }
@@ -552,22 +623,22 @@
     },
     recarga_escudo: {
       place: { x: 0, z: 0, heading: 2.9, agl: 400, speed: 380, throttle: 0.6, shield: 1, path: 2500 }, dur: 7, show: ['mouse'], seed: 4,
-      clicks: (() => { const c = []; for (let t = 1.0; t < 2.6; t += 0.2) c.push([0, t, t + 0.07]); return c; })(),
+      clicks: taps(1.0, 2.6, 0.2),
       setup(S, A) { S.e1 = A.puppet({ at: [10, 10, 260], dir: 0.08, speed: 100, hp: 15, trail: false }); },
       each(t, S) { if (!S.e1.dead) aimAt(leadPoint(S.e1, _v), 0.5); },
       callouts: [[0.2, 6.8, aimBox, 'CARGAS DE ESCUDO']]
     },
-    recarga_guiadas: {
-      place: { site: { i: 0, from: 'auto', dist: 560 }, speed: 260, throttle: 0.3, msl: 1, third: true }, dur: 8, show: ['mouse'], seed: 6,
-      clicks: (() => { const c = []; for (let t = 0.8; t < 3.6; t += 0.17) c.push([0, t, t + 0.06]); return c; })(),
-      moves: [[4.2, 5.2, 0, -160]],
-      each(t, S) { const tw = S.tower; if (t < 4) aimAt(_v.set(tw.x, tw.y + 60, tw.z), 0.4); },
-      callouts: [[3.3, 7.8, [650, 418, 362, 42], 'BOLAS GUIADAS']]
+    recarga_guiadas: {                                       // v35: la última bola guiada → SIN MUNICIÓN (desde la v25 no se recargan)
+      place: { site: { i: 0, from: 'auto', dist: 1500 }, speed: 300, throttle: 0.4, msl: 1 }, dur: 9, show: ['mouse'], seed: 6,
+      clicks: [[1, 0.4, 0.5], [0, 0.9, 4.0]],
+      each(t, S) { const tw = S.tower; aimAt(_v.set(tw.x, tw.y + 60, tw.z), 0.4); },
+      callouts: [[0.6, 8.8, BOX.msl, 'BOLAS GUIADAS']]
     },
     vida: {
-      place: { x: 0, z: 0, heading: 4.2, agl: 120, speed: 420, throttle: 0.7, third: true }, dur: 7.5, show: ['mouse'], pre: 0.8,
-      moves: [[0.5, 1.4, 0, 260]],
-      callouts: [[0.0, 2.5, [850, 300, 162, 70], 'SOBRE EL SUELO']]
+      place: { x: 0, z: 0, heading: 4.2, agl: 150, speed: 420, throttle: 0.7, third: true, health: 74, armor: 12 }, dur: 8, show: ['mouse'], pre: 0.8,
+      setup() { F.lastHit = gameTime - 3.5; },              // la armadura empieza a rellenarse enseguida
+      moves: [[4.2, 5.0, 0, 200], [6.4, 7.2, 0, -200]],
+      callouts: [[0.0, 4.0, BOX.health, 'VIDA Y ARMADURA'], [4.2, 7.8, BOX.agl, 'SOBRE EL SUELO']]
     },
     dragones: {
       place: { x: 0, z: 0, heading: -0.4, agl: 420, speed: 360, throttle: 0.6, path: 3000 }, dur: 9, show: [], seed: 8,
@@ -583,32 +654,98 @@
     misiles_enemigos: {
       place: { x: 0, z: 0, heading: -1.2, agl: 480, speed: 420, throttle: 0.8, path: 3500 }, dur: 11, show: ['mouse'], seed: 12, pre: 0.3, breakAt: 700, breakMoves: [[0, 0.6, 620, 120], [0.7, 1.3, 480, 0], [2.4, 3.4, -300, -100]],   // (probado: rompiendo a 450-550 m la bola acierta; a 700, pasa de largo)
       setup(S, A) { S.e1 = A.puppet({ at: [350, 80, 2050], dir: 'toward', speed: 90, mode: 'pass', mslCool: 0 }); },
-      each(t, S) {                                         // giro fuerte cuando la bola está a ~550 m: pasa de largo
+      each(t, S) {                                         // giro fuerte cuando la bola está a ~700 m: pasa de largo
         const m = fireballs.find(f => f.kind === 'emsl');
         if (m && !S.broke && m.pos.distanceTo(dragon.position) < (S.scene.breakAt || 550)) { S.broke = t; for (const [a, b, dx, dy] of S.scene.breakMoves) S.moves.push([t + a, t + b, dx, dy]); log('  t=' + t.toFixed(2), 'rompe; bola a', Math.round(m.pos.distanceTo(dragon.position)), 'm'); }
         if (m && !S.launched) { S.launched = t; log('  t=' + t.toFixed(2), 'lanzan la bola a', Math.round(m.pos.distanceTo(dragon.position)), 'm'); }
         if (S.launched && !m && !S.gone) { S.gone = t; log('  t=' + t.toFixed(2), 'la bola desaparece · vida', Math.round(F.health)); }
       }
     },
+    dirigibles: {                                            // v35: de costado dispara; la escena acaba antes de llegar al casco
+      place: { x: 0, z: 0, heading: 3.6, agl: 520, speed: 300, throttle: 0.45, path: 2000 }, dur: 9, show: ['mouse'], seed: 21,
+      setup(S) { const B = S.base, p = rel(B, 200, 1050); S.a = addAirship('REC', p.x, p.z, B.y - Math.max(groundAt(p.x, p.z), WL) + 30, hdg(B) + 90, []); },
+      each(t, S) { aimAt(S.a.pos, 0.15); },
+      callouts: [[1.0, 8.6, () => { const w = sizePx(S.a.pos, AIRSHIP_LEN) * 1.1 + 24; return ptBox(S.a.pos, w, w * 0.42 + 16, 0); }, 'SOLO DISPARAN POR LOS COSTADOS']]
+    },
+    superdirigible: {                                        // v35: el núcleo y luego una torreta (dos clics sin mover la mira)
+      place: { x: 0, z: 0, heading: 3.8, agl: 1600, speed: 360, throttle: 0.5 }, dur: 11, show: ['mouse'], seed: 22,
+      clicks: [[1, 3.4, 3.5], [1, 5.6, 5.7]],
+      setup(S) { const B = S.base, p = rel(B, 300, 1650); S.u = addSuper(p.x, p.z, B.y - groundAt(p.x, p.z) - 60, hdg(B) + 70, []); },
+      each(t, S) { aimAt(S.u.bc, 0.12); },
+      callouts: [[0.6, 3.2, () => { const a = {}; camera.getWorldPosition(_camP); return proj(S.u.bc.x, S.u.bc.y - S.u.size * 0.06, S.u.bc.z, a) ? [a.x - 125, a.y + 12, 250, 40] : null; }, 'NÚCLEO Y TORRETAS']]
+    },
+    sierpe: {                                                // v35: en hover junto a ella: los disparos rebotan en el escudo; luego, fuego rápido a un hechicero (la guiada choca con el cuerpo)
+      place: { x: 0, z: 0, heading: 3.5, agl: 1900, speed: 0, hover: true }, dur: 11.5, show: ['mouse'], seed: 23,
+      clicks: [...taps(0.8, 2.4, 0.2), [1, 4.3, 4.4], ...taps(4.8, 8.9, 0.19)],
+      setup(S) { const B = S.base, p = rel(B, -120, 520); S.u = addSierpe(p.x, p.z, B.y - groundAt(p.x, p.z) - 70, hdg(B) + 75, [], 'idle'); },
+      each(t, S) { const u = S.u, k = S.k || u.kids.find(x => !x.dead); if (t < 3.9 || !k || k.dead) aimAt(u.aimAt, 0.15); else { S.k = k; aimAt(_v.copy(k.pos).setY(k.pos.y + 7), 0.2); } }   // (al torso: a los pies, el disparo da en el lomo)
+    },
     torres: {
       place: { site: { i: 1, from: 'auto', dist: 1600, y: 90 }, speed: 380, throttle: 0.6 }, dur: 9.5, show: ['mouse'], aa: true, seed: 13,
-      clicks: (() => { const c = []; for (let t = 5.0; t < 7.6; t += 0.17) c.push([0, t, t + 0.06]); return c; })(),
+      clicks: taps(5.0, 7.6, 0.17),
       each(t, S) { const tw = S.tower; aimAt(_v.set(tw.x, tw.y + 100, tw.z), 0.25); },
-      callouts: [[0.3, 2.6, (t, s) => towerBox(s), 'CRISTAL MORADO'], [3.0, 5.0, [372, 522, 280, 36], 'VIDA']]
+      callouts: [[0.3, 2.6, (t, s) => towerBox(s), 'CRISTAL MORADO'], [3.0, 5.0, BOX.health, 'VIDA']]
+    },
+    artilleria: {                                            // v35: en hover delante de una línea de tres, en un llano sin árboles (-500, -300; buscado en la semilla 777): llamarada y fuego rápido
+      place: { x: -378, z: -458, heading: 3.8, y: 85, speed: 0, hover: true, third: true }, dur: 10.5, show: ['mouse'], seed: 24, cam: [26, 42, -0.3],   // (cámara exterior alta: en la del jinete, la cabeza tapa el blanco)
+      clicks: [[2, 1.2, 5.8], [1, 6.5, 6.6], ...taps(7.0, 9.4, 0.19)],
+      setup(S) {
+        const B = S.base, V = ['canon', 'balista', 'catapulta'], taken = []; S.us = [];
+        for (let i = 0; i < 3; i++) { const q = rel(B, (i - 1) * 32, 200), p = dryNear(q.x, q.z, 10, taken); taken.push({ x: p.x, z: p.z, r: 10 }); S.us.push(addArtilleria(V[i], p.x, p.z, hdg(B) + 180, [])); }
+      },
+      each(t, S) { const u = S.us.find(x => !x.dead); if (u) aimAt(_v.copy(u.pos).setY(u.pos.y + 3), 0.2); }
+    },
+    batallones: {                                            // v35: en hover delante del bloque (en un llano sin árboles: -800, 1400), la llamarada lo barre de lado a lado
+      place: { x: -790, z: 1230, heading: 3.2, y: 88, speed: 0, hover: true, third: true }, dur: 10, show: ['mouse'], seed: 25, cam: [42, 40, -0.5],
+      clicks: [[2, 1.6, 6.4]],
+      setup(S) { const B = S.base, q = rel(B, 0, 175), p = dryNear(q.x, q.z, 55, []); S.u = addBatallon(p.x, p.z, hdg(B) + 180, [], 1000, 77); },
+      each(t, S) {                                         // la mira barre el bloque de izquierda a derecha y de la fila de delante a la de atrás
+        const u = S.u, k = clamp((t - 1.4) / 5, 0, 1), side = Math.sin(t * 2.2) * u.w * 0.45, fwd = (k - 0.5) * u.d * 1.0;
+        const fx = Math.sin(u.heading), fz = -Math.cos(u.heading);
+        aimAt(_v.set(u.pos.x - fx * fwd - fz * side, u.pos.y, u.pos.z - fz * fwd + fx * side), 0.3);
+      }
+    },
+    barcos: {                                                // v35: el lago grande al sur del inicio (semilla 777); bola guiada en parábola
+      place: { x: -60, z: 3150, heading: Math.PI, agl: 260, speed: 330, throttle: 0.45 }, dur: 12, show: ['mouse'], seed: 26,
+      clicks: [[1, 0.6, 0.7], [0, 1.1, 4.0]],
+      setup(S) { S.u = addBarco(-60, 4558, 90, []); },
+      each(t, S) { aimAt(S.u.bc, 0.3); }
     },
     hud: {
       place: { x: 0, z: 0, heading: -0.7, agl: 420, speed: 450, throttle: 0.75, path: 4500 }, dur: 11, show: [],
       setup(S, A) { S.e1 = A.puppet({ at: [-900, 80, 1600], dir: 0.9, speed: 120 }); },
       callouts: [
-        [0.2, 1.6, [16, 216, 156, 176], 'VELOCIDAD · ACELERADOR · BOOST'], [1.6, 3.0, [850, 232, 162, 132], 'ALTITUD'],
-        [3.0, 4.4, [246, 8, 532, 76], 'BRÚJULA'], [4.4, 5.8, [790, 16, 222, 74], 'OBJETIVOS Y PUNTOS'],
-        [5.8, 7.3, [16, 392, 158, 182], 'RADAR'], [7.3, 8.8, [650, 358, 362, 200], 'ARMAS'],
-        [8.8, 10.1, [372, 522, 280, 36], 'VIDA'], [10.1, 11, aimBox, 'MIRA Y ESCUDOS']
+        [0.2, 1.6, BOX.left, 'VELOCIDAD · ACELERADOR · BOOST'], [1.6, 3.0, BOX.alt, 'ALTITUD'],
+        [3.0, 4.4, BOX.compass, 'BRÚJULA'], [4.4, 5.8, BOX.objs, 'OBJETIVOS Y PUNTOS'],
+        [5.8, 7.3, BOX.radar, 'RADAR'], [7.3, 8.8, BOX.weapons, 'ARMAS'],
+        [8.8, 10.1, BOX.health, 'VIDA Y ARMADURA'], [10.1, 11, aimBox, 'MIRA Y ESCUDOS']
       ]
     },
-    objetivo: {
-      place: { site: { i: 2, from: 'auto', dist: 2200, y: 170, turn: 0.3 }, speed: 450, throttle: 0.8 }, dur: 8, show: [],
-      callouts: [[0.3, 4.0, [790, 16, 222, 52], 'TORRES Y DRAGONES'], [4.0, 7.8, [16, 392, 158, 182], 'TORRES EN EL RADAR']]
+    escuadron: {                                             // v35: el Escuadrón Paladin del Capítulo 01 en formación y Seraphin por radio
+      place: { x: 0, z: 0, heading: 3.5, agl: 450, speed: 360, throttle: 0.55, path: 4000 }, dur: 12, show: ['KeyZ', 'mouse'], showTop: true, seed: 27,
+      keys: [['KeyZ', 4.6, 8.4]], moves: [[4.8, 6.4, 1500, 40]],
+      setup() {
+        const C = MISSIONS.capitulo1;
+        mission = Object.assign({}, orig.mission, { allies: C.allies, radio: C.radio });
+        allyStart();
+        radioSay('seraphin', { en: "Percival, they're yours. Show me what I taught you. We'll keep them off your back.", es: 'Percival, son tuyos. Demuéstrame lo que te he enseñado. Nosotros te los quitamos de encima.' }, 6.5);   // (una frase del guion)
+      },
+      callouts: [[0.6, 4.2, () => { const al = allies.find(a => a.on && a.id === 'seraphin'); return al ? ptBox(al.e.pos, 150, 70, -20) : null; }, 'COMPAÑERO'], [8.8, 11.8, BOX.radar, 'COMPAÑEROS EN EL RADAR']]
+    },
+    misiones: {                                              // v35: objetivos, TGT y salir del área (cuenta atrás) · sustituye a «objetivo»
+      place: { x: 0, z: 0, heading: 3.4, agl: 420, speed: 430, throttle: 0.8, path: 1700 }, dur: 12, show: [], seed: 28,
+      setup(S) {
+        const B = S.base, c = rel(B, 0, -2900);               // el borde del área, unos 600 m por delante
+        mission = Object.assign({}, orig.mission, { area: { x: c.x, z: c.z, r: 3500 }, free: false });
+        MS.objs = [
+          { id: 'a', text: 'Destruye las torres', hud: 'TORRES', target: 'tower', count: 3, n: 1, done: false, shown: true },
+          { id: 'b', text: 'Derriba la patrulla', hud: 'DRAGONES', target: 'dragon', count: 4, n: 4, done: true, doneT: -1, shown: true },
+          { id: 'c', text: 'Dirigibles', hud: 'DIRIGIBLES', target: 'airship', count: 2, n: 0, done: false, shown: false, optional: true }
+        ];
+        MS.t = 0;
+      },
+      each(t, S) { if (!S.shown && t >= 1.6) { S.shown = true; MS.objs[2].shown = true; S.toasts.push({ msg: 'Nuevo objetivo  ·  Dirigibles', t: gameTime }); } },
+      callouts: [[0.3, 4.2, BOX.objs, 'OBJETIVOS'], [7.0, 11.8, BOX.radar, 'ÁREA DE LA MISIÓN']]
     }
   };
   REC.SCENES = SCENES;
