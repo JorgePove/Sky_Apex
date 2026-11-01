@@ -19,6 +19,7 @@
      primeros mensajes de la radio; luego las bandas se retiran y se toma el control. Sin intro, 7 (CINE_T); 0 = sin entrada.
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
+     v38: areaOut: 'respawn' = en vez de fallar, se reaparece en el punto de partida (Vuelo Libre).
    · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
@@ -232,6 +233,25 @@ const MISSIONS = {
       { type: 'superdirigible', x: -400, z: -4600, height: 1500, heading: 90 },   // (v30: 1000 m de eslora)
       { type: 'sierpe', x: 800, z: -2600, height: 2000, heading: 270, mode: 'circle' }   // v30: patrulla circular sobre todo el campo (radio del Excel) alrededor de x, z
     ],
+    objectives: [],
+    radio: {},
+    events: []
+  },
+  /* v38: Vuelo Libre (petición de Jorge, 1-nov): sin enemigos ni objetivos, para volar por un paisaje de 24 × 24 km hecho en Blender a partir
+     de su vídeo de referencia (bioma «fiordos»: mapas/vuelo_libre.js, cielo soleado y nubes que se atraviesan). Zona de 11,5 km de radio:
+     fuera, 15 s para volver y, si no, de vuelta al inicio (areaOut: 'respawn'). Inicio sobre la orilla sur del lago central, mirando al
+     fiordo norte y al Pico Mayor. */
+  vuelo: {
+    name: 'Vuelo Libre', place: 'Valle de los Fiordos', free: true,
+    world: { seed: 38, biome: 'fiordos', islands: false },
+    start: { x: 300, z: 1900, heading: 350, height: 650 },
+    intro: 5,
+    area: { x: 0, z: 0, r: 11500 }, areaOut: 'respawn',
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 0 },
+    dragons: { total: 0, atOnce: 0 },
     objectives: [],
     radio: {},
     events: []

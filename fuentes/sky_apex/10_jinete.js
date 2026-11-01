@@ -33,8 +33,11 @@ const RIDER_COLORS = { acero: [0x5d6168, 0.88, 0.38], cuero: [0x2b1c13, 0, 0.72]
 const rider = { ready: false, error: null, scene: new THREE.Scene(), cam: new THREE.PerspectiveCamera(78, 1, 0.02, 40), root: new THREE.Group(),
   arms: [], reins: [], vis: false, s: { turn: 0, climb: 0, boost: 0, hover: 0, fire: 0, look: 0 }, fireLight: new THREE.PointLight(0xff8a3a, 0, 80, 2) };
 rider.scene.add(rider.root, rider.fireLight);
-{ const sun = new THREE.DirectionalLight(0xffc48a, 1.9); sun.position.copy(SUN_DIR).multiplyScalar(100);   // las mismas luces que el mundo
-  rider.scene.add(sun, new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95)); }
+{ const sun = new THREE.DirectionalLight(0xffc48a, 1.9), hemi = new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95);   // las mismas luces que el mundo
+  sun.position.copy(SUN_DIR).multiplyScalar(100);
+  rider.scene.add(sun, hemi);
+  atmosHooks.push(() => { sun.position.copy(sunLight.position); sun.color.copy(sunLight.color); sun.intensity = sunLight.intensity;   // v38: y con el ambiente del bioma
+    hemi.color.copy(hemiLight.color); hemi.groundColor.copy(hemiLight.groundColor); hemi.intensity = hemiLight.intensity; }); }
 
 function loadRider() {
   return loadGLB('brazos-glb', RIDER_URL).then(setupRider)

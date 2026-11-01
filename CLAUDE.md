@@ -22,7 +22,7 @@ Juego web de dragones de Jorge (Level Designer), proyecto personal de portfolio.
 - Para cambiar un valor del Excel cuando Jorge lo pida: `node herramientas/stats_excel.mjs --poner unidad.clave=valor` (con el Excel cerrado; conserva los demás).
 - Enemigos nuevos (desde la v29: artillería, batallones, barcos navales, superdirigible, sierpe) en `14e_unidades.js`, `14f_sierpe.js` y `14g_batallones.js`; se colocan con la receta `units` y se prueban en el modo Galería de enemigos. Sus modelos se preparan con `herramientas/blender/enemigos/`.
 - Nunca editar ni leer entero un HTML generado: lleva líneas base64 de varios MB.
-- Fuera del HTML, junto a él: `musica/`, `tutorial/`, `imagenes/` y `datos/`. Modelos procesados en `modelos/`.
+- Fuera del HTML, junto a él: `musica/`, `tutorial/`, `imagenes/`, `datos/` y `mapas/` (desde la v38: cada mapa hecho a mano en su propio `.js`, que el juego carga al entrar en su modo; el de Vuelo Libre se genera con `herramientas/blender/paisaje/`). Modelos procesados en `modelos/`.
 - Servidores de prueba en `.claude/launch.json`; el habitual es `sky-apex-2` (8767): `http://localhost:8767/fuentes/sky_apex.src.html`.
 - Blender: `node herramientas/blender/lanzar.mjs script.py`. Los `.blend` de trabajo van fuera del repo (`D:\Herramientas\Blender\Proyectos`); los GLB finales, a `modelos/`.
 

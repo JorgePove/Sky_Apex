@@ -39,6 +39,7 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--ink);c
 #gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
 #gl{cursor:none;background:var(--ink)}
 #hud{pointer-events:none}
+#nube{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 45%,rgba(247,249,252,.97),rgba(212,222,236,.99))}   /* v38: dentro de una nube (7b) */
 .overlay{position:fixed;inset:0;display:flex;align-items:center;z-index:5;
   background:linear-gradient(90deg,rgba(13,10,15,.94) 0%,rgba(13,10,15,.78) 38%,rgba(13,10,15,.12) 78%,rgba(13,10,15,0) 100%);}
 .overlay[hidden]{display:none!important}
@@ -355,6 +356,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
 </style>
 
 <canvas id="gl" tabindex="0"></canvas>
+<div id="nube"></div>   <!-- v38: dentro de una nube, la pantalla en blanco (7b) -->
 <canvas id="hud"></canvas>
 <div id="vig"></div>
 <div id="warn">PROYECTIL</div>
@@ -386,6 +388,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
       <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
         <div class="kicker">Modo de juego</div>
         <button class="mbtn story" id="mStory">Modo Historia</button>   <!-- v34: capítulos (19e) -->
+        <button class="mbtn" id="mVuelo">Vuelo Libre</button>   <!-- v38: paisaje hecho en Blender, sin enemigos -->
         <button class="mbtn" id="mM1">Misión 1: la flota</button>
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
@@ -428,6 +431,7 @@ input[type=range]{accent-color:var(--ember);width:160px}
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
     <p class="lead"><b>Modo Historia</b>: los capítulos de la campaña, con voces, compañeros de escuadrón y cinemáticas. <kbd>Intro</kbd> salta la pantalla de capítulo y la voz de la entrada; los subtítulos (español o inglés) y el volumen de las voces, en Opciones.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
+    <p class="lead"><b>Vuelo Libre</b>: vuela sin enemigos por un valle de fiordos de 24 × 24 km, con montañas nevadas, un cañón, ríos, lagos y nubes que se atraviesan. Si sales de la zona, tienes 15 s para volver; si no, reapareces en el centro.</p>
     <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <p class="lead"><b>Galería de enemigos</b>: campo de pruebas llano con todos los tipos de enemigos quietos, con los mismos trucos y panel; en el panel, además, parar su fuego, la sierpe en vuelo circular, «Restaurar galería» e «Ir a…» cada grupo.</p>
     <button class="ghost" data-close>← Volver</button>
@@ -1104,7 +1108,43 @@ function reliefMask(x, z, m) {
   for (const R of RELIEF) m = lerp(m, R.m, 1 - smooth(R.r - R.edge, R.r, Math.hypot(x - R.x, z - R.z)));
   return m;
 }
+/* v38: mapa hecho a mano (Vuelo Libre: herramientas/blender/paisaje → mapas/vuelo_libre.js). Lo fija setBiome (M3) con el mapa ya cargado
+   (loadMap, M3): n×n alturas de borde a borde de un cuadrado de size m centrado en el origen, y sus materiales (mat: roca, nieve, agua
+   pintada, verdor; 0..255). Fuera del cuadrado, el mismo mapa en espejo: el horizonte nunca se corta. Entre los puntos (12 m), interpolación
+   cúbica y, encima, un relieve fino con ruido (más en la roca; nada en el agua pintada ni en la orilla). null = el terreno procedural. */
+let MAP = null;
+const mirrorIdx = (u, m) => { const p = 2 * m; u = ((u % p) + p) % p; return u > m ? p - u : u; };
+const _cr = new Float32Array(4);
+function crW(t, w) { const t2 = t * t, t3 = t2 * t; w[0] = (-t3 + 2 * t2 - t) * 0.5; w[1] = (3 * t3 - 5 * t2 + 2) * 0.5; w[2] = (-3 * t3 + 4 * t2 + t) * 0.5; w[3] = (t3 - t2) * 0.5; }
+function mapTerrain(x, z, out, full) {
+  const M = MAP, n = M.n, m = n - 1, k = m / M.size, H = M.h, A = M.mat;
+  const u = mirrorIdx((x + M.half) * k, m), v = mirrorIdx((z + M.half) * k, m);
+  const i = Math.min(m - 1, Math.floor(u)), j = Math.min(m - 1, Math.floor(v)), fx = u - i, fz = v - j;
+  let h = 0;
+  crW(fz, _cr); const wz0 = _cr[0], wz1 = _cr[1], wz2 = _cr[2], wz3 = _cr[3];
+  crW(fx, _cr);
+  for (let b = 0; b < 4; b++) {
+    const jj = Math.max(0, Math.min(m, j - 1 + b)) * n, wz = b === 0 ? wz0 : b === 1 ? wz1 : b === 2 ? wz2 : wz3;
+    const i0 = Math.max(0, i - 1), i3 = Math.min(m, i + 2);
+    h += wz * (_cr[0] * H[jj + i0] + _cr[1] * H[jj + i] + _cr[2] * H[jj + i + 1] + _cr[3] * H[jj + i3]);
+  }
+  // materiales (bilineal): roca, agua pintada y verdor
+  const a = (j * n + i) * 4, b2 = a + 4, c = a + n * 4, d = c + 4, e0 = (1 - fx) * (1 - fz), e1 = fx * (1 - fz), e2 = (1 - fx) * fz, e3 = fx * fz;
+  const rock = (A[a] * e0 + A[b2] * e1 + A[c] * e2 + A[d] * e3) / 255, wet = (A[a + 2] * e0 + A[b2 + 2] * e1 + A[c + 2] * e2 + A[d + 2] * e3) / 255;
+  const amp = (1.2 + 6.5 * rock) * (1 - smooth(0.2, 0.6, wet)) * smooth(2, 10, h);
+  if (amp > 0.01) h += (N1(x * 0.021, z * 0.021) * 0.55 + N2(x * 0.058, z * 0.058) * 0.3 + N3(x * 0.15, z * 0.15) * 0.15) * amp;
+  out.h = h;
+  if (full) {
+    const green = (A[a + 3] * e0 + A[b2 + 3] * e1 + A[c + 3] * e2 + A[d + 3] * e3) / 255, snow = (A[a + 1] * e0 + A[b2 + 1] * e1 + A[c + 1] * e2 + A[d + 1] * e3) / 255;
+    // arboledas sueltas en lo verde y bajo, como en la referencia (casi sin árboles)
+    out.forest = smooth(0.62, 0.85, green) * (1 - rock) * (1 - snow) * (1 - wet) * smooth(4, 14, h) * (1 - smooth(320, 620, h))
+      * smooth(0.2, 0.55, N2(x * 0.0011 + 50, z * 0.0011 - 20) * 0.5 + 0.5);
+    out.wet = wet;
+  }
+  return h;
+}
 function terrain(x, z, out, full) {
+  if (MAP) return mapTerrain(x, z, out, full);
   if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;
@@ -1174,7 +1214,14 @@ scene.fog = new THREE.FogExp2(0xd9a98a, FOG_DENSITY);
 const sunLight = new THREE.DirectionalLight(0xffc48a, 1.9);
 sunLight.position.copy(SUN_DIR).multiplyScalar(100);
 scene.add(sunLight);
-scene.add(new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95));
+const hemiLight = new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95);
+scene.add(hemiLight);
+/* v38: la bruma y los colores del cielo, compartidos por todos los shaders con GLSL_COMMON (skyColor). Los cambia setAtmosphere (al final
+   de este módulo) según el bioma; estos valores son los de siempre (hora dorada del valle). */
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const U_FOG = { value: FOG_DENSITY };
+const SKY_U = { uSkyZen: { value: V3(0.10, 0.22, 0.50) }, uSkyMid: { value: V3(0.50, 0.60, 0.78) }, uSkyHor: { value: V3(0.90, 0.68, 0.52) },
+  uGlowA: { value: V3(1.0, 0.52, 0.22) }, uGlowB: { value: V3(1.0, 0.74, 0.42) } };
 
 // Textura de ruido repetible (3 canales a escalas distintas) para detalle de terreno y olas. v19: igual en todos los mundos (sin semilla)
 function makeNoiseTexture(size) {
@@ -1206,18 +1253,17 @@ function makeNoiseTexture(size) {
 const noiseTex = makeNoiseTexture(256);
 
 const GLSL_COMMON = `
-uniform vec3 uSunDir;
+uniform vec3 uSunDir, uSkyZen, uSkyMid, uSkyHor, uGlowA, uGlowB;
 float hash21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
   return mix(mix(hash21(i), hash21(i+vec2(1.0,0.0)), f.x), mix(hash21(i+vec2(0.0,1.0)), hash21(i+vec2(1.0,1.0)), f.x), f.y); }
 float fbm5(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 5; i++){ s += a*vnoise(p); p = p*2.03 + vec2(11.7, 3.1); a *= 0.5; } return s; }
 vec3 skyColor(vec3 d){
   float h = clamp(d.y, 0.0, 1.0);
-  vec3 zen = vec3(0.10, 0.22, 0.50), mid = vec3(0.50, 0.60, 0.78), hor = vec3(0.90, 0.68, 0.52);
-  vec3 c = mix(zen, mid, pow(1.0 - h, 1.7));
-  c = mix(c, hor, pow(1.0 - h, 4.5));
+  vec3 c = mix(uSkyZen, uSkyMid, pow(1.0 - h, 1.7));
+  c = mix(c, uSkyHor, pow(1.0 - h, 4.5));
   float sd = max(dot(d, uSunDir), 0.0);
-  c += vec3(1.0, 0.52, 0.22) * pow(sd, 5.0) * 0.30 + vec3(1.0, 0.74, 0.42) * pow(sd, 40.0) * 0.55;
+  c += uGlowA * pow(sd, 5.0) * 0.30 + uGlowB * pow(sd, 40.0) * 0.55;
   c += vec3(1.0, 0.92, 0.75) * smoothstep(0.9996, 0.99985, sd) * 3.0;
   return c;
 }
@@ -1226,24 +1272,25 @@ vec3 skyColor(vec3 d){
 /* ---------- Cielo ---------- */
 const skyMat = new THREE.ShaderMaterial({
   side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false,
-  uniforms: { uSunDir: { value: SUN_DIR }, uTime: { value: 0 } },
+  uniforms: Object.assign({ uSunDir: { value: SUN_DIR }, uTime: { value: 0 },   // v38: colores de las nubes del cielo (setAtmosphere)
+    uCloudShade: { value: V3(0.42, 0.40, 0.55) }, uCloudLitA: { value: V3(0.98, 0.84, 0.74) }, uCloudLitB: { value: V3(1.0, 0.62, 0.34) },
+    uCloudCov: { value: V3(0.50, 0.74, 0.92) } }, SKY_U),   // umbrales de cobertura y opacidad
   vertexShader: `varying vec3 vDir; void main(){ vDir = position; gl_Position = projectionMatrix * viewMatrix * vec4(position + cameraPosition, 1.0); }`,
   fragmentShader: GLSL_COMMON + `
-  uniform float uTime; varying vec3 vDir;
+  uniform float uTime; uniform vec3 uCloudShade, uCloudLitA, uCloudLitB, uCloudCov; varying vec3 vDir;
   void main(){
     vec3 d = normalize(vDir);
     vec3 c = skyColor(d);
     if (d.y > 0.015) {
       vec2 uv = d.xz / (d.y + 0.14) * 1.15 + vec2(uTime * 0.006, uTime * 0.002);
       float n = fbm5(uv * 1.4);
-      float cov = smoothstep(0.50, 0.74, n) * smoothstep(0.015, 0.20, d.y);
+      float cov = smoothstep(uCloudCov.x, uCloudCov.y, n) * smoothstep(0.015, 0.20, d.y);
       float n2 = fbm5(uv * 1.4 + uSunDir.xz * 0.10);
       float lit = clamp((n - n2) * 3.2 + 0.62, 0.0, 1.0);
       float sd = max(dot(d, uSunDir), 0.0);
-      vec3 cloudShade = vec3(0.42, 0.40, 0.55);
-      vec3 cloudLit = mix(vec3(0.98, 0.84, 0.74), vec3(1.0, 0.62, 0.34), pow(sd, 3.0));
-      vec3 cc = mix(cloudShade, cloudLit, lit);
-      c = mix(c, cc, cov * 0.92);
+      vec3 cloudLit = mix(uCloudLitA, uCloudLitB, pow(sd, 3.0));
+      vec3 cc = mix(uCloudShade, cloudLit, lit);
+      c = mix(c, cc, cov * uCloudCov.z);
     }
     gl_FragColor = vec4(c, 1.0);
   }`
@@ -1255,10 +1302,11 @@ scene.add(skyMesh);
 /* ---------- Agua ---------- */
 const waterMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, fog: false,
-  uniforms: { uSunDir: { value: SUN_DIR }, uTime: { value: 0 }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex } },
+  uniforms: Object.assign({ uSunDir: { value: SUN_DIR }, uTime: { value: 0 }, uFog: U_FOG, uNoise: { value: noiseTex },
+    uWaterA: { value: V3(0.03, 0.12, 0.15) }, uWaterB: { value: V3(0.07, 0.24, 0.26) }, uSunSpec: { value: V3(1.0, 0.78, 0.5) } }, SKY_U),   // (v38: colores por bioma)
   vertexShader: `varying vec3 vW; void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
   fragmentShader: GLSL_COMMON + `
-  uniform float uTime, uFog; uniform sampler2D uNoise; varying vec3 vW;
+  uniform float uTime, uFog; uniform sampler2D uNoise; uniform vec3 uWaterA, uWaterB, uSunSpec; varying vec3 vW;
   float wh(vec2 p){
     float a = texture2D(uNoise, p * 0.0135 + vec2(uTime * 0.021, uTime * 0.014)).g;
     float b = texture2D(uNoise, p * 0.041 - vec2(uTime * 0.034, -uTime * 0.025)).b;
@@ -1274,11 +1322,11 @@ const waterMat = new THREE.ShaderMaterial({
     float fres = 0.03 + 0.97 * pow(1.0 - ndv, 5.0);
     vec3 R = reflect(-v, N); R.y = abs(R.y) + 0.02; R = normalize(R);
     vec3 refl = skyColor(R);
-    vec3 body = mix(vec3(0.03, 0.12, 0.15), vec3(0.07, 0.24, 0.26), h0);
+    vec3 body = mix(uWaterA, uWaterB, h0);
     float sunUp = clamp(uSunDir.y * 3.0 + 0.35, 0.0, 1.0);
     body *= 0.6 + 0.7 * sunUp;
     float sp = pow(max(dot(R, uSunDir), 0.0), 520.0) * 9.0 + pow(max(dot(R, uSunDir), 0.0), 50.0) * 0.35;
-    vec3 col = mix(body, refl, clamp(fres + 0.10, 0.0, 1.0)) + vec3(1.0, 0.78, 0.5) * sp;
+    vec3 col = mix(body, refl, clamp(fres + 0.10, 0.0, 1.0)) + uSunSpec * sp;
     float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
     vec3 fd = normalize(vec3(-v.x, 0.0, -v.z));
     gl_FragColor = vec4(mix(col, skyColor(fd), fogF), mix(0.72, 0.97, fres));
@@ -1289,15 +1337,75 @@ waterMesh.rotation.x = -Math.PI / 2; waterMesh.position.y = WL; waterMesh.frustu
 scene.add(waterMesh);
 
 /* ---------- Terreno ---------- */
-const terrainUniforms = {
-  uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uNoise: { value: noiseTex },
-  uGrid: { value: 0 }                                     // v29: 1 = suelo de blockout (campo de pruebas): cuadros grises de 10 m con borde blanco
-};
+const blankTex = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1, THREE.RGBAFormat); blankTex.needsUpdate = true;
+const terrainUniforms = Object.assign({
+  uSunDir: { value: SUN_DIR }, uFog: U_FOG, uNoise: { value: noiseTex },
+  uGrid: { value: 0 },                                    // v29: 1 = suelo de blockout (campo de pruebas): cuadros grises de 10 m con borde blanco
+  // v38: luz por bioma (setAtmosphere) y mapa hecho a mano (Vuelo Libre): uMap = 1 colorea con su textura de materiales (uMat: roca, nieve,
+  // agua pintada, verdor) de un cuadrado de uMapK.y m centrado en el origen con uMapK.z puntos por lado; uCloudSh = sombras de las nubes
+  uSunC: { value: V3(1.70, 1.19, 0.731) }, uAmbLo: { value: V3(0.20, 0.20, 0.28) }, uAmbHi: { value: V3(0.38, 0.46, 0.62) },
+  uMap: { value: 0 }, uMat: { value: blankTex }, uMapK: { value: V3(12000, 24000, 2048) },
+  uCloudSh: { value: blankTex }, uCloudShK: { value: V3(16000, 32000, 0) }   // centro, lado (m) y fuerza de la sombra
+}, SKY_U);
 const terrainVS = `
 attribute vec2 aux; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
 void main(){ vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix) * normal); vAux = aux; gl_Position = projectionMatrix * viewMatrix * w; }`;
 const terrainFS = GLSL_COMMON + `
 uniform float uFog; uniform sampler2D uNoise; uniform float uGrid; varying vec3 vW; varying vec3 vN; varying vec2 vAux;
+uniform vec3 uSunC, uAmbLo, uAmbHi, uMapK, uCloudShK; uniform float uMap; uniform sampler2D uMat, uCloudSh;
+// v38: luz del sol y del cielo (con la sombra de las nubes) y bruma, iguales para todos los suelos
+vec3 lightUp(vec3 col, vec3 N){
+  float wrap = max((dot(N, uSunDir) + 0.20) / 1.20, 0.0);
+  float sh = 1.0 - texture2D(uCloudSh, (vW.xz + uCloudShK.x) / uCloudShK.y).r * uCloudShK.z;
+  return col * (uSunC * wrap * sh + mix(uAmbLo, uAmbHi, N.y * 0.5 + 0.5) * 0.95);
+}
+vec4 triNoise(vec3 p, vec3 bw, float s){
+  return texture2D(uNoise, p.xz * s) * bw.y + texture2D(uNoise, p.xy * s) * bw.z + texture2D(uNoise, p.zy * s) * bw.x;
+}
+// v38: el mapa de Vuelo Libre: hierba dorada o verde, roca con estratos, nieve, orillas y agua pintada (río del cañón, lagos de montaña, arroyos)
+vec3 mapGround(vec3 N, float h, float dist, vec3 vd){
+  vec2 uv = ((vW.xz + uMapK.x) / uMapK.y * (uMapK.z - 1.0) + 0.5) / uMapK.z;
+  vec4 M = texture2D(uMat, uv);
+  float detailFade = 1.0 - smoothstep(600.0, 2600.0, dist);
+  float n1 = texture2D(uNoise, vW.xz * 0.0019).r;
+  // ruido de detalle proyectado desde los tres ejes (triplanar): en las paredes no se estira en rayas
+  vec3 bw = pow(abs(N), vec3(4.0)); bw /= bw.x + bw.y + bw.z;
+  float n2 = mix(0.5, triNoise(vW, bw, 0.0155).g, detailFade);
+  float n3 = mix(0.5, triNoise(vW, bw, 0.113).b, detailFade);
+  float n4 = mix(0.5, triNoise(vW, bw, 0.53).b, 1.0 - smoothstep(40.0, 300.0, dist));
+  float slope = 1.0 - N.y;
+  float v = clamp(M.a + (n1 - 0.5) * 0.4 + (n2 - 0.5) * 0.3, 0.0, 1.0);
+  vec3 gold = mix(vec3(0.47, 0.38, 0.17), vec3(0.58, 0.48, 0.25), n2);
+  vec3 green = mix(vec3(0.17, 0.27, 0.09), vec3(0.27, 0.37, 0.13), n2);
+  vec3 grass = mix(gold, green, smoothstep(0.3, 0.75, v));
+  grass *= 0.78 + 0.34 * n3; grass *= 0.9 + 0.2 * n4;
+  grass = mix(grass, vec3(0.36, 0.31, 0.22), smoothstep(0.6, 0.9, n3) * 0.3);
+  vec3 rk = mix(vec3(0.52, 0.51, 0.49), vec3(0.32, 0.32, 0.34), n1);
+  rk *= 0.74 + 0.46 * n3; rk *= 0.88 + 0.24 * n4;
+  rk *= 0.9 + 0.14 * sin(h * 0.165 + n1 * 6.0 + n2 * 2.0) * detailFade;
+  float rock = max(M.r, smoothstep(0.24, 0.48, slope + (n2 - 0.5) * 0.2));
+  vec3 col = mix(grass, rk, rock);
+  float sn = M.g * (1.0 - smoothstep(0.42, 0.68, slope));
+  sn = smoothstep(0.2, 0.55, sn + (n2 - 0.5) * 0.3 + (n3 - 0.5) * 0.15);
+  col = mix(col, vec3(0.94, 0.96, 1.0) * (0.9 + 0.1 * n3), sn);
+  float sandM = (1.0 - smoothstep(1.0, 4.5, h)) * smoothstep(-4.0, 0.2, h) * (1.0 - rock);
+  col = mix(col, vec3(0.70, 0.64, 0.48) * (0.88 + 0.22 * n2), sandM);
+  col = mix(col, vec3(0.02, 0.07, 0.10), smoothstep(0.4, -0.6, h));
+  vec3 lit = lightUp(col, N);
+  lit *= 1.0 - 0.16 * smoothstep(0.25, 0.7, slope) * (1.0 - sn);
+  float wa = smoothstep(0.35, 0.7, M.b) * step(0.3, h);
+  if (wa > 0.0) {
+    vec3 V = -vd;
+    vec2 fl = vW.xz * 0.06;
+    vec3 Nw = normalize(mix(N, vec3(0.0, 1.0, 0.0), 0.7) + vec3((n4 - 0.5) * 0.12, 0.0, (texture2D(uNoise, fl).g - 0.5) * 0.12));
+    float fres = 0.04 + 0.96 * pow(1.0 - max(dot(Nw, V), 0.0), 5.0);
+    vec3 R = reflect(-V, Nw); R.y = abs(R.y) + 0.02;
+    vec3 wcol = mix(vec3(0.04, 0.15, 0.18) * (0.5 + 0.5 * uSunC.x), skyColor(normalize(R)), clamp(fres + 0.15, 0.0, 1.0));
+    wcol += uSunC * 0.5 * pow(max(dot(normalize(R), uSunDir), 0.0), 300.0);
+    lit = mix(lit, wcol, wa);
+  }
+  return lit;
+}
 // v29: líneas de una cuadrícula de celda «cell» y medio grosor «hw» (m), suavizadas por píxel; se apagan cuando ya no caben en pantalla
 float gridLine(vec2 p, float cell, float hw){
   vec2 d = abs(mod(p + cell * 0.5, cell) - cell * 0.5), aa = fwidth(p) * 0.8;
@@ -1312,14 +1420,21 @@ vec3 blockout(vec2 p){
   return col;
 }
 void main(){
+  if (uMap > 0.5) {
+    vec3 N = normalize(vN); float h = vW.y;
+    vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
+    vec3 lit = mapGround(N, h, dist, vd);
+    float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
+    gl_FragColor = vec4(mix(lit, skyColor(normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z))), fogF), 1.0);
+    return;
+  }
   if (uGrid > 0.5) {
     vec3 N = normalize(vN); float h = vW.y;
     vec3 Vv = vW - cameraPosition; float dist = length(Vv); vec3 vd = Vv / dist;
     vec3 col = blockout(vW.xz);
     float dep = clamp(-h / 14.0, 0.0, 1.0);
     col = mix(col, mix(vec3(0.20, 0.34, 0.31), vec3(0.03, 0.10, 0.17), dep), smoothstep(0.4, -0.6, h));
-    float wrap = max((dot(N, uSunDir) + 0.20) / 1.20, 0.0);
-    vec3 lit = col * (vec3(1.0, 0.70, 0.43) * 1.70 * wrap + mix(vec3(0.20, 0.20, 0.28), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5) * 0.95);
+    vec3 lit = lightUp(col, N);
     float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
     gl_FragColor = vec4(mix(lit, skyColor(normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z))), fogF), 1.0);
     return;
@@ -1352,12 +1467,8 @@ void main(){
   float dep = clamp(-h / 14.0, 0.0, 1.0);
   vec3 bed = mix(vec3(0.20, 0.34, 0.31), vec3(0.03, 0.10, 0.17), dep);
   col = mix(col, bed, smoothstep(0.4, -0.6, h));
-  // iluminación: sol cálido rasante + ambiente de cielo
-  float ndl = dot(N, uSunDir);
-  float wrap = max((ndl + 0.20) / 1.20, 0.0);
-  vec3 sunC = vec3(1.0, 0.70, 0.43) * 1.70;
-  vec3 amb = mix(vec3(0.20, 0.20, 0.28), vec3(0.38, 0.46, 0.62), N.y * 0.5 + 0.5);
-  vec3 lit = col * (sunC * wrap + amb * 0.95);
+  // iluminación: sol cálido rasante + ambiente de cielo (v38: colores por bioma, en lightUp)
+  vec3 lit = lightUp(col, N);
   lit *= 1.0 - 0.18 * smoothstep(0.25, 0.7, slope) * (1.0 - sn);
   // bruma atmosférica: el color del cielo en la dirección de la vista
   float fogF = 1.0 - exp(-pow(dist * uFog, 2.0));
@@ -1384,6 +1495,29 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 onResize();
+
+/* ---------- v38: ambiente por bioma ----------
+   setAtmosphere(a): sol, cielo, nubes del cielo, bruma, agua y luces (también las de la escena de los brazos del jinete, con atmosHooks).
+   Lo llama setBiome (M3) con BIOMES[...].atmos; sin a (null), el ambiente de siempre: la hora dorada del valle. Colores lineales [r, g, b];
+   sun: dirección hacia el sol (sunFrom: rumbo y altura en grados); sunLight y hemi: [color, intensidad] y [cielo, suelo, intensidad]. */
+const ATMOS_U = { skyZen: SKY_U.uSkyZen, skyMid: SKY_U.uSkyMid, skyHor: SKY_U.uSkyHor, glowA: SKY_U.uGlowA, glowB: SKY_U.uGlowB,
+  cloudShade: skyMat.uniforms.uCloudShade, cloudLitA: skyMat.uniforms.uCloudLitA, cloudLitB: skyMat.uniforms.uCloudLitB, cloudCov: skyMat.uniforms.uCloudCov,
+  sunC: terrainUniforms.uSunC, ambLo: terrainUniforms.uAmbLo, ambHi: terrainUniforms.uAmbHi,
+  waterA: waterMat.uniforms.uWaterA, waterB: waterMat.uniforms.uWaterB, sunSpec: waterMat.uniforms.uSunSpec };
+const ATMOS_DEF = { sun: SUN_DIR.toArray(), fog: FOG_DENSITY, fogColor: scene.fog.color.toArray(),
+  sunLight: [sunLight.color.getHex(), sunLight.intensity], hemi: [hemiLight.color.getHex(), hemiLight.groundColor.getHex(), hemiLight.intensity] };
+for (const k in ATMOS_U) ATMOS_DEF[k] = ATMOS_U[k].value.toArray();
+const atmosHooks = [];
+const sunFrom = (rumbo, altura) => { const a = rumbo * Math.PI / 180, e = altura * Math.PI / 180; return [Math.sin(a) * Math.cos(e), Math.sin(e), -Math.cos(a) * Math.cos(e)]; };
+function setAtmosphere(a) {
+  a = Object.assign({}, ATMOS_DEF, a || {});
+  for (const k in ATMOS_U) ATMOS_U[k].value.fromArray(a[k]);
+  SUN_DIR.fromArray(a.sun).normalize(); sunLight.position.copy(SUN_DIR).multiplyScalar(100);
+  U_FOG.value = a.fog; scene.fog.density = a.fog; scene.fog.color.fromArray(a.fogColor);
+  sunLight.color.setHex(a.sunLight[0]); sunLight.intensity = a.sunLight[1];
+  hemiLight.color.setHex(a.hemi[0]); hemiLight.groundColor.setHex(a.hemi[1]); hemiLight.intensity = a.hemi[2];
+  for (const f of atmosHooks) f();
+}
 /* ============================================================
    3. TERRENO INFINITO: quadtree de chunks con LOD y faldones
    Nivel L tiene tamaño 128·2^L m y siempre 32×32 celdas (4 m, 8 m, ... 256 m).
@@ -1996,7 +2130,7 @@ void main(){
   gl_FragColor = vec4(mix(lit, skyColor(fd), fogF), 1.0);
 }`;
 const islandMat = new THREE.ShaderMaterial({ uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: islandFS, side: THREE.DoubleSide });
-const wfUniforms = { uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uTime: { value: 0 } };
+const wfUniforms = Object.assign({ uSunDir: { value: SUN_DIR }, uFog: U_FOG, uTime: { value: 0 } }, SKY_U);   // (v38: bruma y cielo compartidos)
 const waterfallMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: wfUniforms,
   vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
@@ -2156,6 +2290,187 @@ function updateWaterfalls(dt) {
     const d = Math.hypot(w.x - p.x, w.z - p.z); if (d > 2600) continue;
     if (Math.random() < dt * 16) emit(fxSmoke, w.x + rnd(-w.w, w.w) * 0.6, w.y - w.len + rnd(-6, 6), w.z + rnd(-w.w, w.w) * 0.6, rnd(-1.5, 1.5), rnd(0.5, 2.5), rnd(-1.5, 1.5), rnd(2.2, 3.4), 8, 36, 0.92, 0.96, 1.0, 0.20, 0.5, 0);
   }
+}
+/* ============================================================
+   7b. NUBES QUE SE ATRAVIESAN (v38, Vuelo Libre)
+   Cúmulos hechos de bolas: cada bola es un sprite que mira a la cámara (todas en una sola malla instanciada), con base gris azulada y
+   copa blanca iluminada por el sol (los colores de las nubes del cielo del bioma: uCloudShade y uCloudLitA, setAtmosphere). Las bolas se
+   desvanecen al acercarse y, dentro de una nube, la pantalla se llena de blanco (#nube). Cada nube proyecta su sombra en el terreno (una
+   textura vista desde arriba, uCloudSh del shader del terreno). Las ordena de lejos a cerca para que se mezclen bien.
+   · cloudsBuild(def, semilla): desde setBiome (M3), con BIOMES[...].clouds (null = sin nubes): n cúmulos dentro de un círculo de r m, con
+     la base entre base[0] y base[1] m, y low nubes bajas sobre valles y agua. La misma semilla da siempre las mismas nubes.
+   · updateClouds(dt): cada fotograma (updateWorld).
+   ============================================================ */
+const CLOUD = { def: null, list: [], mesh: null, n: 0, pos: null, par: null, order: null, dist: null, last: new THREE.Vector3(1e9, 0, 0), inside: 0 };
+const cloudOverlay = document.getElementById('nube');
+const SHADOW_HALF = 16000, SHADOW_PX = 256;
+
+/* La bola: disco blando con el borde roto por ruido (alfa) y algo de variación de brillo (rojo). */
+const puffTex = (() => {
+  const S = 128, data = new Uint8Array(S * S * 4);
+  const vn = (u, v, per, salt) => {                       // ruido de valor periódico
+    const x = u * per, y = v * per, x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    const h = (i, j) => hashSeed(((i % per) + per) % per, ((j % per) + per) % per, salt);
+    const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+    return lerp(lerp(h(x0, y0), h(x0 + 1, y0), sx), lerp(h(x0, y0 + 1), h(x0 + 1, y0 + 1), sx), sy);
+  };
+  for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+    const u = (i + 0.5) / S, v = (j + 0.5) / S, r = Math.hypot(u * 2 - 1, v * 2 - 1);
+    const n = vn(u, v, 4, 71) * 0.5 + vn(u, v, 8, 72) * 0.3 + vn(u, v, 16, 73) * 0.2;
+    let a = clamp((1 - r) * 2.3 - 0.3 + (n - 0.5) * 1.2, 0, 1) * (1 - smooth(0.8, 1.0, r));
+    a = a * a * (3 - 2 * a);
+    const o = (j * S + i) * 4, l = 200 + 55 * n;
+    data[o] = data[o + 1] = data[o + 2] = l; data[o + 3] = a * 255;
+  }
+  const t = new THREE.DataTexture(data, S, S, THREE.RGBAFormat);
+  t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.needsUpdate = true;
+  return t;
+})();
+
+const cloudMat = new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, fog: false,
+  uniforms: Object.assign({ uSunDir: { value: SUN_DIR }, uFog: U_FOG, uPuff: { value: puffTex }, uSunV: { value: new THREE.Vector3() },
+    uCloudLitA: skyMat.uniforms.uCloudLitA, uCloudShade: skyMat.uniforms.uCloudShade }, SKY_U),
+  vertexShader: `
+  attribute vec3 iPos; attribute vec4 iPar;              // centro; tamaño (m), luz (0 base … 1 copa), giro, opacidad
+  varying vec2 vUv, vC; varying float vL, vA; varying vec3 vW;
+  void main(){
+    vec4 mv = viewMatrix * vec4(iPos, 1.0);
+    float d = length(mv.xyz);
+    float c = cos(iPar.z), s = sin(iPar.z);
+    vec2 q = vec2(c * position.x - s * position.y, s * position.x + c * position.y);
+    mv.xy += q * iPar.x;
+    vUv = uv; vC = q * 2.0; vL = iPar.y; vW = iPos;
+    vA = iPar.w * smoothstep(iPar.x * 0.3, iPar.x * 1.05, d);   // se desvanece al meterse en ella
+    gl_Position = projectionMatrix * mv;
+  }`,
+  fragmentShader: GLSL_COMMON + `
+  uniform sampler2D uPuff; uniform vec3 uSunV, uCloudLitA, uCloudShade; uniform float uFog;
+  varying vec2 vUv, vC; varying float vL, vA; varying vec3 vW;
+  void main(){
+    vec4 t = texture2D(uPuff, vUv);
+    float a = t.a * vA;
+    if (a < 0.003) discard;
+    vec3 n = normalize(vec3(vC, sqrt(max(0.0, 1.0 - dot(vC, vC))) + 0.25));   // la bola como media esfera, en ejes de la vista
+    float l = clamp(dot(n, uSunV) * 0.5 + 0.5, 0.0, 1.0);
+    float light = clamp(vL * 0.62 + l * 0.55 - 0.1, 0.0, 1.0);
+    vec3 col = mix(uCloudShade, uCloudLitA, light) * (0.88 + 0.14 * t.r);
+    vec3 Vv = vW - cameraPosition; float dist = length(Vv);
+    float fogF = 1.0 - exp(-pow(dist * uFog * 0.8, 2.0));
+    col = mix(col, skyColor(normalize(vec3(Vv.x, max(Vv.y, 0.0) * 0.4, Vv.z))), fogF);
+    gl_FragColor = vec4(col, a);
+  }`
+});
+
+function cloudsClear() {
+  if (CLOUD.mesh) { scene.remove(CLOUD.mesh); CLOUD.mesh.geometry.dispose(); CLOUD.mesh = null; }
+  CLOUD.list.length = 0; CLOUD.n = 0; CLOUD.def = null; CLOUD.inside = 0; CLOUD.last.set(1e9, 0, 0);
+  cloudOverlay.style.opacity = 0;
+  if (terrainUniforms.uCloudSh.value !== blankTex) terrainUniforms.uCloudSh.value.dispose();
+  terrainUniforms.uCloudSh.value = blankTex; terrainUniforms.uCloudShK.value.z = 0;
+}
+
+function cloudsBuild(def, seed) {
+  cloudsClear();
+  if (!def) return;
+  CLOUD.def = def;
+  const rnd = seededRandom((seed | 0) * 7919 + 13), P = [], R = [];   // P: centro de cada bola; R: tamaño, luz, giro, opacidad
+  const sx = SUN_DIR.x, sz = SUN_DIR.z, sl = Math.hypot(sx, sz) || 1;
+  function cloud(x, z, base, W, Hc) {
+    const D = W * (0.55 + rnd() * 0.45), rot = rnd() * Math.PI, cr = Math.cos(rot), sr = Math.sin(rot);
+    const c = { x, z, base, y: base + Hc * 0.45, w: W, d: D, h: Hc, rot };
+    CLOUD.list.push(c);
+    const k = clamp(Math.round(W / 55), 12, 64);
+    for (let i = 0; i < k; i++) {
+      const a = rnd() * Math.PI * 2, rho = Math.sqrt(rnd()) * 0.92;
+      const lx = Math.cos(a) * rho * W * 0.5, lz = Math.sin(a) * rho * D * 0.5;
+      const px = x + lx * cr - lz * sr, pz = z + lx * sr + lz * cr;
+      const top = Hc * Math.pow(Math.max(0, 1 - rho * rho), 0.6);
+      const size = (0.34 + 0.34 * rnd()) * W * (1 - 0.4 * rho) * 0.62;
+      let py = base + size * 0.22 + Math.pow(rnd(), 0.8) * Math.max(0, top - size * 0.3);
+      py = Math.max(py, Math.max(heightAt(px, pz), WL) + size * 0.38);   // que no se metan en la montaña
+      const side = ((px - x) * sx + (pz - z) * sz) / (sl * Math.max(1, Math.hypot(px - x, pz - z)));
+      P.push(px, py, pz);
+      R.push(size, clamp((py - base) / Math.max(Hc, 1), 0, 1) * 0.8 + 0.2 * (side * 0.5 + 0.5), rnd() * 6.283, 0.82 + 0.18 * rnd());
+    }
+  }
+  // cúmulos: al azar dentro del círculo, sin pisarse
+  for (let tries = 0; CLOUD.list.length < def.n && tries < def.n * 60; tries++) {
+    const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * def.r, x = Math.cos(a) * rr, z = Math.sin(a) * rr;
+    const W = 1000 + Math.pow(rnd(), 1.4) * 2600;
+    if (CLOUD.list.some(c => Math.hypot(c.x - x, c.z - z) < (c.w + W) * 0.48)) continue;
+    cloud(x, z, lerp(def.base[0], def.base[1], rnd()), W, Math.min(1500, W * (0.32 + rnd() * 0.3)));
+  }
+  // nubes bajas: jirones sobre el agua y los valles
+  for (let i = 0, tries = 0; i < def.low && tries < def.low * 80; tries++) {
+    const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * def.r * 0.8, x = Math.cos(a) * rr, z = Math.sin(a) * rr, g = heightAt(x, z);
+    if (g > 380) continue;
+    const W = 500 + rnd() * 700;
+    if (CLOUD.list.some(c => Math.hypot(c.x - x, c.z - z) < (c.w + W) * 0.5 && Math.abs(c.base - 700) < 600)) continue;
+    cloud(x, z, Math.max(g, WL) + 380 + rnd() * 450, W, W * (0.25 + rnd() * 0.2)); i++;
+  }
+  // la malla: un cuadrado por bola, instanciado
+  const n = CLOUD.n = P.length / 3;
+  CLOUD.pos = new Float32Array(P); CLOUD.par = new Float32Array(R);
+  CLOUD.order = Array.from({ length: n }, (_, i) => i); CLOUD.dist = new Float32Array(n);
+  const geo = new THREE.InstancedBufferGeometry(), q = new THREE.PlaneGeometry(1, 1);
+  geo.setIndex(q.index); geo.setAttribute('position', q.attributes.position); geo.setAttribute('uv', q.attributes.uv);
+  geo.setAttribute('iPos', new THREE.InstancedBufferAttribute(new Float32Array(n * 3), 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('iPar', new THREE.InstancedBufferAttribute(new Float32Array(n * 4), 4).setUsage(THREE.DynamicDrawUsage));
+  geo.instanceCount = n;
+  CLOUD.mesh = new THREE.Mesh(geo, cloudMat); CLOUD.mesh.frustumCulled = false; CLOUD.mesh.renderOrder = 3;
+  scene.add(CLOUD.mesh);
+  cloudShadows();
+}
+
+/* Sombras: cada nube, una mancha blanda en el suelo, desplazada según el sol (a la altura del suelo bajo ella). */
+function cloudShadows() {
+  const cv = document.createElement('canvas'); cv.width = cv.height = SHADOW_PX;
+  const cx = cv.getContext('2d'), k = SHADOW_PX / (2 * SHADOW_HALF);
+  cx.fillStyle = '#000'; cx.fillRect(0, 0, SHADOW_PX, SHADOW_PX);
+  const sy = Math.max(SUN_DIR.y, 0.15);
+  for (const c of CLOUD.list) {
+    const g = Math.max(heightAt(c.x, c.z), WL), up = Math.max(0, c.y - g);
+    const x = c.x - SUN_DIR.x / sy * up, z = c.z - SUN_DIR.z / sy * up;
+    cx.save(); cx.translate((x + SHADOW_HALF) * k, (z + SHADOW_HALF) * k); cx.rotate(c.rot); cx.scale(c.w * 0.5 * k, c.d * 0.5 * k);
+    const gr = cx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.55, 'rgba(255,255,255,0.6)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = gr; cx.beginPath(); cx.arc(0, 0, 1, 0, Math.PI * 2); cx.fill(); cx.restore();
+  }
+  const t = new THREE.CanvasTexture(cv); t.flipY = false; t.magFilter = t.minFilter = THREE.LinearFilter; t.generateMipmaps = false;
+  terrainUniforms.uCloudSh.value = t; terrainUniforms.uCloudShK.value.set(SHADOW_HALF, 2 * SHADOW_HALF, 0.42);
+}
+
+const _cv = new THREE.Vector3();
+function updateClouds(dt) {
+  if (!CLOUD.mesh) return;
+  const C = camera.getWorldPosition(_cv), n = CLOUD.n;      // (la cámara va colgada del dragón: su posición en el mundo)
+  cloudMat.uniforms.uSunV.value.copy(SUN_DIR).transformDirection(camera.matrixWorldInverse);
+  // de lejos a cerca (solo si la cámara se ha movido algo)
+  if (CLOUD.last.distanceToSquared(C) > 400) {
+    CLOUD.last.copy(C);
+    const P = CLOUD.pos, Rr = CLOUD.par, d = CLOUD.dist, o = CLOUD.order;
+    for (let i = 0; i < n; i++) { const dx = P[i * 3] - C.x, dy = P[i * 3 + 1] - C.y, dz = P[i * 3 + 2] - C.z; d[i] = dx * dx + dy * dy + dz * dz; }
+    o.sort((a, b) => d[b] - d[a]);
+    const ip = CLOUD.mesh.geometry.attributes.iPos, ir = CLOUD.mesh.geometry.attributes.iPar, A = ip.array, B = ir.array;
+    for (let k = 0; k < n; k++) {
+      const i = o[k];
+      A[k * 3] = P[i * 3]; A[k * 3 + 1] = P[i * 3 + 1]; A[k * 3 + 2] = P[i * 3 + 2];
+      B[k * 4] = Rr[i * 4]; B[k * 4 + 1] = Rr[i * 4 + 1]; B[k * 4 + 2] = Rr[i * 4 + 2]; B[k * 4 + 3] = Rr[i * 4 + 3];
+    }
+    ip.needsUpdate = ir.needsUpdate = true;
+  }
+  // ¿dentro de una nube? (elipsoide de cada una) → blanco en pantalla
+  let dens = 0;
+  for (const c of CLOUD.list) {
+    const dx = C.x - c.x, dz = C.z - c.z;
+    if (Math.abs(dx) > c.w || Math.abs(dz) > c.w) continue;
+    const cr = Math.cos(c.rot), sr = Math.sin(c.rot), lx = dx * cr + dz * sr, lz = -dx * sr + dz * cr;
+    const e = Math.hypot(lx / (c.w * 0.5), (C.y - c.y) / (c.h * 0.6), lz / (c.d * 0.5));
+    dens = Math.max(dens, smooth(1.05, 0.55, e));
+  }
+  CLOUD.inside += (dens - CLOUD.inside) * (1 - Math.exp(-dt * 6));
+  cloudOverlay.style.opacity = state === 'playing' || state === 'dead' ? (CLOUD.inside * 0.86).toFixed(3) : 0;
 }
 /* ============================================================
    5. EL DRAGÓN DEL JUGADOR: el grupo que vuela y lleva la cámara y el modelo
@@ -3020,8 +3335,11 @@ const RIDER_COLORS = { acero: [0x5d6168, 0.88, 0.38], cuero: [0x2b1c13, 0, 0.72]
 const rider = { ready: false, error: null, scene: new THREE.Scene(), cam: new THREE.PerspectiveCamera(78, 1, 0.02, 40), root: new THREE.Group(),
   arms: [], reins: [], vis: false, s: { turn: 0, climb: 0, boost: 0, hover: 0, fire: 0, look: 0 }, fireLight: new THREE.PointLight(0xff8a3a, 0, 80, 2) };
 rider.scene.add(rider.root, rider.fireLight);
-{ const sun = new THREE.DirectionalLight(0xffc48a, 1.9); sun.position.copy(SUN_DIR).multiplyScalar(100);   // las mismas luces que el mundo
-  rider.scene.add(sun, new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95)); }
+{ const sun = new THREE.DirectionalLight(0xffc48a, 1.9), hemi = new THREE.HemisphereLight(0x8fa6d6, 0x4b3a30, 0.95);   // las mismas luces que el mundo
+  sun.position.copy(SUN_DIR).multiplyScalar(100);
+  rider.scene.add(sun, hemi);
+  atmosHooks.push(() => { sun.position.copy(sunLight.position); sun.color.copy(sunLight.color); sun.intensity = sunLight.intensity;   // v38: y con el ambiente del bioma
+    hemi.color.copy(hemiLight.color); hemi.groundColor.copy(hemiLight.groundColor); hemi.intensity = hemiLight.intensity; }); }
 
 function loadRider() {
   return loadGLB('brazos-glb', RIDER_URL).then(setupRider)
@@ -4411,8 +4729,8 @@ const scorchMesh = (() => {
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
-    uniforms: { uTex: { value: scorchTex }, uTime: { value: 0 }, uLife: { value: SCORCH.life }, uFade: { value: SCORCH.fade }, uGlow: { value: SCORCH.glow },
-      uFog: { value: FOG_DENSITY }, uSunDir: { value: SUN_DIR } },
+    uniforms: Object.assign({ uTex: { value: scorchTex }, uTime: { value: 0 }, uLife: { value: SCORCH.life }, uFade: { value: SCORCH.fade }, uGlow: { value: SCORCH.glow },
+      uFog: U_FOG, uSunDir: { value: SUN_DIR } }, SKY_U),   // (v38: bruma y cielo compartidos)
     vertexShader: `attribute float aBirth; varying vec2 vUv; varying float vB; varying vec3 vW;
       void main(){ vUv = uv; vB = aBirth; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: GLSL_COMMON + `uniform sampler2D uTex; uniform float uTime, uLife, uFade, uGlow, uFog; varying vec2 vUv; varying float vB; varying vec3 vW;
@@ -8992,6 +9310,7 @@ function updateWorld(dt) {
   fxAdd.mat.uniforms.uScale.value = sc; fxSmoke.mat.uniforms.uScale.value = sc;
   skyMat.uniforms.uTime.value = gameTime; waterMat.uniforms.uTime.value = gameTime;
   waterMesh.position.x = Math.round(p.x / 512) * 512; waterMesh.position.z = Math.round(p.z / 512) * 512;
+  updateClouds(dt);                                        // v38: nubes que se atraviesan (7b)
   // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
@@ -9533,6 +9852,7 @@ function updateIntro(now) {
      primeros mensajes de la radio; luego las bandas se retiran y se toma el control. Sin intro, 7 (CINE_T); 0 = sin entrada.
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
+     v38: areaOut: 'respawn' = en vez de fallar, se reaparece en el punto de partida (Vuelo Libre).
    · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
@@ -9746,6 +10066,25 @@ const MISSIONS = {
       { type: 'superdirigible', x: -400, z: -4600, height: 1500, heading: 90 },   // (v30: 1000 m de eslora)
       { type: 'sierpe', x: 800, z: -2600, height: 2000, heading: 270, mode: 'circle' }   // v30: patrulla circular sobre todo el campo (radio del Excel) alrededor de x, z
     ],
+    objectives: [],
+    radio: {},
+    events: []
+  },
+  /* v38: Vuelo Libre (petición de Jorge, 1-nov): sin enemigos ni objetivos, para volar por un paisaje de 24 × 24 km hecho en Blender a partir
+     de su vídeo de referencia (bioma «fiordos»: mapas/vuelo_libre.js, cielo soleado y nubes que se atraviesan). Zona de 11,5 km de radio:
+     fuera, 15 s para volver y, si no, de vuelta al inicio (areaOut: 'respawn'). Inicio sobre la orilla sur del lago central, mirando al
+     fiordo norte y al Pico Mayor. */
+  vuelo: {
+    name: 'Vuelo Libre', place: 'Valle de los Fiordos', free: true,
+    world: { seed: 38, biome: 'fiordos', islands: false },
+    start: { x: 300, z: 1900, heading: 350, height: 650 },
+    intro: 5,
+    area: { x: 0, z: 0, r: 11500 }, areaOut: 'respawn',
+    death: 'respawn',
+    timeLimit: null,
+    autoWin: false,
+    towers: { total: 0 },
+    dragons: { total: 0, atOnce: 0 },
     objectives: [],
     radio: {},
     events: []
@@ -10070,7 +10409,7 @@ function missionStart() {
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const I = mission.intro, intro = I != null ? I : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (I && typeof I === 'object') cineStart(Infinity, mission.name, mission.place, { title: I.title, shots: I.shots, skip: true });   // v34: hasta que la acaba un evento («cine: 'end'»), con planos de cámara
-  else if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
+  else if (intro > 0) cineStart(intro, mission.name, mission.free && goal ? 'Objetivo: ' + goal : mission.place);   // (v38: sin objetivos, el lugar)
   else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
   if (mission.card) cardStart(mission.card);               // v34: pantalla de capítulo en negro (19e), encima de la entrada de cine
 }
@@ -10158,7 +10497,10 @@ function missionUpdate(dt) {
       if (s !== MS.tick) { MS.tick = s; areaCountEl.textContent = String(s); if (s > 0) sfx.areaTick(s); }
       const edge = 'Vuelve a la zona  ·  ' + fmtDist(Math.max(0, d - A.r));
       if (edge !== MS.edge) { MS.edge = edge; areaEdgeEl.textContent = edge; }
-      if (MS.outT <= 0) { missionFail('Abandonaste el área de la misión'); return; }
+      if (MS.outT <= 0) {
+        if (mission.areaOut === 'respawn') { areaRespawn(); return; }   // v38: Vuelo Libre: de vuelta al punto de partida, sin fallar
+        missionFail('Abandonaste el área de la misión'); return;
+      }
     }
   }
   areaEl.classList.toggle('on', MS.out && state === 'playing');
@@ -10209,6 +10551,13 @@ function runAction(a) {
   if (a.hint) hintShow(txt(a.hint));                       // v34: consejo en pantalla (más largo que un aviso)
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
+}
+
+/* v38: fuera del área demasiado tiempo en un modo sin fallo (areaOut: 'respawn'): se reaparece en el punto de partida. */
+function areaRespawn() {
+  MS.out = false; areaEl.classList.remove('on');
+  dragon.position.copy(START.pos); dragon.quaternion.copy(START.q);
+  respawn(); toast('De vuelta al centro de la zona');
 }
 
 /* ---------- Final ---------- */
@@ -10266,8 +10615,51 @@ function radioSubs(m) {
    ============================================================ */
 const BIOMES = {                                          // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma)
   valle: { name: 'Valle templado' },
-  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 }  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 },  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+  /* v38: Vuelo Libre. Paisaje de 24 × 24 km hecho en Blender (map: mapas/<map>.js, que se carga al entrar), con el ambiente soleado del vídeo
+     de referencia de Jorge (atmos: setAtmosphere, en 2) y cúmulos que se atraviesan (clouds: 7b). */
+  fiordos: {
+    name: 'Valle de los Fiordos', map: 'vuelo_libre',
+    atmos: { sun: sunFrom(235, 42), skyZen: [0.09, 0.26, 0.66], skyMid: [0.38, 0.56, 0.84], skyHor: [0.72, 0.81, 0.92], glowA: [1.0, 0.92, 0.8], glowB: [1.0, 0.95, 0.85],
+      cloudShade: [0.6, 0.66, 0.78], cloudLitA: [1.0, 1.0, 1.0], cloudLitB: [1.0, 0.97, 0.9], cloudCov: [0.54, 0.74, 0.9],
+      sunC: [1.45, 1.38, 1.24], ambLo: [0.36, 0.4, 0.5], ambHi: [0.44, 0.54, 0.72], waterA: [0.03, 0.13, 0.19], waterB: [0.06, 0.25, 0.3], sunSpec: [1.0, 0.97, 0.9],
+      fog: 0.000105, fogColor: [0.72, 0.81, 0.92], sunLight: [0xfff2e0, 1.75], hemi: [0x9fb8e8, 0x5a5040, 0.85] },
+    clouds: { n: 75, low: 20, base: [1300, 2300], r: 15500 }
+  }
 };
+/* v38: mapas hechos a mano. Cada uno va en su propio archivo junto al juego (mapas/<id>.js, generado por herramientas/blender/paisaje), no
+   dentro de sky_apex.html: se carga con una etiqueta <script> (funciona también al abrir el HTML con doble clic) la primera vez que hace
+   falta, y sus dos PNG (alturas y materiales) se descodifican aquí. */
+const MAPS = {};
+function loadMap(id) {
+  if (MAPS[id]) return Promise.resolve(MAPS[id]);
+  const raw = () => window.SKY_MAPAS && window.SKY_MAPAS[id];
+  const script = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => { s.remove(); ko(); }; document.head.appendChild(s); });
+  const dirs = /\/fuentes\//.test(location.pathname) ? ['../mapas/', 'mapas/'] : ['mapas/', '../mapas/'];   // junto al HTML o, desde fuentes/, en la raíz
+  const get = raw() ? Promise.resolve() : script(dirs[0] + id + '.js').catch(() => script(dirs[1] + id + '.js'));
+  return get.then(() => { if (!raw()) throw new Error('falta mapas/' + id + '.js'); return decodeMap(raw()); })
+    .then(m => (MAPS[id] = m), err => { throw new Error('No se pudo cargar el mapa «' + id + '»: ' + (err && err.message || 'falta mapas/' + id + '.js')); });
+}
+async function decodeMap(R) {
+  const pixels = async b64 => {
+    const bin = atob(b64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const bmp = await createImageBitmap(new Blob([u8], { type: 'image/png' }), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+    const cx = cv.getContext('2d'); cx.drawImage(bmp, 0, 0);
+    return cx.getImageData(0, 0, bmp.width, bmp.height).data;
+  };
+  const n = R.n, alt = await pixels(R.alturas), mat0 = await pixels(R.materiales);
+  const h = new Float32Array(n * n), mat = new Uint8Array(n * n * 4);
+  for (let i = 0, o = 0; i < n * n; i++, o += 4) {
+    h[i] = R.h0 + (alt[o] * 256 + alt[o + 1]) * R.paso;
+    mat[o] = mat0[o]; mat[o + 1] = mat0[o + 1]; mat[o + 2] = mat0[o + 2]; mat[o + 3] = alt[o + 2];
+  }
+  const tex = new THREE.DataTexture(mat, n, n, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+  return { id: R.id, n, size: R.size, half: R.size / 2, h, mat, tex, area: R.area, inicio: R.inicio, hMax: R.hMax };
+}
 const START_DEFAULT = { x: 0, z: 0, heading: null, height: 260, y: null };
 const WORLD = { seed: SEED_BOOT, biome: 'valle', shape: 'valle[]', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
 const WG = { total: 1, phase: 0 };                          // carga: chunks pendientes al empezar; fase 0 = terreno, 1 = islas
@@ -10291,6 +10683,11 @@ function setBiome(w) {
   FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
   terrainUniforms.uGrid.value = FLAT ? 1 : 0;
   RELIEF = w.relief || []; NO_ISL = w.islands === false;   // v34: cordilleras y llanuras de la receta; sin islas
+  MAP = B.map ? MAPS[B.map] : null;                       // v38: mapa hecho a mano (ya cargado: beginWorldGen), su color y su ambiente
+  terrainUniforms.uMap.value = MAP ? 1 : 0; terrainUniforms.uMat.value = MAP ? MAP.tex : blankTex;
+  if (MAP) terrainUniforms.uMapK.value.set(MAP.half, MAP.size, MAP.n);
+  setAtmosphere(B.atmos || null);
+  cloudsBuild(B.clouds || null, w.seed);                   // v38: nubes que se atraviesan (7b)
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {
@@ -10327,7 +10724,19 @@ function placeStart(s) {
 }
 /* Desde startGame: otra semilla → se borra el mundo; en cualquier caso, nuevo punto de partida y carga del terreno de allí. */
 function beginWorldGen() {
-  const w = RUN.world;
+  const w = RUN.world, B = BIOMES[w.biome];
+  if (B.map && !MAPS[B.map]) {                             // v38: primero, el archivo del mapa (mapas/<id>.js); al tenerlo, se vuelve aquí
+    WG.phase = -1; wgBar.style.width = '0%';
+    document.getElementById('wgKicker').textContent = mission.place || '';
+    document.getElementById('wgName').textContent = mission.name;
+    document.getElementById('wgLead').textContent = 'Cargando el mapa…';
+    document.getElementById('wgSeed').textContent = B.name;
+    state = 'worldgen'; wgEl.hidden = false; selEl.hidden = menuEl.hidden = true;
+    loadMap(B.map).then(() => { WG.phase = -2; }, err => {
+      console.error(err); wgEl.hidden = true; state = 'menu'; menuEl.hidden = false; toast(err.message);
+    });
+    return;
+  }
   if (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape) { clearWorld(); setSeed(w.seed); setBiome(w); }   // (v29: o con otro bioma)
   WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.shape = shapeKey(w); WORLD.startKey = startKey(w.start);
   placeStart(w.start);
@@ -10343,6 +10752,8 @@ function beginWorldGen() {
 /* Cada fotograma de la carga: primero el terreno de alrededor (85 % de la barra), luego las islas cercanas; al acabar, la partida. */
 function updateWorldGen() {
   const P = dragon.position;
+  if (WG.phase === -1) return;                             // v38: esperando al archivo del mapa
+  if (WG.phase === -2) { beginWorldGen(); return; }        // ya está: ahora sí, el mundo
   if (WG.phase === 0) {
     const left = pumpTerrain(28);
     wgBar.style.width = (85 * (1 - left / WG.total)).toFixed(0) + '%';
@@ -11419,6 +11830,7 @@ function frame(now) {
   planTowers();
   goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
   document.getElementById('mStory').addEventListener('click', storyMenu);                          // v34: Modo Historia → capítulos (19e)
+  document.getElementById('mVuelo').addEventListener('click', () => chooseMission('vuelo'));        // v38: Vuelo Libre (mapa hecho en Blender)
   document.getElementById('mM1').addEventListener('click', () => chooseMission('mision1'));        // v23: Misión 1 (Fase 1)
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
@@ -11430,7 +11842,8 @@ function frame(now) {
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)
     PORTAL, STORY, VO, CC, cine, missionSignal, squadEngage, unitsWave, storySkip: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })),   // (v34)
-    get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
+    get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax,              // (v24)
+    BIOMES, MAPS, loadMap, get MAP() { return MAP; }, CLOUD, setAtmosphere, terrainUniforms };          // (v38)
   requestAnimationFrame(frame);
 })();
 </script>

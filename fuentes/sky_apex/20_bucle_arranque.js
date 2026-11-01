@@ -39,6 +39,7 @@ function frame(now) {
   planTowers();
   goBtn.addEventListener('click', () => showPlayMenu(true));                                       // v22: Jugar → modo → «Elige tu dragón»
   document.getElementById('mStory').addEventListener('click', storyMenu);                          // v34: Modo Historia → capítulos (19e)
+  document.getElementById('mVuelo').addEventListener('click', () => chooseMission('vuelo'));        // v38: Vuelo Libre (mapa hecho en Blender)
   document.getElementById('mM1').addEventListener('click', () => chooseMission('mision1'));        // v23: Misión 1 (Fase 1)
   document.getElementById('mTest').addEventListener('click', () => chooseMission('prueba'));
   document.getElementById('mFree').addEventListener('click', () => chooseMission('libre'));
@@ -50,6 +51,7 @@ function frame(now) {
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)
     PORTAL, STORY, VO, CC, cine, missionSignal, squadEngage, unitsWave, storySkip: () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })),   // (v34)
-    get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax };              // (v24)
+    get STATS() { return STATS; }, statsInfo, statsFetch, applyStats, heroStats, heroHpMax,              // (v24)
+    BIOMES, MAPS, loadMap, get MAP() { return MAP; }, CLOUD, setAtmosphere, terrainUniforms };          // (v38)
   requestAnimationFrame(frame);
 })();

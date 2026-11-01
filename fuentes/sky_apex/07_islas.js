@@ -188,7 +188,7 @@ void main(){
   gl_FragColor = vec4(mix(lit, skyColor(fd), fogF), 1.0);
 }`;
 const islandMat = new THREE.ShaderMaterial({ uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: islandFS, side: THREE.DoubleSide });
-const wfUniforms = { uSunDir: { value: SUN_DIR }, uFog: { value: FOG_DENSITY }, uTime: { value: 0 } };
+const wfUniforms = Object.assign({ uSunDir: { value: SUN_DIR }, uFog: U_FOG, uTime: { value: 0 } }, SKY_U);   // (v38: bruma y cielo compartidos)
 const waterfallMat = new THREE.ShaderMaterial({
   transparent: true, depthWrite: false, side: THREE.DoubleSide, uniforms: wfUniforms,
   vertexShader: `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,

@@ -17,6 +17,7 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--ink);c
 #gl,#hud{position:fixed;inset:0;width:100%;height:100%;display:block}
 #gl{cursor:none;background:var(--ink)}
 #hud{pointer-events:none}
+#nube{position:fixed;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at 50% 45%,rgba(247,249,252,.97),rgba(212,222,236,.99))}   /* v38: dentro de una nube (7b) */
 .overlay{position:fixed;inset:0;display:flex;align-items:center;z-index:5;
   background:linear-gradient(90deg,rgba(13,10,15,.94) 0%,rgba(13,10,15,.78) 38%,rgba(13,10,15,.12) 78%,rgba(13,10,15,0) 100%);}
 .overlay[hidden]{display:none!important}

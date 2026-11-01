@@ -10,8 +10,51 @@
    ============================================================ */
 const BIOMES = {                                          // hueco para la Fase 3 (paleta, relieve, niebla y cielo por bioma)
   valle: { name: 'Valle templado' },
-  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 }  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+  pruebas: { name: 'Campo de pruebas (llano)', flat: 1.5 },  // v29: suelo llano de blockout a 1,5 m sobre el agua, sin islas ni árboles (lagos: world.lakes)
+  /* v38: Vuelo Libre. Paisaje de 24 × 24 km hecho en Blender (map: mapas/<map>.js, que se carga al entrar), con el ambiente soleado del vídeo
+     de referencia de Jorge (atmos: setAtmosphere, en 2) y cúmulos que se atraviesan (clouds: 7b). */
+  fiordos: {
+    name: 'Valle de los Fiordos', map: 'vuelo_libre',
+    atmos: { sun: sunFrom(235, 42), skyZen: [0.09, 0.26, 0.66], skyMid: [0.38, 0.56, 0.84], skyHor: [0.72, 0.81, 0.92], glowA: [1.0, 0.92, 0.8], glowB: [1.0, 0.95, 0.85],
+      cloudShade: [0.6, 0.66, 0.78], cloudLitA: [1.0, 1.0, 1.0], cloudLitB: [1.0, 0.97, 0.9], cloudCov: [0.54, 0.74, 0.9],
+      sunC: [1.45, 1.38, 1.24], ambLo: [0.36, 0.4, 0.5], ambHi: [0.44, 0.54, 0.72], waterA: [0.03, 0.13, 0.19], waterB: [0.06, 0.25, 0.3], sunSpec: [1.0, 0.97, 0.9],
+      fog: 0.000105, fogColor: [0.72, 0.81, 0.92], sunLight: [0xfff2e0, 1.75], hemi: [0x9fb8e8, 0x5a5040, 0.85] },
+    clouds: { n: 75, low: 20, base: [1300, 2300], r: 15500 }
+  }
 };
+/* v38: mapas hechos a mano. Cada uno va en su propio archivo junto al juego (mapas/<id>.js, generado por herramientas/blender/paisaje), no
+   dentro de sky_apex.html: se carga con una etiqueta <script> (funciona también al abrir el HTML con doble clic) la primera vez que hace
+   falta, y sus dos PNG (alturas y materiales) se descodifican aquí. */
+const MAPS = {};
+function loadMap(id) {
+  if (MAPS[id]) return Promise.resolve(MAPS[id]);
+  const raw = () => window.SKY_MAPAS && window.SKY_MAPAS[id];
+  const script = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => { s.remove(); ko(); }; document.head.appendChild(s); });
+  const dirs = /\/fuentes\//.test(location.pathname) ? ['../mapas/', 'mapas/'] : ['mapas/', '../mapas/'];   // junto al HTML o, desde fuentes/, en la raíz
+  const get = raw() ? Promise.resolve() : script(dirs[0] + id + '.js').catch(() => script(dirs[1] + id + '.js'));
+  return get.then(() => { if (!raw()) throw new Error('falta mapas/' + id + '.js'); return decodeMap(raw()); })
+    .then(m => (MAPS[id] = m), err => { throw new Error('No se pudo cargar el mapa «' + id + '»: ' + (err && err.message || 'falta mapas/' + id + '.js')); });
+}
+async function decodeMap(R) {
+  const pixels = async b64 => {
+    const bin = atob(b64), u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const bmp = await createImageBitmap(new Blob([u8], { type: 'image/png' }), { premultiplyAlpha: 'none', colorSpaceConversion: 'none' });
+    const cv = document.createElement('canvas'); cv.width = bmp.width; cv.height = bmp.height;
+    const cx = cv.getContext('2d'); cx.drawImage(bmp, 0, 0);
+    return cx.getImageData(0, 0, bmp.width, bmp.height).data;
+  };
+  const n = R.n, alt = await pixels(R.alturas), mat0 = await pixels(R.materiales);
+  const h = new Float32Array(n * n), mat = new Uint8Array(n * n * 4);
+  for (let i = 0, o = 0; i < n * n; i++, o += 4) {
+    h[i] = R.h0 + (alt[o] * 256 + alt[o + 1]) * R.paso;
+    mat[o] = mat0[o]; mat[o + 1] = mat0[o + 1]; mat[o + 2] = mat0[o + 2]; mat[o + 3] = alt[o + 2];
+  }
+  const tex = new THREE.DataTexture(mat, n, n, THREE.RGBAFormat);
+  tex.wrapS = tex.wrapT = THREE.MirroredRepeatWrapping; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true; tex.anisotropy = 4; tex.needsUpdate = true;
+  return { id: R.id, n, size: R.size, half: R.size / 2, h, mat, tex, area: R.area, inicio: R.inicio, hMax: R.hMax };
+}
 const START_DEFAULT = { x: 0, z: 0, heading: null, height: 260, y: null };
 const WORLD = { seed: SEED_BOOT, biome: 'valle', shape: 'valle[]', startKey: '' };   // el mundo generado ahora (lo fija el arranque y beginWorldGen)
 const WG = { total: 1, phase: 0 };                          // carga: chunks pendientes al empezar; fase 0 = terreno, 1 = islas
@@ -35,6 +78,11 @@ function setBiome(w) {
   FLAT = B.flat != null ? { h: B.flat, lakes: w.lakes || [] } : null;
   terrainUniforms.uGrid.value = FLAT ? 1 : 0;
   RELIEF = w.relief || []; NO_ISL = w.islands === false;   // v34: cordilleras y llanuras de la receta; sin islas
+  MAP = B.map ? MAPS[B.map] : null;                       // v38: mapa hecho a mano (ya cargado: beginWorldGen), su color y su ambiente
+  terrainUniforms.uMap.value = MAP ? 1 : 0; terrainUniforms.uMat.value = MAP ? MAP.tex : blankTex;
+  if (MAP) terrainUniforms.uMapK.value.set(MAP.half, MAP.size, MAP.n);
+  setAtmosphere(B.atmos || null);
+  cloudsBuild(B.clouds || null, w.seed);                   // v38: nubes que se atraviesan (7b)
 }
 /* Borra todo lo generado con la semilla actual (lo que se rehace solo al acercarse: terreno, árboles, islas, torres y sus cachés). */
 function clearWorld() {
@@ -71,7 +119,19 @@ function placeStart(s) {
 }
 /* Desde startGame: otra semilla → se borra el mundo; en cualquier caso, nuevo punto de partida y carga del terreno de allí. */
 function beginWorldGen() {
-  const w = RUN.world;
+  const w = RUN.world, B = BIOMES[w.biome];
+  if (B.map && !MAPS[B.map]) {                             // v38: primero, el archivo del mapa (mapas/<id>.js); al tenerlo, se vuelve aquí
+    WG.phase = -1; wgBar.style.width = '0%';
+    document.getElementById('wgKicker').textContent = mission.place || '';
+    document.getElementById('wgName').textContent = mission.name;
+    document.getElementById('wgLead').textContent = 'Cargando el mapa…';
+    document.getElementById('wgSeed').textContent = B.name;
+    state = 'worldgen'; wgEl.hidden = false; selEl.hidden = menuEl.hidden = true;
+    loadMap(B.map).then(() => { WG.phase = -2; }, err => {
+      console.error(err); wgEl.hidden = true; state = 'menu'; menuEl.hidden = false; toast(err.message);
+    });
+    return;
+  }
   if (w.seed !== WORLD.seed || shapeKey(w) !== WORLD.shape) { clearWorld(); setSeed(w.seed); setBiome(w); }   // (v29: o con otro bioma)
   WORLD.seed = w.seed; WORLD.biome = w.biome; WORLD.shape = shapeKey(w); WORLD.startKey = startKey(w.start);
   placeStart(w.start);
@@ -87,6 +147,8 @@ function beginWorldGen() {
 /* Cada fotograma de la carga: primero el terreno de alrededor (85 % de la barra), luego las islas cercanas; al acabar, la partida. */
 function updateWorldGen() {
   const P = dragon.position;
+  if (WG.phase === -1) return;                             // v38: esperando al archivo del mapa
+  if (WG.phase === -2) { beginWorldGen(); return; }        // ya está: ahora sí, el mundo
   if (WG.phase === 0) {
     const left = pumpTerrain(28);
     wgBar.style.width = (85 * (1 - left / WG.total)).toFixed(0) + '%';

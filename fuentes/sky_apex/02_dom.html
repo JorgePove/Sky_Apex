@@ -1,6 +1,7 @@
 </style>
 
 <canvas id="gl" tabindex="0"></canvas>
+<div id="nube"></div>   <!-- v38: dentro de una nube, la pantalla en blanco (7b) -->
 <canvas id="hud"></canvas>
 <div id="vig"></div>
 <div id="warn">PROYECTIL</div>
@@ -32,6 +33,7 @@
       <div class="mgroup" id="mPlay" hidden>   <!-- v22: los modos de juego, tras «Jugar» -->
         <div class="kicker">Modo de juego</div>
         <button class="mbtn story" id="mStory">Modo Historia</button>   <!-- v34: capítulos (19e) -->
+        <button class="mbtn" id="mVuelo">Vuelo Libre</button>   <!-- v38: paisaje hecho en Blender, sin enemigos -->
         <button class="mbtn" id="mM1">Misión 1: la flota</button>
         <button class="mbtn" id="mTest">Misión de prueba</button>
         <button class="mbtn" id="mFree">Combate libre</button>
@@ -74,6 +76,7 @@
     <p class="lead"><b>Misión de prueba</b>: sin salir del área de la misión (si sales, tienes 15 s para volver) y sin caer: si te derriban, la misión falla. <b>Combate libre</b>: sin límites; al caer, reapareces.</p>
     <p class="lead"><b>Modo Historia</b>: los capítulos de la campaña, con voces, compañeros de escuadrón y cinemáticas. <kbd>Intro</kbd> salta la pantalla de capítulo y la voz de la entrada; los subtítulos (español o inglés) y el volumen de las voces, en Opciones.</p>
     <p class="lead"><b>Prueba de objetivos</b>: solo cuentan los blancos marcados <b>TGT</b> (dirigibles y tres baterías); a mitad de misión llega un escuadrón enemigo.</p>
+    <p class="lead"><b>Vuelo Libre</b>: vuela sin enemigos por un valle de fiordos de 24 × 24 km, con montañas nevadas, un cañón, ríos, lagos y nubes que se atraviesan. Si sales de la zona, tienes 15 s para volver; si no, reapareces en el centro.</p>
     <p class="lead"><b>Dev Test</b>: el combate libre con trucos (invulnerable, munición infinita…); <kbd>Tab</kbd> abre el panel de pruebas para cambiar en directo trucos, stats, vuelo y cámara.</p>
     <p class="lead"><b>Galería de enemigos</b>: campo de pruebas llano con todos los tipos de enemigos quietos, con los mismos trucos y panel; en el panel, además, parar su fuego, la sierpe en vuelo circular, «Restaurar galería» e «Ir a…» cada grupo.</p>
     <button class="ghost" data-close>← Volver</button>

@@ -64,7 +64,7 @@ function missionStart() {
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const I = mission.intro, intro = I != null ? I : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (I && typeof I === 'object') cineStart(Infinity, mission.name, mission.place, { title: I.title, shots: I.shots, skip: true });   // v34: hasta que la acaba un evento («cine: 'end'»), con planos de cámara
-  else if (intro > 0) cineStart(intro, mission.name, mission.free ? 'Objetivo: ' + goal : mission.place);
+  else if (intro > 0) cineStart(intro, mission.name, mission.free && goal ? 'Objetivo: ' + goal : mission.place);   // (v38: sin objetivos, el lugar)
   else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
   if (mission.card) cardStart(mission.card);               // v34: pantalla de capítulo en negro (19e), encima de la entrada de cine
 }
@@ -152,7 +152,10 @@ function missionUpdate(dt) {
       if (s !== MS.tick) { MS.tick = s; areaCountEl.textContent = String(s); if (s > 0) sfx.areaTick(s); }
       const edge = 'Vuelve a la zona  ·  ' + fmtDist(Math.max(0, d - A.r));
       if (edge !== MS.edge) { MS.edge = edge; areaEdgeEl.textContent = edge; }
-      if (MS.outT <= 0) { missionFail('Abandonaste el área de la misión'); return; }
+      if (MS.outT <= 0) {
+        if (mission.areaOut === 'respawn') { areaRespawn(); return; }   // v38: Vuelo Libre: de vuelta al punto de partida, sin fallar
+        missionFail('Abandonaste el área de la misión'); return;
+      }
     }
   }
   areaEl.classList.toggle('on', MS.out && state === 'playing');
@@ -203,6 +206,13 @@ function runAction(a) {
   if (a.hint) hintShow(txt(a.hint));                       // v34: consejo en pantalla (más largo que un aviso)
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
+}
+
+/* v38: fuera del área demasiado tiempo en un modo sin fallo (areaOut: 'respawn'): se reaparece en el punto de partida. */
+function areaRespawn() {
+  MS.out = false; areaEl.classList.remove('on');
+  dragon.position.copy(START.pos); dragon.quaternion.copy(START.q);
+  respawn(); toast('De vuelta al centro de la zona');
 }
 
 /* ---------- Final ---------- */

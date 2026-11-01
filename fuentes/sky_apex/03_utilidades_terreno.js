@@ -87,7 +87,43 @@ function reliefMask(x, z, m) {
   for (const R of RELIEF) m = lerp(m, R.m, 1 - smooth(R.r - R.edge, R.r, Math.hypot(x - R.x, z - R.z)));
   return m;
 }
+/* v38: mapa hecho a mano (Vuelo Libre: herramientas/blender/paisaje → mapas/vuelo_libre.js). Lo fija setBiome (M3) con el mapa ya cargado
+   (loadMap, M3): n×n alturas de borde a borde de un cuadrado de size m centrado en el origen, y sus materiales (mat: roca, nieve, agua
+   pintada, verdor; 0..255). Fuera del cuadrado, el mismo mapa en espejo: el horizonte nunca se corta. Entre los puntos (12 m), interpolación
+   cúbica y, encima, un relieve fino con ruido (más en la roca; nada en el agua pintada ni en la orilla). null = el terreno procedural. */
+let MAP = null;
+const mirrorIdx = (u, m) => { const p = 2 * m; u = ((u % p) + p) % p; return u > m ? p - u : u; };
+const _cr = new Float32Array(4);
+function crW(t, w) { const t2 = t * t, t3 = t2 * t; w[0] = (-t3 + 2 * t2 - t) * 0.5; w[1] = (3 * t3 - 5 * t2 + 2) * 0.5; w[2] = (-3 * t3 + 4 * t2 + t) * 0.5; w[3] = (t3 - t2) * 0.5; }
+function mapTerrain(x, z, out, full) {
+  const M = MAP, n = M.n, m = n - 1, k = m / M.size, H = M.h, A = M.mat;
+  const u = mirrorIdx((x + M.half) * k, m), v = mirrorIdx((z + M.half) * k, m);
+  const i = Math.min(m - 1, Math.floor(u)), j = Math.min(m - 1, Math.floor(v)), fx = u - i, fz = v - j;
+  let h = 0;
+  crW(fz, _cr); const wz0 = _cr[0], wz1 = _cr[1], wz2 = _cr[2], wz3 = _cr[3];
+  crW(fx, _cr);
+  for (let b = 0; b < 4; b++) {
+    const jj = Math.max(0, Math.min(m, j - 1 + b)) * n, wz = b === 0 ? wz0 : b === 1 ? wz1 : b === 2 ? wz2 : wz3;
+    const i0 = Math.max(0, i - 1), i3 = Math.min(m, i + 2);
+    h += wz * (_cr[0] * H[jj + i0] + _cr[1] * H[jj + i] + _cr[2] * H[jj + i + 1] + _cr[3] * H[jj + i3]);
+  }
+  // materiales (bilineal): roca, agua pintada y verdor
+  const a = (j * n + i) * 4, b2 = a + 4, c = a + n * 4, d = c + 4, e0 = (1 - fx) * (1 - fz), e1 = fx * (1 - fz), e2 = (1 - fx) * fz, e3 = fx * fz;
+  const rock = (A[a] * e0 + A[b2] * e1 + A[c] * e2 + A[d] * e3) / 255, wet = (A[a + 2] * e0 + A[b2 + 2] * e1 + A[c + 2] * e2 + A[d + 2] * e3) / 255;
+  const amp = (1.2 + 6.5 * rock) * (1 - smooth(0.2, 0.6, wet)) * smooth(2, 10, h);
+  if (amp > 0.01) h += (N1(x * 0.021, z * 0.021) * 0.55 + N2(x * 0.058, z * 0.058) * 0.3 + N3(x * 0.15, z * 0.15) * 0.15) * amp;
+  out.h = h;
+  if (full) {
+    const green = (A[a + 3] * e0 + A[b2 + 3] * e1 + A[c + 3] * e2 + A[d + 3] * e3) / 255, snow = (A[a + 1] * e0 + A[b2 + 1] * e1 + A[c + 1] * e2 + A[d + 1] * e3) / 255;
+    // arboledas sueltas en lo verde y bajo, como en la referencia (casi sin árboles)
+    out.forest = smooth(0.62, 0.85, green) * (1 - rock) * (1 - snow) * (1 - wet) * smooth(4, 14, h) * (1 - smooth(320, 620, h))
+      * smooth(0.2, 0.55, N2(x * 0.0011 + 50, z * 0.0011 - 20) * 0.5 + 0.5);
+    out.wet = wet;
+  }
+  return h;
+}
 function terrain(x, z, out, full) {
+  if (MAP) return mapTerrain(x, z, out, full);
   if (FLAT) return flatTerrain(x, z, out, full);
   const wx = N1(x * 0.0007, z * 0.0007) * 240, wz = N1(x * 0.0007 + 31.4, z * 0.0007 + 17.9) * 240;
   const px = x + wx, pz = z + wz;

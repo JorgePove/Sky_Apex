@@ -134,8 +134,8 @@ const scorchMesh = (() => {
   geo.setIndex(new THREE.BufferAttribute(idx, 1));
   const m = new THREE.Mesh(geo, new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8,
-    uniforms: { uTex: { value: scorchTex }, uTime: { value: 0 }, uLife: { value: SCORCH.life }, uFade: { value: SCORCH.fade }, uGlow: { value: SCORCH.glow },
-      uFog: { value: FOG_DENSITY }, uSunDir: { value: SUN_DIR } },
+    uniforms: Object.assign({ uTex: { value: scorchTex }, uTime: { value: 0 }, uLife: { value: SCORCH.life }, uFade: { value: SCORCH.fade }, uGlow: { value: SCORCH.glow },
+      uFog: U_FOG, uSunDir: { value: SUN_DIR } }, SKY_U),   // (v38: bruma y cielo compartidos)
     vertexShader: `attribute float aBirth; varying vec2 vUv; varying float vB; varying vec3 vW;
       void main(){ vUv = uv; vB = aBirth; vec4 w = modelMatrix * vec4(position, 1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: GLSL_COMMON + `uniform sampler2D uTex; uniform float uTime, uLife, uFade, uGlow, uFog; varying vec2 vUv; varying float vB; varying vec3 vW;
