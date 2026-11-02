@@ -2,7 +2,9 @@
 
 Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho hasta ahora: qué es el juego, cómo funciona por dentro, qué se pidió y en qué orden, qué se probó, qué se aprendió y por dónde seguir.
 
-Fecha de este resumen: 2 de noviembre de 2026, v41 (la primera versión es del 16 de octubre).
+Fecha de este resumen: 2 de noviembre de 2026, v42 (la primera versión es del 16 de octubre).
+
+> **v42 (2-nov): aviso de guiada y autonivelado** (sección 7c, «v42»): Jorge, tras la v41: «Está todo perfecto, ahora el juego se siente mucho mejor». Pitido de la guiada enemiga el doble de fuerte, cartel rojo «¡PROYECTIL APROXIMÁNDOSE!» que parpadea donde salen los derribos, y autonivelado del alabeo tras 3 s de calma (opción en Opciones). Entregada, sin jugar aún.
 
 > **v41 (2-nov): blancos como en Ace Combat** (sección 7c, «v41»): Jorge, tras la v40: «ahora el HUD es cojonudo». Cada enemigo, solo un marco verde según su tipo (cuadrado, círculo, triángulo, rectángulo); el seleccionado parpadea con su distancia y nombre a la derecha; la guiada se fija sola (marco rojo y «LOCK») y se lanza manteniendo el clic; flechas verdes y rojas de holograma; aviso solo de las guiadas enemigas con pitido que se acelera; «X DESTRUIDO» en el centro; guiada propia +50 % y enemiga −35 %. Entregada, sin jugar aún.
 
@@ -42,6 +44,7 @@ Fecha de este resumen: 2 de noviembre de 2026, v41 (la primera versión es del 1
 > **27-oct, al cerrar el chat:** v20 corregida tras jugarla Jorge (el jinete de Fulgor flotaba muy atrás y la 1ª persona iba muy atrás y baja); sin nueva respuesta suya aún. Blender enlazado al proyecto (sección 8.3).
 
 Estado:
+- **v42 entregada** (2-nov, sin jugar aún): pitido de la guiada más fuerte, cartel rojo de proyectil y autonivelado (sección 7c, «v42»). La v41 la dio por buena Jorge («ahora el juego se siente mucho mejor»).
 - **v41 entregada** (2-nov, sin jugar aún): marcos de blancos, selección, fijado automático de la guiada, flechas, avisos y mensajes de derribo (sección 7c, «v41»). La v40 la dio por buena Jorge («ahora el HUD es cojonudo»).
 - **v40 entregada** (2-nov, sin jugar aún): acabado del HUD (paneles de cristal, brillos, degradados, barrido), acelerador THR y radio bajo la brújula (sección 7c, «v40»). La v39 la dio por buena Jorge («Está perfecto», salvo estas tres cosas).
 - **v39 entregada** (2-nov, sin jugar aún): HUD nuevo, vida que se regenera, sin armadura y escudos con recarga (sección 7c, «v39»). Jorge pasará más cambios del feedback del jugador externo cuando dé esta por buena.
@@ -924,6 +927,15 @@ Petición de Jorge: simplificar cómo se marcan, seleccionan, muestran y fijan l
 - **Textos**: tutorial («Blancos y selección» en lugar de «Fijar objetivo», «Bola guiada», cámara, fuego, escudo, esquivar guiadas, cada enemigo, HUD y misiones) y Controles (clic central, clic izquierdo mantenido, F). **Los vídeos del tutorial siguen mostrando el HUD de antes.**
 - Probado (navegador integrado, fuente y HTML generado, 1536 × 864): Galería de enemigos con todos los tipos de marco (dragones, torres, batallones, dirigibles, superdirigible con torretas, sierpe con hechiceros), selección, fijado en 2 s (escuadras y marco rojo con LOCK), lanzamiento al mantener el clic (2160 km/h), batallón seleccionado sin fijado, mensajes de derribo apilados, flecha verde fuera de pantalla, flecha roja y pitido de una guiada enemiga (750 km/h; impacta en 12,6 s desde 2,6 km a un blanco quieto), Misión 1 con el HTML generado; textos del tutorial sin huecos; sin errores. Sin comprobar: la sensación jugando (el cono de 15°, el parpadeo, el pitido) y si con la guiada enemiga más lenta los dragones siguen siendo una amenaza.
 - Etiqueta `v41`.
+- Jorge, tras jugarla: «Está todo perfecto, ahora el juego se siente mucho mejor». Siguiente: la v42.
+
+### v42 (2-nov): aviso de guiada y autonivelado
+Petición de Jorge tras la v41: el pitido de la guiada enemiga, el doble de alto (bajo la música y el viento casi no se oía); recuperar el cartel «Proyectil aproximándose» con el estilo y la posición de los mensajes de derribo, en rojo y parpadeando; y que el dragón endereze solo el alabeo (no la dirección) tras unos segundos sin cambiarlo, como si pulsara la X, con una opción para quitarlo.
+- **Pitido** (`sfx.warnMissile`, 13): volumen 0,07 → 0,14 y 60 ms (antes 50). Mismo tono (1320 Hz) y misma cadencia que se acelera (v41). Se entendió «alto» como volumen; si era más agudo, es cambiar el 1320.
+- **Cartel** (`drawKills`, 16): con una guiada enemiga en camino, «¡PROYECTIL APROXIMÁNDOSE!» en un panel rojo (`PAL_R`) en el sitio de los mensajes de derribo (31 % del alto), parpadeando 2,5 veces por segundo; los derribos se apilan encima mientras dura. Además, las flechas rojas de las guiadas van ahora en una elipse (42 % × 34 % del lado menor) para no rozar el THR ni el ALT.
+- **Autonivelado** (15, `AUTO_LEVEL`): `F.levelIdle` cuenta los segundos sin Q/E y girando y cabeceando a menos de 0,35 rad/s (`F.rate`); a partir de 3 s entra (en 0,6 s) el mismo enderezado que la X, salvo casi en vertical. No estorba en giros sostenidos ni en loopings (ahí el dragón gira más deprisa). Opción **«Autonivelado»** en Opciones (Activado / Desactivado; por defecto activado; se guarda en el navegador, `skyApex.autonivelado`). Texto en el tutorial («Alabeo y nivelar»).
+- Probado (navegador integrado, fuente y HTML generado): tras un alabeo de 59-76° con Q, enderezado a 0° entre los 3 y los 4,5 s (con la opción apagada, se queda); boca abajo (−120°), igual; tras maniobrar y acabar a −71°, a 0° a los ~4,5 s; en un giro sostenido y en un looping no actúa; el pitido se dispara cada vez más deprisa (v41); cartel con un derribo apilado encima; opción guardada y leída; sin errores. Sin comprobar: cómo suena el pitido ahora con la música (Claude no oye) y la sensación del autonivelado jugando (3 s, la velocidad del enderezado).
+- Etiqueta `v42`.
 
 ### Medidas (Radeon Vega 10 integrada)
 - v6: 35–43 fps a 800×600.

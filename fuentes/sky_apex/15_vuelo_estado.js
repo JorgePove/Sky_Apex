@@ -25,6 +25,7 @@ const F = {
   aimPt: new THREE.Vector3(0, 0, -1400),                                 // v27: punto de la mira en el mundo (lo que toca el rayo de la mira desde la cámara; updateAttacks)
   tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0,                 // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
   effort: 0, diveT: 0, spreadT: 0,                                      // v32: esfuerzo con W (aleteo más rápido), s en picado y s que quedan con las alas desplegadas al remontar
+  levelIdle: 0,                                                         // v42: s sin tocar Q/E ni maniobrar (autonivelado)
   roll: 0, dodgeCam: new THREE.Vector3()                                // v32: tonel de la esquiva (rad) y lo que la cámara de 3ª persona se queda atrás (m, en el mundo)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
@@ -116,6 +117,13 @@ function requestLock() {
 }
 const sensEl = document.getElementById('sens');
 sensEl.addEventListener('input', () => { F.sens = sensEl.value / 100; document.getElementById('sensV').textContent = sensEl.value; });
+/* v42: autonivelado (Opciones, se guarda en el navegador): tras AUTO_LEVEL.t s sin tocar Q/E ni maniobrar (girando y cabeceando a menos de
+   AUTO_LEVEL.rate rad/s), el dragón endereza el alabeo solo, como si mantuvieras la X; el rumbo y el cabeceo no cambian. Así no te quedas
+   torcido o casi boca abajo tras encadenar giros, y no estorba en un giro cerrado ni en un looping. */
+const AUTO_LEVEL = { on: true, t: 3, rate: 0.35 }, LEVEL_KEY = 'skyApex.autonivelado';
+try { const v = localStorage.getItem(LEVEL_KEY); if (v === '0' || v === '1') AUTO_LEVEL.on = v === '1'; } catch (err) { }
+{ const sel = document.getElementById('autoLevel'); sel.value = AUTO_LEVEL.on ? '1' : '0';
+  sel.addEventListener('change', () => { AUTO_LEVEL.on = sel.value === '1'; try { localStorage.setItem(LEVEL_KEY, sel.value); } catch (err) { } }); }
 
 /* ---------- Avisos de interfaz ---------- */
 const toastEl = document.getElementById('toast'), vigEl = document.getElementById('vig'), warnEl = document.getElementById('warn');
@@ -1015,7 +1023,12 @@ function updateFlight(dt, auto) {
   } else {
     tRoll = ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 1.9;
     if (!ctl || straight) tRoll = 0;
+    // v42: autonivelado (AUTO_LEVEL): el mismo enderezado que la X, que entra poco a poco tras AUTO_LEVEL.t s de calma (y no casi en vertical,
+    // donde el alabeo no está definido)
+    F.levelIdle = ctl && !keys.KeyQ && !keys.KeyE && Math.hypot(F.rate.p, F.rate.y) < AUTO_LEVEL.rate ? F.levelIdle + dt : 0;
+    const autoLv = AUTO_LEVEL.on ? smooth(AUTO_LEVEL.t, AUTO_LEVEL.t + 0.6, F.levelIdle) * (1 - smooth(0.85, 0.97, Math.abs(_f.y))) : 0;
     if ((ctl && keys.KeyX) || !ctl || straight) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);   // v26: nivelar pasa de la R a la X (la R es el escudo); en la entrada de cine y (v27) en vuelo recto, solo
+    else if (autoLv > 0) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5) * autoLv;
   }
   const k = 1 - Math.exp(-dt * lerp(RATE_RESP[0], RATE_RESP[1], F.boostFx));
   F.rate.y += (tYaw - F.rate.y) * k; F.rate.p += (tPit - F.rate.p) * k; F.rate.r += (tRoll - F.rate.r) * k;

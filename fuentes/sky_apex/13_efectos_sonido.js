@@ -603,7 +603,7 @@ const sfx = (() => {
     },
     launch(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(1.0, 'bandpass', 260, 1400, 0.6 * v, 0.8); this.tone('sawtooth', 90, 36, 0.8, 0.18 * v); },
     warnLock() { this.tone('square', 720, 720, 0.07, 0.05); setTimeout(() => this.tone('square', 960, 960, 0.07, 0.05), 90); },   // te están fijando
-    warnMissile() { this.tone('square', 1320, 1320, 0.05, 0.07); },
+    warnMissile() { this.tone('square', 1320, 1320, 0.06, 0.14); },   // (v42: el doble de fuerte; bajo la música y el viento casi no se oía)
     shieldOn() { this.tone('sine', 260, 980, 0.45, 0.16); this.tone('triangle', 520, 1960, 0.45, 0.06); this.noise(0.6, 'highpass', 2500, 7000, 0.18, 0.7); },
     shieldHit() { this.tone('triangle', 1100, 260, 0.25, 0.12); this.noise(0.35, 'bandpass', 3200, 900, 0.3, 1.2); },
     shieldOff() { this.tone('sine', 820, 200, 0.5, 0.1); },                                                            // bola guiada en camino

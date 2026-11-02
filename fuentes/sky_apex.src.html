@@ -461,6 +461,7 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
     <div class="opt"><label for="volVoice">Voces</label><input id="volVoice" type="range" min="0" max="100"><span class="vol-val" id="volVoiceV"></span></div>   <!-- v34 -->
     <div class="opt"><label for="subLang">Subtítulos</label><select id="subLang"><option value="es">Español</option><option value="en">English</option></select><span></span></div>   <!-- v34 -->
     <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
+    <div class="opt" title="Tras unos segundos sin tocar Q/E ni maniobrar, el dragón endereza las alas solo (como mantener la X)"><label for="autoLevel">Autonivelado</label><select id="autoLevel"><option value="1">Activado</option><option value="0">Desactivado</option></select><span></span></div>   <!-- v42 -->
     <div class="kicker">Stats de las unidades</div>
     <p class="lead stats-info" id="statsInfo"></p>
     <button class="ghost" data-close>← Volver</button>
@@ -4115,7 +4116,7 @@ const sfx = (() => {
     },
     launch(v) { v = v == null ? 1 : v; if (v < 0.04) return; this.noise(1.0, 'bandpass', 260, 1400, 0.6 * v, 0.8); this.tone('sawtooth', 90, 36, 0.8, 0.18 * v); },
     warnLock() { this.tone('square', 720, 720, 0.07, 0.05); setTimeout(() => this.tone('square', 960, 960, 0.07, 0.05), 90); },   // te están fijando
-    warnMissile() { this.tone('square', 1320, 1320, 0.05, 0.07); },
+    warnMissile() { this.tone('square', 1320, 1320, 0.06, 0.14); },   // (v42: el doble de fuerte; bajo la música y el viento casi no se oía)
     shieldOn() { this.tone('sine', 260, 980, 0.45, 0.16); this.tone('triangle', 520, 1960, 0.45, 0.06); this.noise(0.6, 'highpass', 2500, 7000, 0.18, 0.7); },
     shieldHit() { this.tone('triangle', 1100, 260, 0.25, 0.12); this.noise(0.35, 'bandpass', 3200, 900, 0.3, 1.2); },
     shieldOff() { this.tone('sine', 820, 200, 0.5, 0.1); },                                                            // bola guiada en camino
@@ -7172,6 +7173,7 @@ const F = {
   aimPt: new THREE.Vector3(0, 0, -1400),                                 // v27: punto de la mira en el mundo (lo que toca el rayo de la mira desde la cámara; updateAttacks)
   tgtCam: false, tgtBack: false, lookVY: 0, lookVP: 0,                 // v26: cámara al objetivo (F; tgtBack: su muelle, también al volver) y velocidad del giro (rad/s)
   effort: 0, diveT: 0, spreadT: 0,                                      // v32: esfuerzo con W (aleteo más rápido), s en picado y s que quedan con las alas desplegadas al remontar
+  levelIdle: 0,                                                         // v42: s sin tocar Q/E ni maniobrar (autonivelado)
   roll: 0, dodgeCam: new THREE.Vector3()                                // v32: tonel de la esquiva (rad) y lo que la cámara de 3ª persona se queda atrás (m, en el mundo)
 };
 /* v24: las velocidades, el boost y el giro son stats del dragón elegido (Excel, 7c: applyHeroStats); estos valores son los de la Base. */
@@ -7263,6 +7265,13 @@ function requestLock() {
 }
 const sensEl = document.getElementById('sens');
 sensEl.addEventListener('input', () => { F.sens = sensEl.value / 100; document.getElementById('sensV').textContent = sensEl.value; });
+/* v42: autonivelado (Opciones, se guarda en el navegador): tras AUTO_LEVEL.t s sin tocar Q/E ni maniobrar (girando y cabeceando a menos de
+   AUTO_LEVEL.rate rad/s), el dragón endereza el alabeo solo, como si mantuvieras la X; el rumbo y el cabeceo no cambian. Así no te quedas
+   torcido o casi boca abajo tras encadenar giros, y no estorba en un giro cerrado ni en un looping. */
+const AUTO_LEVEL = { on: true, t: 3, rate: 0.35 }, LEVEL_KEY = 'skyApex.autonivelado';
+try { const v = localStorage.getItem(LEVEL_KEY); if (v === '0' || v === '1') AUTO_LEVEL.on = v === '1'; } catch (err) { }
+{ const sel = document.getElementById('autoLevel'); sel.value = AUTO_LEVEL.on ? '1' : '0';
+  sel.addEventListener('change', () => { AUTO_LEVEL.on = sel.value === '1'; try { localStorage.setItem(LEVEL_KEY, sel.value); } catch (err) { } }); }
 
 /* ---------- Avisos de interfaz ---------- */
 const toastEl = document.getElementById('toast'), vigEl = document.getElementById('vig'), warnEl = document.getElementById('warn');
@@ -8162,7 +8171,12 @@ function updateFlight(dt, auto) {
   } else {
     tRoll = ((keys.KeyQ ? 1 : 0) - (keys.KeyE ? 1 : 0)) * 1.9;
     if (!ctl || straight) tRoll = 0;
+    // v42: autonivelado (AUTO_LEVEL): el mismo enderezado que la X, que entra poco a poco tras AUTO_LEVEL.t s de calma (y no casi en vertical,
+    // donde el alabeo no está definido)
+    F.levelIdle = ctl && !keys.KeyQ && !keys.KeyE && Math.hypot(F.rate.p, F.rate.y) < AUTO_LEVEL.rate ? F.levelIdle + dt : 0;
+    const autoLv = AUTO_LEVEL.on ? smooth(AUTO_LEVEL.t, AUTO_LEVEL.t + 0.6, F.levelIdle) * (1 - smooth(0.85, 0.97, Math.abs(_f.y))) : 0;
     if ((ctl && keys.KeyX) || !ctl || straight) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5);   // v26: nivelar pasa de la R a la X (la R es el escudo); en la entrada de cine y (v27) en vuelo recto, solo
+    else if (autoLv > 0) tRoll += -clamp(rollAng * 2.4, -1.5, 1.5) * autoLv;
   }
   const k = 1 - Math.exp(-dt * lerp(RATE_RESP[0], RATE_RESP[1], F.boostFx));
   F.rate.y += (tYaw - F.rate.y) * k; F.rate.p += (tPit - F.rate.p) * k; F.rate.r += (tRoll - F.rate.r) * k;
@@ -8651,9 +8665,9 @@ const _rp = { x: 0, y: 0, d: 0, far: false };
    en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const k = HUD_K, R = Math.min(HW, HH) * 0.36, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);
+  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
   for (const f of threat.incoming) {
-    const { x: dx, y: dy } = screenDir(f.pos, _dr), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
+    const { x: dx, y: dy } = screenDir(f.pos, _dr), R = 1 / Math.hypot(dx / rx, dy / ry), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
     hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
     hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
   }
@@ -8883,11 +8897,24 @@ function killFeed(txt, sub) {
   KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
   if (KILLS.length > 3) KILLS.length = 3;
 }
+/* v42: con una bola guiada enemiga en camino, en ese mismo sitio, «¡PROYECTIL APROXIMÁNDOSE!» en rojo y parpadeando (los derribos se apilan
+   encima mientras dura). */
+const WARN_TXT = '¡PROYECTIL APROXIMÁNDOSE!';
 function drawKills() {
   for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
-  if (!KILLS.length) return;
+  const warn = state === 'playing' && threat.incoming.length > 0;
+  if (!KILLS.length && !warn) return;
   const k = HUD_K, size = 16 * k, sp = 2.4 * k;
   let y = HH * 0.31;
+  if (warn) {
+    hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px'; const w = hctx.measureText(WARN_TXT).width + 54 * k, h = 30 * k; hctx.restore();
+    hctx.save(); hctx.globalAlpha = Math.sin(gameTime * Math.PI * 2 * 2.5) > -0.2 ? 1 : 0.3;   // parpadea (2,5 veces por segundo)
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_R, 8 * k, 0.8);
+    hudGlow(WARN_TXT, HW / 2, y + size * G_CAP / 2, size, PAL_R.line, PAL_R.glow, 'center', sp);
+    hctx.restore();
+    y -= h + 8 * k;
+  }
+  if (!KILLS.length) return;
   hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px';
   const tws = KILLS.map(m => hctx.measureText(m.txt).width); hctx.restore();
   KILLS.forEach((m, i) => {
@@ -9022,7 +9049,7 @@ function updateWorld(dt) {
   // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
-  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn) y pitido que se acelera al acercarse
+  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn; v42: y el cartel rojo, drawKills) y pitido que se acelera al acercarse
   // (de 0,6 s a 3 km a casi continuo a menos de 150 m); y «TE ESTÁN FIJANDO» mientras un dragón te fija. Fuera el texto «¡PROYECTIL
   // APROXIMÁNDOSE!» y el aviso de los proyectiles sueltos (salía a menudo y confundía)
   const near = threat.incoming.reduce((m, f) => Math.min(m, f.pos.distanceTo(p)), 1e9);
@@ -9160,7 +9187,8 @@ const TUTORIAL = [
       'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira, se nivela solo (alas y morro) y vuela horizontal con el rumbo que llevaba, mientras la mira sigue al ratón y la cabeza del dragón la sigue. La cámara pasa a la de <b>apuntado</b>, detrás y por encima del dragón, para ver el suelo al que apuntas. Sirve para barrer el suelo con la llamarada en una pasada rasante. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira y la cámara a la de antes.'] },
     { id: 'alabeo', title: 'Alabeo y nivelar', sum: 'Inclina al dragón sobre su eje y recupera el horizonte.', keys: [[['Q', 'E'], 'Alabeo a izquierda / derecha'], [['X'], 'Mantener: nivelar el horizonte']], text: [
       K('Q') + ' y ' + K('E') + ' inclinan al dragón sobre su eje, como un avión. Para girar no hacen falta (el dragón ya se inclina solo), pero sirven para pasar de lado entre montañas e islas o para encarar una pasada.',
-      'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.'] },
+      'Mantén ' + K('X') + ' y el dragón vuelve poco a poco a las alas niveladas con el horizonte. En hover no funcionan: el dragón se mantiene siempre nivelado.',
+      'Con el <b>autonivelado</b> (en Opciones; activado al empezar), tras unos segundos sin tocar ' + K('Q') + '/' + K('E') + ' ni maniobrar, el dragón endereza las alas solo, como si mantuvieras la ' + K('X') + ': así no te quedas torcido o casi boca abajo después de encadenar giros. El rumbo no cambia.'] },   // (v42)
     { id: 'esquiva', title: 'Esquiva', sum: 'Un salto rápido de lado con un tonel, para el último segundo.', keys: [[['A', 'D'], 'Esquivar a la izquierda / derecha']], text: [   // v32
       K('A') + ' y ' + K('D') + ' lanzan al dragón de golpe hacia la izquierda o la derecha de la pantalla: se desplaza {esquiva_distancia} m de lado en {esquiva_duracion} s, sin cambiar el rumbo, mientras da un tonel completo hacia ese lado.',
       'Úsala en el último segundo: para no chocar con una torre, una isla o un dirigible que se te echa encima, o para quitarte de encima una <b>bola guiada</b>: las que vienen a por ti a menos de {esquiva_guiadas} m pierden el blanco y siguen rectas.',

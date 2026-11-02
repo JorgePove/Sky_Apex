@@ -430,9 +430,9 @@ const _rp = { x: 0, y: 0, d: 0, far: false };
    en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const k = HUD_K, R = Math.min(HW, HH) * 0.36, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);
+  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
   for (const f of threat.incoming) {
-    const { x: dx, y: dy } = screenDir(f.pos, _dr), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
+    const { x: dx, y: dy } = screenDir(f.pos, _dr), R = 1 / Math.hypot(dx / rx, dy / ry), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
     hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
     hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
   }
@@ -662,11 +662,24 @@ function killFeed(txt, sub) {
   KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
   if (KILLS.length > 3) KILLS.length = 3;
 }
+/* v42: con una bola guiada enemiga en camino, en ese mismo sitio, «¡PROYECTIL APROXIMÁNDOSE!» en rojo y parpadeando (los derribos se apilan
+   encima mientras dura). */
+const WARN_TXT = '¡PROYECTIL APROXIMÁNDOSE!';
 function drawKills() {
   for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
-  if (!KILLS.length) return;
+  const warn = state === 'playing' && threat.incoming.length > 0;
+  if (!KILLS.length && !warn) return;
   const k = HUD_K, size = 16 * k, sp = 2.4 * k;
   let y = HH * 0.31;
+  if (warn) {
+    hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px'; const w = hctx.measureText(WARN_TXT).width + 54 * k, h = 30 * k; hctx.restore();
+    hctx.save(); hctx.globalAlpha = Math.sin(gameTime * Math.PI * 2 * 2.5) > -0.2 ? 1 : 0.3;   // parpadea (2,5 veces por segundo)
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_R, 8 * k, 0.8);
+    hudGlow(WARN_TXT, HW / 2, y + size * G_CAP / 2, size, PAL_R.line, PAL_R.glow, 'center', sp);
+    hctx.restore();
+    y -= h + 8 * k;
+  }
+  if (!KILLS.length) return;
   hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px';
   const tws = KILLS.map(m => hctx.measureText(m.txt).width); hctx.restore();
   KILLS.forEach((m, i) => {
@@ -801,7 +814,7 @@ function updateWorld(dt) {
   // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
-  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn) y pitido que se acelera al acercarse
+  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn; v42: y el cartel rojo, drawKills) y pitido que se acelera al acercarse
   // (de 0,6 s a 3 km a casi continuo a menos de 150 m); y «TE ESTÁN FIJANDO» mientras un dragón te fija. Fuera el texto «¡PROYECTIL
   // APROXIMÁNDOSE!» y el aviso de los proyectiles sueltos (salía a menudo y confundía)
   const near = threat.incoming.reduce((m, f) => Math.min(m, f.pos.distanceTo(p)), 1e9);
