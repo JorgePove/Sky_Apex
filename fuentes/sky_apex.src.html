@@ -71,7 +71,8 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #toast.on{opacity:1}
 #vig{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;
   background:radial-gradient(ellipse at center,rgba(255,40,20,0) 45%,rgba(255,40,20,.55) 100%)}
-#warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:4;font-family:var(--f-display);font-weight:700;letter-spacing:.3em;color:var(--danger);font-size:18px;opacity:0;pointer-events:none;text-shadow:0 0 14px rgba(255,60,40,.7)}
+/* v41: «TE ESTÁN FIJANDO» como el «WARNING» de Ace Combat: recuadro del color del aviso, en Graduate y con brillo (ya no avisa de proyectiles) */
+#warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:4;font-family:'Graduate',var(--f-data);letter-spacing:.22em;color:var(--danger);font-size:17px;opacity:0;pointer-events:none;padding:5px 14px 4px;border:1.5px solid currentColor;border-radius:2px;background:rgba(30,10,2,.35);text-shadow:0 0 10px currentColor;box-shadow:0 0 12px rgba(255,170,60,.25),inset 0 0 10px rgba(255,170,60,.12)}
 /* v15: misiones. Radio, aviso al salir del área, botones de la pausa y resultado fallido.
    v40: la radio (mensajes mentales) va arriba, justo debajo de la brújula (antes abajo, encima de la vida), con el estilo del HUD: cristal
    verde oscuro con líneas de barrido, contorno con brillo y el color de quien habla a la izquierda. En la entrada de cine vuelve abajo, sobre
@@ -424,12 +425,12 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
       <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>Esquiva a izquierda / derecha (con un tonel)</dd>
       <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
       <dt><kbd>Clic izq.</kbd></dt><dd>Fuego rápido (un proyectil por clic; munición que se recarga sola)</dd>
-      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: con un blanco fijado, la mira en el círculo rojo (munición fija por misión)</dd>
+      <dt><kbd>Clic izq.</kbd> mantener</dt><dd>Bola guiada: el blanco seleccionado se fija solo cerca de la mira (marco rojo); mantener lo lanza (munición fija por misión)</dd>
       <dt><kbd>Clic dcho.</kbd></dt><dd>Mantener: llamarada (cuidado con el sobrecalentamiento)</dd>
       <dt><kbd>Izq.</kbd> + <kbd>Dcho.</kbd></dt><dd>A la vez, con la barra llena: rayo de fuego</dd>
-      <dt><kbd>Clic central</kbd></dt><dd>Fijar el siguiente blanco a la vista (dragón, torre o dirigible; primero los TGT)</dd>
+      <dt><kbd>Clic central</kbd></dt><dd>Seleccionar el blanco más cercano a la mira (otra vez: el siguiente)</dd>
       <dt><kbd>R</kbd></dt><dd>Escudo: unos segundos sin daño de proyectiles (slots: rayas azules bajo la mira; se recargan solos)</dd>
-      <dt><kbd>F</kbd></dt><dd>Mantener: la cámara mira al blanco fijado (si no hay, fija el mejor a la vista)</dd>
+      <dt><kbd>F</kbd></dt><dd>Mantener: la cámara mira al blanco seleccionado (si no hay, selecciona el mejor a la vista)</dd>
       <dt><kbd>Z</kbd></dt><dd>Mantener: mirar alrededor con el ratón</dd>
       <dt><kbd>C</kbd></dt><dd>Cámara en 1ª / 3ª persona</dd>
       <dt><kbd>M</kbd></dt><dd>Silenciar el sonido</dd>
@@ -1493,7 +1494,8 @@ function damageTower(t, amount, soft, at, sure) {
   }
   explode(t.x, t.y + TOWER_TOP * 0.35, t.z, 2.2); explode(t.x, t.y + TOWER_TOP * 0.75, t.z, 1.6); sfx.boom(1.0);
   debris(t.x, t.y + TOWER_TOP * 0.3, t.z);
-  toast('Torre destruida  +' + TOWER_SCORE + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
+  if (!byAlly) killFeed('Torre destruida');                // v41: mensaje en el centro (16)
+  else toast(allyName(byAlly) + ': torre destruida  +' + TOWER_SCORE + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
 }
 /* ============================================================
    4b. ISLAS FLOTANTES
@@ -3824,10 +3826,6 @@ function updateFireballs(dt) {
     const dP = f.pos.distanceTo(dragon.position);
     if (!fast && dP < nearD) { nearD = dP; near = f; }
     if (emsl && !f.lost && state === 'playing' && dP < 3500) threat.incoming.push(f);
-    if (f.enemy && !aa && !arc && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos y los arcanos van demasiado rápido)
-      _fs.subVectors(dragon.position, f.pos); const along = _fs.dot(f.vel) / f.speed;
-      if (along > 0 && dP * dP - along * along < 3600) boltWarn = Math.max(boltWarn, 1 - dP / 700);
-    }
     const fl = 1 + Math.sin(performance.now() * 0.05 + i) * 0.12; f.core.scale.setScalar(f.r0 * fl); f.halo.scale.setScalar(f.r1 * fl);
     const c = f.c;
     if (fast) {                                            // trazadora: chispas cortas a lo largo del tramo recorrido
@@ -3857,15 +3855,12 @@ function spawnBolt(from, dir) {
   mesh.lookAt(from.clone().add(dir)); scene.add(mesh);
   bolts.push({ pos: from.clone(), vel: dir.clone().multiplyScalar(215), life: 7, mesh });
 }
-let boltWarn = 0;
 function updateBolts(dt) {
-  boltWarn = 0;
   for (let i = bolts.length - 1; i >= 0; i--) {
     const b = bolts[i];
     b.pos.addScaledVector(b.vel, dt); b.life -= dt; b.mesh.position.copy(b.pos);
     emit(fxAdd, b.pos.x, b.pos.y, b.pos.z, 0, 0, 0, 0.5, 2.2, 0.4, 1, 0.7, 0.35, 0.7, 0, 0);
     const d = b.pos.distanceTo(dragon.position);
-    if (d < 400) boltWarn = Math.max(boltWarn, 1 - d / 400);
     let remove = b.life <= 0 || b.pos.y < Math.max(heightAt(b.pos.x, b.pos.z), WL) || !!islandAt(b.pos.x, b.pos.y, b.pos.z, 0);
     if (shieldOn() && b.pos.distanceTo(shieldCenter(_shC)) < SHIELD_R) { shieldHit(b.pos, 0.5); remove = true; }
     else if (d < 7.5 && state === 'playing') { hurtDragon(12); remove = true; }
@@ -4733,7 +4728,7 @@ function enemyShoot(e) {
    pitidos rápidos y flechas rojas hacia cada bola (drawMissileWarn). */
 let EMSL_DMG = 35, EMSL_CD = 60, EMSL_GAP = 20, EMSL_LOCK = 4;                 // daño, segundos entre bolas de un mismo tirador, separación entre dos lanzamientos de cualquiera, segundos para fijar (v24: del Excel)
 const EMSL_RANGE = [500, 2500];                                                // distancia de lanzamiento (m): más cerca de 500 no lanzan
-const EMSL_SPEED = [170, 320], EMSL_ACCEL = 110, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s), aceleración (m/s²), cono del buscador (rad), adelanto, vida (s)
+const EMSL_SPEED = [110, 208], EMSL_ACCEL = 110, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s: las pone applyStats con guiada_vel; v41: 750 km/h), aceleración (m/s²), cono del buscador (rad), adelanto, vida (s)
 let EMSL_TURN = 0.7;                                                           // giro (rad/s: con 0,7 se esquiva rompiendo fuerte con la bola a 400-600 m)
 const threat = { lock: 0, lastLaunch: -99, beepT: 0, incoming: [] };           // para los avisos: cuánto llevan fijándote (0-1) y bolas en camino
 const _Emd = new THREE.Vector3(), _Emo2 = new THREE.Vector3();
@@ -4929,7 +4924,8 @@ function killEnemy(e) {
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (mine) killFeed('Dragón destruido');                  // v41: mensaje en el centro (16); los de los aliados, aviso arriba como antes
+  else toast(allyName(byAlly) + ' derribó un dragón  +' + ENEMY_SCORE + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
   if (!mine) allySay(byAlly, 'kill');
   else storyChatter('kill');                               // v34: los compañeros reaccionan a tus derribos (19e)
 }
@@ -5221,7 +5217,8 @@ function killAirship(a) {
   if (!byAlly) heroKill();                                 // (v24: como cualquier blanco; v39: también recarga el escudo)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast((byAlly ? allyName(byAlly) + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (!byAlly) killFeed('Dirigible destruido');            // v41: mensaje en el centro (16)
+  else toast(allyName(byAlly) + ' destruyó un dirigible  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
   if (byAlly) allySay(byAlly, 'kill'); else storyChatter('ship');   // (v34: reacciones, 19e)
   sfx.energyCharge(airshipVol(a));
 }
@@ -5373,7 +5370,7 @@ function updateAirships(dt) {
      v29: así entran las unidades nuevas de 6f (artillería, batallones, barcos, superdirigibles y sus torretas, la sierpe y sus hechiceros).
    · TGT: lo es todo lo que cuenta para un objetivo de la misión visible, sin cumplir y no opcional (isTgt). Se marca «TGT» en el HUD y
      destaca en el radar; lo demás se ve, pero no cuenta para ganar.
-   · Fijar (clic central, cycleTarget): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE). v31: primero el más
+   · Seleccionar (clic central, cycleTarget; hasta la v40, «fijar»): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE). v31: primero el más
      cercano a la mira en pantalla (antes, los TGT de más cerca a más lejos: con muchos blancos había que pasar por todos). Si apuntas a otro
      sitio, el clic fija lo que tienes en la mira; si sigues apuntando al mismo sitio (menos de LOCK_CYCLE.ang, en LOCK_CYCLE.t s), cada clic
      pasa al siguiente más cercano a la mira. Si el único es el fijado, se libera.
@@ -5423,8 +5420,8 @@ function cycleTarget() {
   lockCycle.t = gameTime; lockCycle.aim.copy(F.aimWorld);
   const i = cand.findIndex(c => c.t === enemyLock.e);
   const next = again && i >= 0 ? cand[(i + 1) % cand.length] : cand[0] !== cand[i] ? cand[0] : cand[1 % cand.length];   // (apuntando al mismo sitio: el siguiente)
-  if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + (next.t.label || BLANCO[next.t.kind].name) + '  ·  ' + fmtDist(next.d)); }
+  if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); }   // (v41: sin aviso: el marco del seleccionado lleva su nombre y su distancia)
+  else { enemyLock.e = next.t; sfx.lock(); }
 }
 
 /* ============================================================
@@ -5870,7 +5867,9 @@ function killUnit(u, silent) {
   if (!silent) {
     if (!byAlly) heroKill();
     towerState.score += u.score; unitState.kills++; missionKill(u);
-    toast((byAlly ? allyName(byAlly) + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
+    const tail = u.killTail ? u.killTail(u) : '';
+    if (!byAlly) killFeed(u.killText || u.label + ' destruido', tail.replace(/^\s*·\s*/, ''));   // v41: mensaje en el centro (16)
+    else toast(allyName(byAlly) + ': ' + (u.killText || u.label + ' destruido') + '  +' + u.score + tail);
     if (byAlly) allySay(byAlly, 'kill'); else storyChatter(u.kind === 'batallon' ? 'battalion' : 'unit');   // (v34: reacciones, 19e)
   }
   for (const k of u.kids) killUnit(k, true);
@@ -6003,7 +6002,7 @@ function dmgSmoke(u, dt, d, y) {                            // tocado: humo, má
    y en la vertical). Se mece con las olas. Al hundirse escora, se llena de humo y fuego y se va al fondo. */
 function addBarco(x, z, heading, tags) {
   const S = STATS.barco_naval, ang = heading * Math.PI / 180;
-  const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco hundido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+  const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco destruido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
     modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', ground: true, upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
   u.base = new THREE.Vector3(x, WL, z); u.pos.copy(u.base); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
   unitResize(u);
@@ -6457,7 +6456,7 @@ function serpentModel(u) {
 /* mode: 'idle' (quieta, ondulando) o 'circle' (vuela en círculo alrededor de donde nace). */
 function addSierpe(x, z, height, heading, tags, mode) {
   const S = STATS.sierpe, ang = heading * Math.PI / 180;
-  const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: '¡Sierpe abatida!', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+  const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: 'Sierpe destruida', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
     markR: 16000, lockRange: 14000, radar: 'serpent', crashText: 'la sierpe', vel: new THREE.Vector3(), mode: mode || 'idle', U: serpentUniforms(), shieldMeshes: [], shield: true, shieldA: 1, shieldHitT: 0, hint: false,
     breath: 0, breathCool: 2, fireCool: 2, theta: 0, t: Math.random() * 10, dieT: 4.5, upd: updSierpe, hurt: serpentHurt, onKill: serpentDie, cleanup: u => { if (u.shieldMat) u.shieldMat.dispose(); } });
   u.size = S.largo; u.half = 40;
@@ -6469,7 +6468,7 @@ function addSierpe(x, z, height, heading, tags, mode) {
   if (unitRes.sierpe) serpentModel(u);
   const n = clamp(Math.round(S.hechiceros), 0, SORC_AT.length);
   for (let i = 0; i < n; i++) {
-    const k = newUnit('hechicero', { tags: tags || [], label: 'Hechicero', killText: 'Hechicero abatido', hp: S.hechicero_vida, hpMax: S.hechicero_vida, score: S.hechicero_puntos,
+    const k = newUnit('hechicero', { tags: tags || [], label: 'Hechicero', killText: 'Hechicero destruido', hp: S.hechicero_vida, hpMax: S.hechicero_vida, score: S.hechicero_puntos,
       parent: u, at: SORC_AT[i], modelKey: 'hechicero', size: SORC_SCALE, half: 7, markR: 6000, lockRange: 14000, radar: '', noCrash: true,
       capDef: [[0, 0.3 * SORC_SCALE, 0, 0, 2.1 * SORC_SCALE, 0, 0.65 * SORC_SCALE]], onKill: sorcererDie,
       killTail: k => { const left = k.parent.kids.filter(x => !x.dead).length; return left ? '  ·  quedan ' + left : '  ·  ¡el escudo cae!'; } });
@@ -6707,7 +6706,7 @@ function addBatallon(x, z, heading, tags, n, seed) {
   n = clamp(n, 1, 2000);
   const gap = Math.max(0.8, S.separacion), cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols);
   const w = (cols - 1) * gap, dpt = (rows - 1) * gap, fx = Math.sin(ang), fz = -Math.cos(ang), rx = -fz, rz = fx;
-  const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón aniquilado', hp: n, hpMax: n, score: S.puntos, heading: ang,
+  const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón destruido', hp: n, hpMax: n, score: S.puntos, heading: ang,
     n, alive: n, ground: true, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
     upd: updBatallon, hurt: battHurt, flame: battFlame, laserHit: battLaser, boxHit: battBox, cleanup: battCleanup, onKill: () => {} });
   u.pos.set(x, groundAt(x, z) + 1, z); u.q.setFromAxisAngle(UP, -ang);
@@ -7248,7 +7247,7 @@ canvasGL.addEventListener('mousedown', e => {
   }
 });
 window.addEventListener('mouseup', e => {
-  if (e.button === 0) { W.lmb = false; W.lockArmed = false; W.lock = 0; }
+  if (e.button === 0) { W.lmb = false; W.lockArmed = false; }   // (v41: el fijado no depende del clic)
   else if (e.button === 2) W.rmb = false;
 });
 window.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
@@ -7524,10 +7523,11 @@ function aimPointFrom(origin, dir) {
 let GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;     // munición, pausa mínima entre clics (s), espera antes de recargar (s), proyectiles recargados por segundo
 const GUN_SPEED = 1100, GUN_LIFE = 2.8;                                           // m/s (fija en el mundo) y vida (s)
 let GUN_DMG = 5;                                                                  // daño por impacto
-const MSL_HOLD = 0.5, MSL_DECAY = 2, MSL_CIRCLE = 0.1;                            // clic mantenido antes de empezar a cargar (s), fuera del círculo la carga se pierde x veces más rápido, radio mínimo del círculo (fracción del alto de pantalla)
-let MSL_RANGE = 3000, MSL_LOCK = 2, MSL_AMMO = 20, MSL_DMG = 60;                  // alcance (m), segundos de carga con la mira en el círculo, guiadas por misión, daño
-const MSL_CIRCLE_K = 0.5;                                                         // tamaño del círculo rojo respecto al de la v9 (que medía lo del cuadro dorado + 14 px, o el 10 % del alto)
-const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15;    // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s)
+const MSL_HOLD = 0.5, MSL_DECAY = 2;                                              // clic mantenido para lanzarla con el blanco fijado (s); fuera del cono, el fijado se pierde x veces más rápido
+let MSL_RANGE = 3000, MSL_LOCK = 2, MSL_AMMO = 20, MSL_DMG = 60, MSL_CONE = 15;   // alcance (m), segundos en fijarse, guiadas por misión, daño, cono del buscador alrededor de la mira (°, v41)
+const MSL_SPEED = [160, 400], MSL_LIFE = 15;                                      // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), vida (s)
+let MSL_ACCEL = 260, MSL_TURN = 3.2;                                              // aceleración (m/s²) y giro (rad/s). v41: la máxima sale del Excel (guiado_vel) y la de salida, la aceleración
+                                                                                  // y el giro, en proporción (mismo radio de giro y mismo tiempo en llegar a la máxima que con 400 m/s)
 const FLAME_SPEED = 240;                                                          // velocidad de las llamas (m/s)
 let FLAME_RANGE = 300, FLAME_DPS = 15, FLAME_HEAT = 5, FLAME_COOL = 4, OVERHEAT_T = 10;   // alcance (m), daño por segundo, segundos seguidos hasta sobrecalentarse, segundos en enfriarse del todo, segundos sin armas
 let ULT_TIME = 200, ULT_PER_KILL = 0.05;                                          // rayo: de 0 a 100 % en ULT_TIME s; carga por enemigo destruido (heroKill)
@@ -7537,7 +7537,7 @@ let LASER_T = 5, LASER_RANGE = 8000, LASER_DPS = 50;                            
 const W = {
   ammo: GUN_AMMO, cool: 0, refill: 0, refillAcc: 0, shotQ: false,                 // fuego rápido: munición, pausa entre clics, espera hasta recargar, disparo pendiente (sale en updateAttacks)
   lmb: false, rmb: false, lmbT: -9, rmbT: -9, holdT: 0,                           // botones pulsados, cuándo (para el «a la vez» del rayo) y cuánto lleva mantenido el izquierdo
-  msl: MSL_AMMO, lock: 0, lockArmed: false, lockWhy: 'sin', lockIn: false, beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, carga 0-1, si el clic actual puede cargar, estado del círculo, lanzamiento pendiente
+  msl: MSL_AMMO, lock: 0, locked: false, lockT: null, lockArmed: false, lockWhy: 'sin', beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, fijado 0-1, fijada, a qué, si el clic actual puede lanzarla, por qué no se fija (mslSeek), lanzamiento pendiente
   heat: 0, heatDelay: 0, overheat: 0, flame: false,                               // llamarada: calor 0-1, segundos de sobrecalentamiento que quedan
   ult: 0, ultFull: false, laser: 0, snd: false,                                   // rayo: carga 0-1, segundos de rayo que quedan
   shCd: [0, 0, 0], shUse: -1, shieldT: 0, shieldFade: 0, shieldHit: 0            // escudo (v39): recarga que le queda a cada slot (0 = listo), slot en uso, segundos que le quedan, desvanecido final y destello de impacto
@@ -7552,7 +7552,7 @@ function heroKill() {
 function weaponsReady() { return W.overheat <= 0 && W.laser <= 0; }
 function resetWeapons(full) {
   W.ammo = GUN_AMMO; W.cool = W.refill = W.refillAcc = 0; W.shotQ = false; W.lmb = W.rmb = false; W.holdT = 0;
-  W.lock = 0; W.lockArmed = false; W.mslFlash = 0; W.mslQ = null; W.heat = W.heatDelay = W.overheat = 0; W.flame = false; W.laser = 0;
+  W.lock = 0; W.locked = false; W.lockT = null; W.lockArmed = false; W.mslFlash = 0; W.mslQ = null; W.heat = W.heatDelay = W.overheat = 0; W.flame = false; W.laser = 0;
   if (W.shieldT > 0) shieldEnd();
   W.shieldT = W.shieldFade = W.shieldHit = 0;
   if (full) { W.ult = 0; W.ultFull = false; W.msl = MSL_AMMO; W.shCd.fill(0); W.shUse = -1; }
@@ -7574,27 +7574,18 @@ function fireGun() {
   spawnFireball(_mouth, _dir, false, 0, 'gun');
   for (let i = 0; i < 6; i++) emit(fxAdd, _mouth.x, _mouth.y, _mouth.z, _dir.x * rnd(30, 70) + rnd(-5, 5) + dragonVel.x, _dir.y * rnd(30, 70) + rnd(-5, 5) + dragonVel.y, _dir.z * rnd(30, 70) + rnd(-5, 5) + dragonVel.z, rnd(0.12, 0.25), 1.4, 3, ATTACK.r, ATTACK.g * rnd(0.8, 1.2), ATTACK.b, 0.9, 1.5, 0);
 }
-/* Círculo rojo de la bola guiada alrededor del dragón fijado: centro y radio en píxeles de pantalla (x, y, r) y si la mira está dentro (in).
-   Devuelve '' si el círculo está activo o el motivo por el que no: 'sin' (nada fijado), 'rango' (más lejos de MSL_RANGE) o 'fuera' (fuera de pantalla). */
-const _Wl = { x: 0, y: 0, r: 0, d: 0, in: false }, _Wv = new THREE.Vector3(), _Wc = new THREE.Vector3();
-function lockCircle(out) {
-  const e = enemyLock.e; out.in = false;
+/* v41: buscador de la bola guiada (fijado automático, como en Ace Combat; antes, el círculo rojo con el clic mantenido): ¿se puede fijar el
+   blanco seleccionado? '' si sí, o el motivo: 'sin' (nada seleccionado), 'no' (no se fija: los batallones), 'rango' (más lejos de MSL_RANGE)
+   o 'cono' (a más de MSL_CONE° de la mira; ya fijado, el cono es 1,5 veces mayor, para no soltarlo por un tirón). */
+const _Wv = new THREE.Vector3(), _Wc = new THREE.Vector3();
+function mslSeek() {
+  const e = enemyLock.e;
   if (!e || e.dead) return 'sin';
-  const ec = targetCenter(e);                              // (v30: el centro de las unidades nuevas, no su base)
-  out.d = ec.distanceTo(dragon.position);
-  if (out.d > MSL_RANGE) return 'rango';
-  const sw = window.innerWidth, sh = window.innerHeight;
-  camera.getWorldPosition(_Wc);
-  _Wv.copy(ec).applyMatrix4(camera.matrixWorldInverse);
-  if (_Wv.z > -1) return 'fuera';
-  _Wv.applyMatrix4(camera.projectionMatrix);
-  if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';
-  out.x = (_Wv.x * 0.5 + 0.5) * sw; out.y = (-_Wv.y * 0.5 + 0.5) * sh;
-  const pxm = sh / (2 * e.pos.distanceTo(_Wc) * Math.tan(camera.fov * Math.PI / 360));
-  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(targetHalf(e) * pxm, 17, 96) + 14);   // (v10: la mitad que antes; v21: según el tamaño del blanco)
-  _Wv.copy(_Wc).addScaledVector(F.aimWorld, 1000).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
-  out.in = Math.hypot((_Wv.x * 0.5 + 0.5) * sw - out.x, (-_Wv.y * 0.5 + 0.5) * sh - out.y) < out.r;
-  return '';
+  if (e.kind === 'batallon') return 'no';
+  const ec = targetCenter(e);
+  if (ec.distanceTo(dragon.position) > MSL_RANGE) return 'rango';
+  camera.getWorldPosition(_Wc); _Wv.subVectors(ec, _Wc).normalize();
+  return Math.acos(clamp(_Wv.dot(F.aimWorld), -1, 1)) * 180 / Math.PI <= MSL_CONE * (W.locked ? 1.5 : 1) ? '' : 'cono';
 }
 function launchMissile(e) {
   heroMouth(_mouth);
@@ -7608,7 +7599,7 @@ function launchMissile(e) {
 }
 function tryLaser() {
   if (W.ult < 1 || !weaponsReady()) return false;
-  W.laser = LASER_T; W.lock = 0; W.lockArmed = false; W.flame = false; W.shotQ = false; stats.lasers++;
+  W.laser = LASER_T; W.lock = 0; W.locked = false; W.lockArmed = false; W.flame = false; W.shotQ = false; stats.lasers++;
   F.fireFlash = 1; camShake = Math.max(camShake, 0.4);
   sfx.laserOn(); toast('¡RAYO DE FUEGO!');
   return true;
@@ -7684,7 +7675,7 @@ function updateShieldFx(dt) {
   shieldMesh.scale.setScalar(SHIELD_R * (on ? lerp(0.55, 1, smooth(0, 0.25, age)) : 1 + (0.4 - W.shieldFade) * 0.35));
 }
 function overheat() {
-  W.overheat = OVERHEAT_T; W.heat = 1; W.flame = false; W.lock = 0; W.lockArmed = false;
+  W.overheat = OVERHEAT_T; W.heat = 1; W.flame = false; W.lock = 0; W.locked = false; W.lockArmed = false;
   sfx.overheat(); toast('¡SOBRECALENTADO!  Sin armas ' + OVERHEAT_T + ' s');
 }
 /* Por fotograma, en partida (desde updateFlight): munición, calor, cargas y bloqueo. Disparos, efectos y daño de la llamarada y del rayo: updateAttacks. */
@@ -7710,16 +7701,23 @@ function updateWeapons(dt) {
   if (W.flame) { W.heat += dt / FLAME_HEAT; W.heatDelay = 0.35; if (W.heat >= 1) overheat(); }
   else if (W.overheat <= 0) { if (W.heatDelay > 0) W.heatDelay -= dt; else W.heat = Math.max(0, W.heat - dt / FLAME_COOL); }
   if (W.flame || W.laser > 0) F.fireFlash = 1;                                    // boca abierta y fogonazo mientras sale el aliento
-  // bola guiada: con el clic mantenido más de MSL_HOLD s y la mira dentro del círculo, carga; pitidos cada vez más rápidos
-  W.lockWhy = lockCircle(_Wl); W.lockIn = W.lockWhy === '' && _Wl.in;
+  // bola guiada (v41, como en Ace Combat): con un blanco seleccionado, a tiro y a menos de MSL_CONE° de la mira, se fija sola en MSL_LOCK s
+  // (pitidos cada vez más rápidos y un tono al fijarse); fijada, mantener el clic izquierdo MSL_HOLD s la lanza. El fijado sigue tras lanzar
+  // (otro clic mantenido, otra guiada); si el blanco sale del cono, se pierde poco a poco
+  if (enemyLock.e !== W.lockT) { W.lockT = enemyLock.e; W.lock = 0; W.locked = false; }
+  W.lockWhy = W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';
   if (W.lmb) W.holdT += dt;
-  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && W.msl > 0 && weaponsReady() && W.lockWhy === '') {
-    if (W.lockIn) {
+  if (W.lockWhy === '') {
+    if (!W.locked) {
       W.lock += dt / MSL_LOCK;
       W.beepT -= dt; if (W.beepT <= 0) { W.beepT = lerp(0.3, 0.07, W.lock); sfx.lockTick(W.lock); }
-      if (W.lock >= 1) { W.mslQ = enemyLock.e; W.lock = 0; W.lockArmed = false; }   // sale en updateAttacks, de la boca ya animada
-    } else W.lock = Math.max(0, W.lock - dt * MSL_DECAY / MSL_LOCK);
-  } else W.lock = 0;
+      if (W.lock >= 1) { W.lock = 1; W.locked = true; sfx.locked(); }
+    }
+  } else {
+    W.locked = false;
+    W.lock = W.lockWhy === 'cono' || W.lockWhy === 'rango' ? Math.max(0, W.lock - dt * MSL_DECAY / MSL_LOCK) : 0;
+  }
+  if (W.locked && W.lmb && W.lockArmed && W.holdT >= MSL_HOLD) { W.mslQ = enemyLock.e; W.lockArmed = false; }   // sale en updateAttacks, de la boca ya animada
 }
 
 /* Rayo (kamehameha): tres cintas que miran a la cámara —núcleo casi blanco, halo y aura— con vetas que corren hacia fuera y un ancho que late a lo
@@ -8335,126 +8333,106 @@ function drawMarkers(fwd) {
   }
   hctx.globalAlpha = 1;
 }
-/* Marcador de triángulo rojo sobre cada dragón enemigo (visible a cualquier distancia) con distancia y vida restante.
-   El blanco fijado (clic central) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está.
-   v21: «TGT» delante de la distancia en los que cuentan para la misión (los demás, más apagados); rombo rojo sobre cada dirigible (hasta
-   AIRSHIP_DRAW) y, sobre las torres TGT a menos de LOCK_STATIC_RANGE, una marca con «TGT» (las demás solo tienen su cristal). */
-const C_TGT = '#ff6a4a';
-function drawLockBox(t, a, d) {                            // recuadro dorado del blanco fijado; devuelve su medio lado (px)
-  const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360)), half = clamp(targetHalf(t) * pxm, 17, 96);
-  hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
-  hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
-  hctx.lineWidth = 3.5; hctx.beginPath();                                         // esquinas reforzadas
-  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-    const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
-    hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
-  }
-  hctx.stroke();
-  return half;
+/* ---------- v41: blancos en el HUD, como en Ace Combat ----------
+   Cada enemigo lleva solo un marco verde a su alrededor: nada encima (los rombos rojos sobre los dirigibles se confundían con el blanco). La
+   forma dice el tipo (FRAME_SHAPE): dragones y la sierpe, cuadrado; dirigibles, barcos y el superdirigible, círculo; torres, artillería,
+   torretas y hechiceros, triángulo; batallones, rectángulo apaisado. Los que cuentan para la misión, más vivos y con «TGT» al lado; los
+   demás, más tenues. El seleccionado (clic central) parpadea y lleva a su derecha la distancia (m), el nombre y, si está herido, su vida.
+   Con la guiada, a tiro y cerca de la mira se fija sola (W.lock, 15): cuatro escuadras rojas se cierran sobre su marco y, fijado, el marco
+   pasa a rojo con «LOCK». Fuera de la pantalla, una flecha verde alrededor del centro con su distancia. Los aliados, su chevrón azul. */
+const FRAME_SHAPE = { dragon: 'sq', sierpe: 'sq', airship: 'ci', barco: 'ci', superdirigible: 'ci', tower: 'tri', artilleria: 'tri', torreta: 'tri', hechicero: 'tri', batallon: 'rect' };
+const FRAME_EXT = { sq: 1, ci: 1.05, tri: 1.08, rect: 1.15 };   // del centro al lado derecho del marco, en medios tamaños
+const FRAME_K = { dragon: 0.55 };                         // tamaño del marco respecto al medio tamaño del blanco (BLANCO.half: el del dragón es su envergadura, mucho mayor de lo que se ve)
+const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20;
+const _fa = { x: 0, y: 0 }, _fl = [[], []];               // marcos tenues y TGT del fotograma: x, y, r, forma
+function frameRange(t) {                                   // hasta dónde se marca cada tipo (m; el seleccionado, siempre)
+  if (t.kind === 'dragon') return t.squad ? 15000 : 9000;   // (v34: los escuadrones, desde más lejos)
+  if (t.kind === 'airship') return isTgt(t) ? 15000 : AIRSHIP_DRAW;
+  if (t.kind === 'tower') return LOCK_STATIC_RANGE;
+  return isTgt(t) ? 16000 : t.markR || 4000;
 }
-function hpBar(x, y, f) {
-  hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, y, 30, 4);
-  hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, y, 30 * clamp(f, 0, 1), 4);
+function framePath(shape, x, y, r) {                       // traza la forma (sin pintarla); r: medio tamaño en px
+  if (shape === 'ci') { hctx.moveTo(x + r * 1.05, y); hctx.arc(x, y, r * 1.05, 0, 6.2832); }
+  else if (shape === 'tri') { const R = r * 1.25; hctx.moveTo(x, y - R); hctx.lineTo(x + R * 0.866, y + R * 0.5); hctx.lineTo(x - R * 0.866, y + R * 0.5); hctx.closePath(); }
+  else if (shape === 'rect') hctx.rect(x - r * 1.15, y - r * 0.6, r * 2.3, r * 1.2);
+  else hctx.rect(x - r, y - r, 2 * r, 2 * r);
 }
-const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20, nearScreen = a => a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30;
-function drawEnemyMarkers() {
-  const a = {}, lock = enemyLock.e;
-  let lockShown = false;
-  for (const e of enemies) {
-    if (e.dead || e.off) continue;
-    const d = e.pos.distanceTo(_camP), locked = e === lock, tgt = isTgt(e);
-    if (d > (e.squad ? 15000 : 9000) || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;   // (v34: los escuadrones, desde más lejos)
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let top = 14, half = 0;
-    if (locked && onScreen) { lockShown = true; half = drawLockBox(e, a, d); top = half + 6; }
-    const s = 6 + 5 * (1 - smooth(250, 3000, d)), x = a.x, ay = a.y - top, by = ay - s * 1.7;
-    hctx.globalAlpha = locked ? 1 : !tgt ? 0.6 : e.mode === 'patrol' ? 0.82 : 1;
-    hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
-    hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hudText((e.unknown && e.mode === 'cruise' ? 'DESCONOCIDO  ' : tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');   // (v34: sin identificar)
-    if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
+function targetName(t) {
+  if (t.kind === 'dragon') return t.unknown && t.mode === 'cruise' ? 'DESCONOCIDO' : 'DRAGÓN';   // (v34: sin identificar)
+  if (t.kind === 'batallon') return 'BATALLÓN · ' + t.alive;
+  if (t.kind === 'sierpe' && t.shield) return 'SIERPE · ESCUDO';
+  return String(t.label || (BLANCO[t.kind] || BLANCO.dragon).name).toUpperCase();
+}
+function drawTargets() {
+  const k = HUD_K, sel = enemyLock.e, a = _fa, tanFov = Math.tan(camera.fov * Math.PI / 360);
+  let selF = null, sup = null;
+  _fl[0].length = _fl[1].length = 0;
+  const add = t => {
+    const c = targetCenter(t), d = c.distanceTo(_camP);
+    if ((t !== sel && d > frameRange(t)) || !proj(c.x, c.y, c.z, a) || !onScreenAt(a)) return;
+    const r = clamp(targetHalf(t) * (FRAME_K[t.kind] || 1) * HH / (2 * d * tanFov), 7 * k, HH * 0.35), shape = FRAME_SHAPE[t.kind] || 'sq';
+    if (t.kind === 'superdirigible') sup = { u: t, x: a.x, y: a.y, r };
+    if (t === sel) selF = { t, x: a.x, y: a.y, r, shape, d };
+    else _fl[isTgt(t) ? 1 : 0].push(a.x, a.y, r, shape);
+  };
+  eachTarget(add);
+  hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
+  for (let g = 0; g < 2; g++) {                            // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
+    const L = _fl[g]; if (!L.length) continue;
+    hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
+    hctx.globalAlpha = g ? 0.95 : 0.5;
+    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = 'rgba(0,18,8,.5)'; hctx.stroke();
+    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = PAL_G.line; hctx.stroke();
   }
-  let nearAir = null, nearAirD = Infinity;                  // v23: de lejos (más de 4 km) solo el más cercano lleva texto (una flota no se amontona)
-  for (const s of airships) if (!s.dead) { const d = s.pos.distanceTo(_camP); if (d < nearAirD) { nearAirD = d; nearAir = s; } }
-  for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
-    if (s.dead) continue;
-    const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
-    if (d > (tgt ? 15000 : AIRSHIP_DRAW) || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;   // (v23: los TGT, marcados hasta 15 km aunque la niebla ya no deje verlos)
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let half = 0;
-    if (locked && onScreen) { lockShown = true; half = drawLockBox(s, a, d); }
-    const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
-    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
-    if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
-    if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
+  const T = _fl[1];                                        // «TGT» junto a los que cuentan para la misión
+  if (T.length) {
+    hctx.globalAlpha = 0.95; hctx.font = FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = 'rgba(0,16,7,.8)'; hctx.fillStyle = PAL_G.ink;
+    for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
   }
-  if (drawUnitMarkers(a, lock)) lockShown = true;          // v29: unidades nuevas (6f)
-  for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
-    if (t.dead) continue;
-    const locked = t === lock, tgt = isTgt(t);
-    if (!tgt && !locked) continue;
-    const d = t.pos.distanceTo(_camP);
-    if (d > LOCK_STATIC_RANGE) continue;
-    if (locked && proj(t.pos.x, t.pos.y, t.pos.z, a) && onScreenAt(a)) { lockShown = true; drawLockBox(t, a, d); }
-    if (!proj(t.x, t.y + TOWER_TOP + 12, t.z, a) || !onScreenAt(a)) continue;
-    hctx.globalAlpha = 1; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath(); hctx.moveTo(a.x - 6, a.y - 10); hctx.lineTo(a.x, a.y - 3); hctx.lineTo(a.x + 6, a.y - 10); hctx.stroke();
-    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, a.y - 15, FM(locked ? 13 : 11), locked ? C_GOLD : C_TGT, 'center');
-  }
-  hctx.globalAlpha = 1;
-  if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
+  hctx.restore();
+  if (sup) superBar(sup.u, sup.x, sup.y, sup.r);
+  if (sel && !sel.dead) { if (selF) { drawSelected(selF); drawLeadPipper(sel); } else drawLockArrow(sel); }
   drawAllyMarker(a);
 }
-/* v29: unidades nuevas (6f). Artillería y torretas: cuadrado hueco; batallones: rectángulo con los soldados que quedan; barcos: rombo
-   (como los dirigibles); superdirigible y sierpe: rombo doble con su nombre (la sierpe, «ESCUDO» mientras lo tiene); hechiceros: círculo.
-   Se ven hasta u.markR (las TGT y la fijada, siempre); el texto, de cerca, si es TGT o si está fijada. Devuelve si dibujó el recuadro del
-   blanco fijado. */
-function drawUnitMarkers(a, lock) {
-  let shown = false;
-  for (const u of UNITS) {
-    if (u.dead) continue;
-    const d = u.pos.distanceTo(_camP), locked = u === lock, tgt = isTgt(u);
-    if ((d > u.markR && !locked && !tgt) || d > 16000 || !proj(u.bc.x, u.bc.y, u.bc.z, a)) continue;
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let half = 0;
-    if (locked && onScreen) { shown = true; half = drawLockBox(u, a, d); }
-    const big = u.kind === 'superdirigible' || u.kind === 'sierpe', r = (big ? 9 : 5) + 3 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : big ? 34 : 18);
-    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = u.kind === 'hechicero' ? C_TGT : C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath();
-    if (u.kind === 'artilleria' || u.kind === 'torreta') hctx.rect(a.x - r, y - r, 2 * r, 2 * r);
-    else if (u.kind === 'batallon') hctx.rect(a.x - r * 1.8, y - r * 0.8, 3.6 * r, 1.6 * r);
-    else if (u.kind === 'hechicero') hctx.arc(a.x, y, r, 0, 6.283);
-    else { hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); }
+/* El seleccionado: su marco parpadea (verde) o, fijado para la guiada, rojo fijo; mientras se fija, cuatro escuadras rojas se cierran sobre
+   él. A la derecha: «LOCK» si está fijado, la distancia en metros, el nombre (con «TGT» si cuenta para la misión) y su vida si está herido. */
+function drawSelected(f) {
+  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = locked ? PAL_R : PAL_G, p = W.lock;
+  const blink = locked ? 1 : Math.sin(gameTime * 2 * Math.PI * 2.4) > -0.3 ? 1 : 0.3;
+  hctx.save(); hctx.lineJoin = 'round';
+  hctx.globalAlpha = blink; hctx.beginPath(); framePath(shape, x, y, r);
+  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = 'rgba(0,18,8,.55)'; hctx.stroke();
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
+  hctx.globalAlpha = 1;
+  if (p > 0.01 && !locked) {                               // fijando: escuadras rojas que se cierran del doble de lejos hasta el marco
+    const q = r * FRAME_EXT[shape] + 4 * k + (r + 26 * k) * (1 - p), l = 7 * k;
+    hctx.shadowColor = PAL_R.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PAL_R.line; hctx.lineWidth = 2 * k; hctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const cx = x + sx * q, cy = y + sy * q; hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l); }
     hctx.stroke();
-    if (big) { hctx.beginPath(); hctx.moveTo(a.x, y - r * 0.5); hctx.lineTo(a.x + r * 0.75, y); hctx.lineTo(a.x, y + r * 0.5); hctx.lineTo(a.x - r * 0.75, y); hctx.closePath(); hctx.stroke(); }
-    if (d < (big ? 15000 : u.kind === 'batallon' ? 2500 : 1000) || locked || tgt) {   // (la artillería va en grupos: de lejos, solo el símbolo)
-      const name = big ? u.label.toUpperCase() + (u.kind === 'sierpe' && u.shield ? ' · ESCUDO' : '') + '  ' : u.kind === 'batallon' ? u.alive + '  ·  ' : '';
-      hudText((tgt ? 'TGT  ' : '') + name + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
-    }
-    if (u.kind === 'superdirigible') superBar(u, a, half);
-    else if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
   }
-  hctx.globalAlpha = 1;
-  return shown;
+  hctx.restore();
+  let lx = x + r * FRAME_EXT[shape] + 9 * k, al = 'left';  // etiqueta a la derecha (si no cabe, a la izquierda)
+  if (lx > HW - 150 * k) { lx = x - r * FRAME_EXT[shape] - 9 * k; al = 'right'; }
+  if (locked) hudGlow('LOCK', lx, y - 17 * k, 11 * k, P.ink, P.glow, al, 2 * k);
+  hudGlow(String(Math.round(d)), lx, y - 1 * k, 14 * k, P.ink, P.glow, al, 1 * k);
+  hudGlow((isTgt(t) ? 'TGT  ' : '') + targetName(t), lx, y + 15 * k, 11.5 * k, P.line, P.glow, al, 1.2 * k);
+  const hm = t.hpMax || (t.kind === 'dragon' ? ENEMY_HP : t.kind === 'airship' ? AIRSHIP_HP : 0);
+  if (hm > 0 && t.hp < hm) {                               // vida, si está herido
+    const w = 52 * k, bx = al === 'left' ? lx : lx - w, by = y + 21 * k, fr = clamp(t.hp / hm, 0, 1);
+    hctx.save(); hctx.fillStyle = 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
+    hctx.shadowColor = P.glow; hctx.shadowBlur = 5 * k; hctx.fillStyle = P.line; hctx.fillRect(bx, by, w * fr, 3 * k); hctx.restore();
+  }
 }
-/* v31: barra de vida del superdirigible, grande y bajo el casco (siempre, no solo tocado), con su vida y las torretas que le quedan. */
-const _sb = { x: 0, y: 0 };
-function superBar(u, a, half) {
-  const bx = a.x, by0 = proj(u.bc.x, u.bc.y - u.size * 0.06, u.bc.z, _sb) ? _sb.y + 18 : a.y + 40, by = Math.max(by0, half ? a.y + half + 12 : 0);
-  if (by > HH - 60) return;
-  const w = 220, h = 9, f = clamp(u.hp / u.hpMax, 0, 1), left = u.kids.filter(k => !k.dead).length;
-  hctx.globalAlpha = 1;
-  hctx.fillStyle = 'rgba(13,10,15,.7)'; hctx.fillRect(bx - w / 2 - 3, by - 3, w + 6, h + 6);
-  hctx.fillStyle = 'rgba(241,230,211,.22)'; hctx.fillRect(bx - w / 2, by, w, h);
-  hctx.fillStyle = f < 0.35 ? '#ff3b2e' : C_DANGER; hctx.fillRect(bx - w / 2, by, w * f, h);
-  hctx.strokeStyle = 'rgba(241,230,211,.55)'; hctx.lineWidth = 1; hctx.strokeRect(bx - w / 2 - 0.5, by - 0.5, w + 1, h + 1);
-  hudText('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '   ·   TORRETAS ' + left + ' / ' + u.kids.length, bx, by + h + 14, FM(11), C_BONE, 'center');
+/* v31: barra de vida del superdirigible, grande y bajo el casco (siempre, no solo tocado), con su vida y las torretas que le quedan. v41: con
+   el estilo del HUD, bajo su marco circular. */
+function superBar(u, x, y, r) {
+  const k = HUD_K, w = 220 * k, h = 11 * k, by = y + r * 1.05 + 14 * k;
+  if (by > HH - 110 * k) return;
+  const left = u.kids.filter(c => !c.dead).length;
+  hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
+  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.2 * k);
 }
-/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. */
+/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. v41: el texto, en Graduate. */
 const C_ALLY = '#5ab4ff';
 function drawAllyMarker(a) {
   for (const al of allies) {
@@ -8464,29 +8442,14 @@ function drawAllyMarker(a) {
     const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
     hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
     hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
-    hudText(allyName(al).toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
+    hudGlow(allyName(al).toUpperCase() + '  ' + Math.round(d), a.x, y - s - 6, 10.5 * HUD_K, C_ALLY, 'rgba(60,150,255,.6)', 'center', HUD_K);
   }
-}
-/* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
-const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
-function drawLockCircle() {
-  if (W.msl <= 0 || lockCircle(_Wh) !== '' || !weaponsReady()) return;
-  const { x, y, r } = _Wh, p = W.lock;
-  hctx.globalAlpha = _Wh.in ? 1 : 0.7;
-  hctx.lineWidth = 4.5; hctx.strokeStyle = 'rgba(25,6,6,.55)'; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
-  hctx.lineWidth = _Wh.in ? 2.4 : 1.6; hctx.strokeStyle = C_DANGER; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
-  if (p > 0) {
-    hctx.globalAlpha = 1; hctx.lineWidth = 5; hctx.strokeStyle = C_GOLD;
-    hctx.beginPath(); hctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + p * 6.283); hctx.stroke();
-    hudText('FIJANDO  ' + Math.round(p * 100) + ' %', x, y + r + 18, FM(12), C_GOLD, 'center');
-  }
-  hctx.globalAlpha = 1;
 }
 /* Indicador de adelanto (estilo Star Citizen): círculo gris donde hay que apuntar para que la bola de fuego alcance al dragón fijado. */
 const _lp = new THREE.Vector3(), _lm = new THREE.Vector3(), _lq = new THREE.Vector3();
 const LEAD_MIN_V = 150 / 3.6;                              // v31: el círculo de adelanto solo sale con blancos a más de 150 km/h (lo quieto o lento se ve mejor sin él)
 function drawLeadPipper(e) {
-  if (e.vel.lengthSq() < LEAD_MIN_V * LEAD_MIN_V) return;
+  if (!e.vel || e.vel.lengthSq() < LEAD_MIN_V * LEAD_MIN_V) return;
   heroMouth(_lm);                                                                                            // boca del jugador: de donde sale la bola
   if (interceptPoint(e, _lm, _lp) < 0) return;                                                               // fuera de alcance
   _lq.subVectors(_lp, _lm).normalize().multiplyScalar(1400).add(_lm);                                        // el marcador de disparo va a un punto lejano de esa línea
@@ -8499,24 +8462,36 @@ function drawLeadPipper(e) {
   hctx.beginPath(); hctx.arc(p.x, p.y, 7.5, 0, 6.283); hctx.stroke();
   hctx.fillStyle = hctx.strokeStyle; hctx.beginPath(); hctx.arc(p.x, p.y, 1.7, 0, 6.283); hctx.fill();
 }
-/* Flecha en el borde de la pantalla hacia el dragón fijado que está fuera del campo de visión (estilo Ace Combat). */
-function drawLockArrow(e) {
-  _pv.set(e.pos.x, e.pos.y, e.pos.z).applyMatrix4(camera.matrixWorldInverse);       // espacio de cámara
-  const pm = camera.projectionMatrix.elements;
-  let dx = _pv.x * pm[0] * HW * 0.5, dy = -_pv.y * pm[5] * HH * 0.5;               // dirección en pantalla (y hacia abajo); válida también si está detrás
-  const l = Math.hypot(dx, dy);
-  if (l < 1e-3) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
-  const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * HUD_K;      // márgenes: brújula arriba, vida abajo
-  const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
-  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, d = e.pos.distanceTo(_camP);
-  hctx.save(); hctx.globalAlpha = 0.8 + 0.2 * Math.sin(gameTime * 6);
-  hctx.fillStyle = 'rgba(13,10,15,.62)'; hctx.beginPath(); hctx.arc(x, y, 25, 0, 6.283); hctx.fill();   // fondo para leerla sobre cualquier cosa
-  hctx.translate(x, y); hctx.rotate(Math.atan2(dy, dx));
-  hctx.fillStyle = C_GOLD; hctx.strokeStyle = 'rgba(25,14,4,.9)'; hctx.lineWidth = 1.6;
-  hctx.beginPath(); hctx.moveTo(18, 0); hctx.lineTo(-11, -14); hctx.lineTo(-3, 0); hctx.lineTo(-11, 14); hctx.closePath(); hctx.fill(); hctx.stroke();
+/* v41: flecha alargada de holograma (punta en x, y; apunta a ang), con degradado de la punta a la cola, contorno y halo. */
+function hudArrow(x, y, ang, P, len) {
+  const k = HUD_K, L = len * k, w = 10 * k, sw = w * 0.36;
+  hctx.save(); hctx.translate(x, y); hctx.rotate(ang);
+  hctx.beginPath(); hctx.moveTo(0, 0); hctx.lineTo(-L * 0.4, -w); hctx.lineTo(-L * 0.34, -sw); hctx.lineTo(-L, -sw); hctx.lineTo(-L, sw); hctx.lineTo(-L * 0.34, sw); hctx.lineTo(-L * 0.4, w); hctx.closePath();
+  const g = hctx.createLinearGradient(0, 0, -L, 0); g.addColorStop(0, P.ink); g.addColorStop(0.35, P.line); g.addColorStop(1, P.faint);
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 12 * k; hctx.fillStyle = g; hctx.fill();
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = 1.2 * k; hctx.strokeStyle = P.line; hctx.stroke();
   hctx.restore();
-  hctx.globalAlpha = 1;
-  hudText(fmtDist(d), x - dx * 44, y - dy * 36 + 4, FM(13), C_GOLD, 'center');
+}
+/* Dirección en pantalla hacia un punto del mundo (vale también si está detrás de la cámara): en out.x, out.y, normalizada (y hacia abajo). */
+const _dr = { x: 0, y: 0 };
+function screenDir(p, out) {
+  _pv.set(p.x, p.y, p.z).applyMatrix4(camera.matrixWorldInverse);
+  const pm = camera.projectionMatrix.elements;
+  let dx = _pv.x * pm[0] * HW * 0.5, dy = -_pv.y * pm[5] * HH * 0.5; const l = Math.hypot(dx, dy);
+  if (l < 1e-3) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+  out.x = dx; out.y = dy; return out;
+}
+/* Flecha hacia el blanco seleccionado que está fuera de la pantalla (estilo Ace Combat), en una elipse alrededor del centro. v41: verde,
+   alargada y con su distancia (m) en Graduate, como los demás números del HUD. */
+function drawLockArrow(e) {
+  const k = HUD_K, c = targetCenter(e), { x: dx, y: dy } = screenDir(c, _dr);
+  const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * k;          // márgenes: brújula arriba, vida abajo
+  const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
+  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = W.locked ? PAL_R : PAL_G;
+  hctx.save(); hctx.globalAlpha = 0.82 + 0.18 * Math.sin(gameTime * 6);
+  hudArrow(x, y, Math.atan2(dy, dx), P, L);
+  hctx.restore();
+  hudGlow(String(Math.round(c.distanceTo(_camP))), x - dx * (L + 26) * k, y - dy * (L + 16) * k + 5 * k, 14 * k, P.ink, P.glow, 'center', k);
 }
 /* v39: minimapa cuadrado (abajo a la izquierda; mockup de Jorge), con el rumbo hacia arriba: tú, abajo del centro (a 2/3 del alto), con
    más campo por delante; anillos a 750 m, 1,5 y 3 km (el de 3 km toca los lados); cruz y líneas a las esquinas de arriba; N, E, S y W en
@@ -8671,32 +8646,17 @@ function drawMinimap(heading, fwd) {
   hctx.restore();
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
-/* Bolas guiadas enemigas en camino: rombo rojo sobre cada una si está en pantalla; si no, flecha roja en un anillo alrededor del centro,
-   con la distancia (como el aviso de misil de Ace Combat). */
+/* Bolas guiadas enemigas en camino. v41: solo una flecha roja de holograma en un anillo alrededor del centro, hacia de donde viene cada una
+   (se vea o no), con la distancia (m) por fuera (si apunta arriba, por dentro: arriba va la radio); el pitido que se acelera al acercarse va
+   en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const a = {}, pm = camera.projectionMatrix.elements, blink = 0.6 + 0.4 * Math.sin(gameTime * 14);
-  hctx.save();
+  const k = HUD_K, R = Math.min(HW, HH) * 0.36, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);
   for (const f of threat.incoming) {
-    const d = f.pos.distanceTo(_camP);
-    if (proj(f.pos.x, f.pos.y, f.pos.z, a) && a.x > 30 && a.x < HW - 30 && a.y > 30 && a.y < HH - 30) {
-      hctx.globalAlpha = blink; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2.5;
-      hctx.beginPath(); hctx.moveTo(a.x, a.y - 16); hctx.lineTo(a.x + 16, a.y); hctx.lineTo(a.x, a.y + 16); hctx.lineTo(a.x - 16, a.y); hctx.closePath(); hctx.stroke();
-      hudText(fmtDist(d), a.x, a.y - 22, FM(12), C_DANGER, 'center');
-      continue;
-    }
-    _pv.set(f.pos.x, f.pos.y, f.pos.z).applyMatrix4(camera.matrixWorldInverse);
-    let dx = _pv.x * pm[0], dy = -_pv.y * pm[5]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-    if (_pv.z > 0 && l < 1e-3) { dx = 0; dy = 1; }                         // justo detrás: abajo
-    const R = Math.min(HW, HH) * 0.36, x = HW / 2 + dx * R, y = HH / 2 + dy * R;   // (v39: fuera de las cajas de SPEED y ALT; antes 0,24)
-    hctx.globalAlpha = blink;
-    hctx.translate(x, y); hctx.rotate(Math.atan2(dy, dx));
-    hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.9)'; hctx.lineWidth = 1.5;
-    hctx.beginPath(); hctx.moveTo(20, 0); hctx.lineTo(-10, -13); hctx.lineTo(-3, 0); hctx.lineTo(-10, 13); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hctx.setTransform(hudEl.width / HW, 0, 0, hudEl.width / HW, 0, 0);
-    hudText(fmtDist(d), x - dx * 34, y - dy * 30 + 4, FM(12), C_DANGER, 'center');
+    const { x: dx, y: dy } = screenDir(f.pos, _dr), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
+    hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
+    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
   }
-  hctx.restore(); hctx.globalAlpha = 1;
 }
 /* v15: fuera del área de la misión, hacia su centro (a la altura del jugador): rombo dorado si se ve; si no, flecha dorada en un anillo
    alrededor del centro de la pantalla, como la de los misiles. */
@@ -8914,6 +8874,33 @@ function drawHealth() {
   hudBar(x, y, w, h, f, Math.ceil(F.health) + '/' + fmtStat(hpMax), 18 * k, f <= 0.35 ? PAL_R : PAL_G, 10);
   hctx.restore();
 }
+/* v41: mensaje al destruir un enemigo (tú), como en Ace Combat: «DRAGÓN DESTRUIDO» en el centro de la pantalla, por encima de la mira, en
+   un panel translúcido con el estilo del HUD; debajo, en pequeño, lo que añada la unidad (torretas o hechiceros que quedan). Entra algo más
+   ancho y se ajusta, dura KILL_T s y se apaga; si llegan varios seguidos, los anteriores suben y se atenúan (tres como mucho). Los derribos
+   de los aliados siguen con el aviso de arriba. */
+const KILLS = [], KILL_T = 2.4;
+function killFeed(txt, sub) {
+  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
+  if (KILLS.length > 3) KILLS.length = 3;
+}
+function drawKills() {
+  for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
+  if (!KILLS.length) return;
+  const k = HUD_K, size = 16 * k, sp = 2.4 * k;
+  let y = HH * 0.31;
+  hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px';
+  const tws = KILLS.map(m => hctx.measureText(m.txt).width); hctx.restore();
+  KILLS.forEach((m, i) => {
+    const t = gameTime - m.t0, al = Math.min(1, t / 0.12) * Math.min(1, (KILL_T - t) / 0.5) * (i ? 0.6 : 1);
+    const w = (tws[i] + 54 * k) * (1 + 0.22 * Math.max(0, 1 - t / 0.16)), h = (m.sub ? 40 : 30) * k;
+    hctx.save(); hctx.globalAlpha = al;
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_G, 8 * k, 0.8);
+    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, PAL_G.ink, PAL_G.glow, 'center', sp);
+    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k);
+    hctx.restore();
+    y -= h + 8 * k;
+  });
+}
 /* Boost en pantalla: túnel (los bordes se oscurecen y se cierran hacia el centro, con un velo cálido) y líneas radiales que nacen
    en el borde del túnel y se aceleran hacia fuera. Van debajo de los instrumentos. fx = intensidad del boost, kick = golpe al activarlo. */
 function drawSpeedLines(fx, kick) {
@@ -8946,12 +8933,13 @@ function drawHUD() {
   drawCompass(heading);
   if (dragonAnim.cam < 0.5) drawLadder(fwd);                 // (v27: en 1ª persona de verdad; la cámara de apuntado la saca)
   drawMarkers(fwd);
-  drawEnemyMarkers();
+  drawTargets();                                           // (v41: marcos por tipo, como en Ace Combat)
   drawMinimap(heading, fwd);                               // (v39: el HUD de Ace Combat; antes, radar redondo, velocidad e instrumentos a los lados)
   drawWeapons();
   drawMissileWarn();
   if (MS.out && state === 'playing') drawAreaArrow();       // v15: fuera del área de la misión
   drawFlightBoxes();
+  drawKills();                                             // v41: «X DESTRUIDO»
   drawHealth();
   // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
   const k = HUD_K; let oy = 36 * k;
@@ -9034,17 +9022,16 @@ function updateWorld(dt) {
   // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
-  // avisos: bola guiada en camino > te están fijando > virote o bola cerca
+  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn) y pitido que se acelera al acercarse
+  // (de 0,6 s a 3 km a casi continuo a menos de 150 m); y «TE ESTÁN FIJANDO» mientras un dragón te fija. Fuera el texto «¡PROYECTIL
+  // APROXIMÁNDOSE!» y el aviso de los proyectiles sueltos (salía a menudo y confundía)
   const near = threat.incoming.reduce((m, f) => Math.min(m, f.pos.distanceTo(p)), 1e9);
   if (state === 'playing' && threat.incoming.length) {
-    setWarn('¡PROYECTIL APROXIMÁNDOSE!', '', 0.4 + 0.6 * Math.abs(Math.sin(gameTime * 14)));
-    if (gameTime - lastBeep > lerp(0.09, 0.4, clamp(near / 2500, 0, 1))) { lastBeep = gameTime; sfx.warnMissile(); }
+    warnEl.style.opacity = '0';
+    if (gameTime - lastBeep > lerp(0.06, 0.6, clamp((near - 150) / 2850, 0, 1))) { lastBeep = gameTime; sfx.warnMissile(); }
   } else if (state === 'playing' && threat.lock > 0.05) {
     setWarn('TE ESTÁN FIJANDO', 'var(--gold)', 0.45 + 0.55 * Math.abs(Math.sin(gameTime * 6)));
     if (gameTime - lastBeep > 0.6) { lastBeep = gameTime; sfx.warnLock(); }
-  } else if (boltWarn > 0.02 && state === 'playing') {
-    setWarn('PROYECTIL', '', 0.45 + 0.55 * Math.abs(Math.sin(gameTime * 9)));
-    if (gameTime - lastBeep > 0.55 - boltWarn * 0.35) { lastBeep = gameTime; sfx.beep(); }
   } else warnEl.style.opacity = '0';
   vigAlpha = Math.max(0, vigAlpha - dt * 1.5); vigEl.style.opacity = String(vigAlpha);
   updateRider(dt);                                         // al final: la cámara ya está colocada (temblores y campo de visión incluidos)
@@ -9185,7 +9172,7 @@ const TUTORIAL = [
     { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor'], [['F'], 'Mantener: mirar al blanco fijado']], text: [
       K('C') + ' cambia entre la vista del jinete, sobre el lomo del dragón, y la cámara exterior, detrás de él.',
       'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.',
-      'Mantén ' + K('F') + ' y la cámara gira despacio hacia el blanco fijado y lo sigue, como en Ace Combat: así ves dónde está para ir a por él. Si no tienes ninguno fijado, fija el mejor a la vista. El ratón sigue moviendo la mira. Al soltar ' + K('F') + ', la vista vuelve sola al frente.'] }
+      'Mantén ' + K('F') + ' y la cámara gira despacio hacia el blanco seleccionado y lo sigue, como en Ace Combat: así ves dónde está para ir a por él. Si no tienes ninguno, selecciona el mejor a la vista. El ratón sigue moviendo la mira. Al soltar ' + K('F') + ', la vista vuelve sola al frente.'] }
   ] },
   { cat: 'Velocidad', items: [
     { id: 'acelerar', title: 'Acelerar y frenar', sum: 'W abre el acelerador y S lo cierra.', keys: [[['W', 'S'], 'Acelerar / frenar']], text: [
@@ -9203,15 +9190,17 @@ const TUTORIAL = [
     { id: 'fuego', title: 'Fuego rápido', sum: 'Un proyectil rápido por clic, hacia la mira.', keys: [[['Clic izq.'], 'Un disparo por clic']], text: [
       'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño ({basico_dano} por impacto: un dragón enemigo tiene {enemigo.vida} de vida y una torre, {torre.vida}), pero acierta fácil y desde lejos.',
       'Tienes {basico_municion} disparos: la barra <b>GUN</b> del panel de armas (abajo a la derecha) se vacía al disparar y, {basico_recarga_espera} s después de dejar de disparar, se vuelve a llenar sola.',
-      'Si tienes fijado un blanco que se mueve deprisa (un dragón, por ejemplo), apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo. Con lo que está quieto o va despacio no sale: apunta directamente.'] },
-    { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué blanco seguir.', keys: [[['Clic central'], 'Fijar el blanco más cercano a la mira'], [['Clic central'], 'Otra vez, sin mover la mira: el siguiente']], text: [
-      'El clic central (la rueda) fija el blanco en pantalla que esté más cerca de la mira: lleva la mira sobre lo que quieres y haz clic. Lo rodea un recuadro dorado con su distancia y un aviso te dice qué has fijado.',
-      'Si vuelves a hacer clic sin mover la mira, pasa al siguiente más cercano a ella, y así con cada clic; si apuntas a otro sitio, el clic fija lo que tengas allí. Si el único blanco es el que ya tienes fijado, lo suelta.',
-      'Se fija casi todo: dragones (a cualquier distancia), torres, dirigibles y unidades de tierra y mar (a menos de 6 km) y el superdirigible, sus torretas, la sierpe y sus hechiceros (desde más de 12 km), cada torreta y cada hechicero por separado.',
-      'Con un blanco fijado aparecen el círculo gris de adelanto (para el fuego rápido) y el círculo rojo de la bola guiada. Si sale de la pantalla, una flecha dorada en el borde te indica hacia dónde girar (y ' + K('F') + ' gira la cámara hacia él).'] },
-    { id: 'guiada', title: 'Bola guiada', sum: 'Una gran bola de fuego que persigue a su blanco.', keys: [[['Clic central'], 'Fijar el blanco'], [['Clic izq.'], 'Mantener, con la mira en el círculo rojo']], text: [
-      'Fija un blanco (clic central) a menos de {guiado_alcance} m: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
-      'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los {guiado_fijado} s sale una gran bola de fuego que persigue al blanco y le quita {guiado_dano} de vida. Si la mira sale del círculo, la carga baja poco a poco.',
+      'Si tienes seleccionado un blanco que se mueve deprisa (un dragón, por ejemplo), apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo. Con lo que está quieto o va despacio no sale: apunta directamente.'] },
+    { id: 'fijar', title: 'Blancos y selección', sum: 'Marcos según el tipo; el clic central elige uno.', keys: [[['Clic central'], 'Seleccionar el blanco más cercano a la mira'], [['Clic central'], 'Otra vez, sin mover la mira: el siguiente']], text: [   // (v41)
+      'Cada enemigo lleva un marco verde a su alrededor, y su forma dice qué es: <b>cuadrado</b>, dragones y la sierpe; <b>círculo</b>, dirigibles, barcos y el superdirigible; <b>triángulo</b>, torres, artillería, torretas y hechiceros; <b>rectángulo</b>, batallones. Los que cuentan para la misión se ven más y llevan <b>TGT</b> al lado.',
+      'El clic central (la rueda) selecciona el blanco en pantalla que esté más cerca de la mira: lleva la mira sobre lo que quieres y haz clic. Su marco parpadea y a su derecha salen su distancia en metros y su nombre (y su vida, si está herido).',
+      'Si vuelves a hacer clic sin mover la mira, pasa al siguiente más cercano a ella, y así con cada clic; si apuntas a otro sitio, el clic selecciona lo que tengas allí. Si el único blanco es el que ya tienes seleccionado, lo suelta.',
+      'Se selecciona casi todo: dragones (a cualquier distancia), torres, dirigibles y unidades de tierra y mar (a menos de 6 km) y el superdirigible, sus torretas, la sierpe y sus hechiceros (desde más de 12 km), cada torreta y cada hechicero por separado.',
+      'Con un blanco seleccionado aparece el círculo gris de adelanto (para el fuego rápido) y la bola guiada puede fijarlo (ver «Bola guiada»). Si sale de la pantalla, una flecha verde con su distancia te indica hacia dónde girar (y ' + K('F') + ' gira la cámara hacia él).'] },
+    { id: 'guiada', title: 'Bola guiada', sum: 'Se fija sola; mantén el clic para lanzarla.', keys: [[['Clic central'], 'Seleccionar el blanco'], [['Clic izq.'], 'Mantener, con el blanco fijado (en rojo): lanzarla']], text: [   // (v41: como en Ace Combat)
+      'Selecciona un blanco (clic central) y llévalo cerca de la mira (a menos de {guiado_cono}°) y a menos de {guiado_alcance} m: se fija solo en {guiado_fijado} s. Unas escuadras rojas se cierran sobre su marco con pitidos cada vez más rápidos y, al fijarse, suena un tono y el marco pasa a <b>rojo</b> con <b>LOCK</b>.',
+      'Con el blanco fijado, mantén pulsado el clic izquierdo medio segundo (el primer clic dispara fuego rápido): sale una gran bola de fuego que persigue al blanco ({guiado_vel} km/h) y le quita {guiado_dano} de vida. El fijado sigue: otro clic mantenido, otra bola. Si el blanco se aleja mucho de la mira, el fijado se pierde poco a poco.',
+      'Los batallones no se pueden fijar: contra ellos, la llamarada.',
       'Sirve contra cualquier blanco: contra los de tierra y mar cae en parábola y basta con que caiga cerca (a los soldados de un batallón los quema en un buen radio).',
       'Tienes {guiado_municion} por misión (la barra <b>MSL</b> del panel de armas) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada'], [['Espacio'], 'Mantener: vuelo recto, para pasadas rasantes']], text: [
@@ -9227,7 +9216,7 @@ const TUTORIAL = [
     { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['R'], 'Activar el escudo']], text: [
       K('R') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo, cañones de dirigibles, barcos y torretas, artillería y flechas) revientan contra ella sin hacerte daño, y la llamarada de la sierpe tampoco pasa. No te protege de los choques ni del rayo del superdirigible.',
       'Tienes {escudos} slots de escudo: las rayas azules bajo la mira. El que está en uso se vacía mientras dura y los gastados se recargan solos (ver «Recargar el escudo»). Cuando el escudo parpadea, está a punto de apagarse.',
-      'Guárdalo para cuando veas <b>¡PROYECTIL APROXIMÁNDOSE!</b> y no puedas esquivarlo.'] },
+      'Guárdalo para cuando una flecha roja te avise de una bola guiada que no puedes esquivar.'] },
     { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Cada slot gastado se recarga solo; los derribos lo aceleran.', keys: [[['R'], 'Usar un slot listo']], text: [   // (v39)
       'Cada slot gastado se recarga solo en {escudo_recarga} s, que empiezan a contar cuando se apaga su escudo: su raya bajo la mira se vuelve a llenar, más apagada, y al acabar recupera su azul. Mientras quede alguno listo, ' + K('R') + ' lo usa.',
       'Cada enemigo que destruyes tú, de cualquier tipo (dragón, torre, dirigible u otra unidad; un batallón cuenta cuando cae entero), quita {escudo_derribo} s a la recarga de cada slot gastado. Los que destruyen tus compañeros no cuentan.'] },
@@ -9243,48 +9232,48 @@ const TUTORIAL = [
   ] },
   { cat: 'Enemigos del aire', items: [
     { id: 'dragones', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
-      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Sobre cada uno, un triángulo rojo marca su distancia y, si está herido, su vida ({enemigo.vida}).',
+      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Cada uno lleva un marco cuadrado verde ({enemigo.vida} de vida).',
       'Patrullan hasta que te detectan (a unos {enemigo.deteccion} m). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan a {enemigo.velocidad} km/h.',
       'Si te pegas a su cola, huyen hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzones, subidas y picados): síguelos y apunta. Al rato dan la vuelta con una curva abierta para volver a atacarte.',
       'En las misiones llegan en patrullas y escuadrones que vuelan en formación, sin disparar, hasta que te acercas, les disparas o deciden atacar; mientras no se sabe quiénes son, llevan la marca <b>DESCONOCIDO</b>. En el combate libre hay 20, como mucho 6 a la vez. En el radar son triángulos rojos que apuntan hacia donde vuelan.'] },
     { id: 'misiles_enemigos', title: 'Esquivar bolas guiadas', sum: 'Los dragones también lanzan bolas guiadas.', keys: [[['Ratón'], 'Giro fuerte para esquivar'], [['A', 'D'], 'Esquiva, cuando ya está cerca'], [['R'], 'Escudo, si no hay escapatoria']], text: [
-      'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño) y aparece <b>¡PROYECTIL APROXIMÁNDOSE!</b>, con un rombo rojo y su distancia (o una flecha roja si viene por detrás); en el radar, un punto rojo que parpadea.',
+      'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño, {enemigo.guiada_vel} km/h): una flecha roja alrededor de la mira apunta hacia de donde viene, con los metros que le quedan, y suena un pitido que se acelera según se acerca; en el radar, un punto rojo que parpadea.',
       'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. Si ya la tienes encima, esquiva con ' + K('A') + ' o ' + K('D') + ': a menos de {esquiva_guiadas} m pierde el blanco y sigue recta. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('R') + ').'] },
     { id: 'dirigibles', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
-      'Grandes barcos voladores quietos en el aire, a cientos de metros sobre el suelo. Sobre cada uno, un rombo rojo hueco marca su distancia; en el radar son cápsulas huecas que apuntan hacia su proa.',
+      'Grandes barcos voladores quietos en el aire, a cientos de metros sobre el suelo. Cada uno lleva un marco circular verde; en el radar son cápsulas huecas que apuntan hacia su proa.',
       'A menos de {dirigible.alcance} m disparan sin parar proyectiles arcanos morados ({dirigible.dano} de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
       'Aguantan {dirigible.vida} de daño (la bola guiada hace {guiado_dano}) y dan {dirigible.puntos} puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] },
     { id: 'superdirigible', title: 'Superdirigible', sum: 'Una fortaleza voladora de un kilómetro, erizada de torretas.', keys: [[['Clic central'], 'Fijar el núcleo o cada torreta']], text: [
-      'Una megaestructura de {superdirigible.largo} m que vuela muy alto, a {superdirigible.altura_min} m o más sobre el suelo. Sobre ella, un rombo doble con su nombre y, bajo el casco, una barra grande con la vida del <b>NÚCLEO</b> y las <b>TORRETAS</b> que le quedan. En el radar, una cápsula hueca grande.',
+      'Una megaestructura de {superdirigible.largo} m que vuela muy alto, a {superdirigible.altura_min} m o más sobre el suelo. Lleva un marco circular grande y, bajo él, una barra con la vida del <b>NÚCLEO</b> y las <b>TORRETAS</b> que le quedan (cada torreta, su triángulo). En el radar, una cápsula hueca grande.',
       'Lleva {superdirigible.torretas} torretas por costado (cañones y balistas) que giran hacia ti y disparan ({superdirigible.dano} por impacto) solo hacia su costado: como en los dirigibles, de proa, de popa, justo por encima o por debajo no pueden apuntarte. Cada torreta se fija y se destruye por separado ({superdirigible.torreta_vida} de vida).',
       'El núcleo (el casco) aguanta mucho más daño y se puede atacar aunque queden torretas; al caer, caen todas, y el superdirigible se precipita en llamas. Su casco no se puede atravesar.',
       'Cuidado con su <b>rayo</b>: una esfera de energía crece en la proa durante unos segundos y luego sale un rayo enorme que barre el cielo y quema el suelo. No va a por ti, pero si te cruzas te quita {superdirigible.rayo_dano} por segundo y el escudo no lo para: cuando veas la esfera, apártate de la proa.'] },
     { id: 'sierpe', title: 'Sierpe', sum: 'Un dragón serpiente gigante protegido por hechiceros.', keys: [[['Clic central'], 'Fijar a cada hechicero']], text: [
-      'Un minijefe: un dragón serpiente de {sierpe.largo} m que vuela en grandes círculos a mucha altura. Sobre ella, un rombo doble con su nombre; en el radar, un círculo doble.',
+      'Un minijefe: un dragón serpiente de {sierpe.largo} m que vuela en grandes círculos a mucha altura. Lleva un marco cuadrado, como los dragones, y sus hechiceros, uno triangular; en el radar, un círculo doble.',
       'Mientras lleve el <b>ESCUDO</b> (una piel de energía que brilla y destella con cada impacto), nada le hace daño: primero hay que abatir a los {sierpe.hechiceros} <b>hechiceros</b> de su lomo (un círculo sobre cada uno; {sierpe.hechicero_vida} de vida): fíjalos uno a uno y usa el fuego rápido o una bola guiada. Al caer el último, el escudo se rompe con un destello y ya puedes dañarla.',
       'Te ataca con bolas de fuego ({sierpe.bola_dano}) y, si te pones delante de su cabeza, con una llamarada enorme de {sierpe.llamas_alcance} m ({sierpe.llamas_dano} por segundo): no te cruces por delante, o usa el escudo (' + K('R') + '), que sí la para.',
       'Aguanta {sierpe.vida} de daño y da {sierpe.puntos} puntos. Al morir cae envuelta en explosiones.'] }
   ] },
   { cat: 'Enemigos de tierra y mar', items: [
     { id: 'torres', title: 'Torres antiaéreas', sum: 'Torres fijas que disparan ráfagas.', keys: [], text: [
-      'Se reconocen de lejos por el gran cristal morado que gira en su cima, y el radar las marca todas: cuadrados rojos (huecos si la torre está sobre una isla flotante; las que quedan lejos, en el borde). En el combate libre hay 30 alrededor del punto de partida, entre 10 y 15 de ellas en islas.',
+      'Se reconocen de lejos por el gran cristal morado que gira en su cima; cada una lleva un marco triangular verde y el radar las marca todas: cuadrados rojos (huecos si la torre está sobre una isla flotante; las que quedan lejos, en el borde). En el combate libre hay 30 alrededor del punto de partida, entre 10 y 15 de ellas en islas.',
       'A menos de {torre.aa_alcance} m te disparan ráfagas antiaéreas de {torre.aa_rafaga} proyectiles ({torre.aa_dano} de daño cada uno). Aguantan {torre.vida} de daño y destruirlas da {torre.puntos} puntos. No se pueden atravesar: rodéalas o pasa por encima.'] },
     { id: 'artilleria', title: 'Artillería', sum: 'Balistas, catapultas y cañones: lentos, pero van en grupo.', keys: [], text: [
-      'Piezas de artillería en tierra: balistas, catapultas y cañones. Son iguales salvo el aspecto y lo que lanzan (virotes, piedras ardiendo o bolas). Suelen ir en grupos y en formación. Sobre cada una, un cuadrado rojo; en el radar, un cuadrado pequeño.',
+      'Piezas de artillería en tierra: balistas, catapultas y cañones. Son iguales salvo el aspecto y lo que lanzan (virotes, piedras ardiendo o bolas). Suelen ir en grupos y en formación. Cada una lleva un marco triangular verde; en el radar, un cuadrado pequeño.',
       'De vez en cuando (cada {artilleria.pausa_min}-{artilleria.pausa_max} s) te lanzan un proyectil en parábola, apuntando por delante de ti, si estás a menos de {artilleria.alcance} m. Hacen poco daño ({artilleria.dano}), pero un grupo entero se nota si te quedas encima.',
       'Aguantan {artilleria.vida} de daño y dan {artilleria.puntos} puntos. Lo más rápido: una pasada rasante con la llamarada a lo largo de la fila, o quedarte en hover (' + K('Ctrl izq.') + ') delante del grupo y acabar con ellos uno a uno con la llamarada y el fuego rápido. Al caer quedan sus restos, humeando.'] },
     { id: 'batallones', title: 'Batallones', sum: 'Bloques de cientos de soldados: el blanco de la llamarada.', keys: [[['Espacio'], 'Mantener: vuelo recto'], [['Ctrl izq.'], 'Hover: barrer el bloque sin moverte'], [['Clic dcho.'], 'Mantener: llamarada']], text: [
-      'Formaciones rectangulares de soldados a pie, de cientos o incluso miles. Sobre cada batallón, un rectángulo rojo con los soldados que quedan; en el radar, un rectángulo pequeño. El batallón cuenta como destruido cuando no queda ninguno en pie.',
+      'Formaciones rectangulares de soldados a pie, de cientos o incluso miles. Cada batallón lleva un marco rectangular verde (al seleccionarlo, sus soldados en pie); en el radar, un rectángulo pequeño. La bola guiada no los fija. El batallón cuenta como destruido cuando no queda ninguno en pie.',
       'Cada soldado cae con muy poco ({batallon.vida} de vida): la llamarada quema a todos los que toca. Lo mejor es una pasada rasante: vuela bajo, mantén ' + K('Espacio') + ' para ir recto y barre el bloque de punta a punta con el clic derecho. También puedes quedarte en hover (' + K('Ctrl izq.') + ') delante del bloque y barrerlo con la mira. El fuego rápido mata a los que están junto al impacto; la bola guiada y el rayo, a un grupo más grande.',
       'Si pasas a menos de {batallon.flechas_alcance} m te lanzan andanadas de flechas: se ven, pero apenas hacen daño ({batallon.flechas_dano} por flecha). Cada soldado da {batallon.puntos_soldado} puntos y el batallón entero, {batallon.puntos} más.'] },
     { id: 'barcos', title: 'Barcos navales', sum: 'Barcos de guerra que disparan por los costados.', keys: [], text: [
-      'Barcos de guerra de {barco_naval.largo} m en el agua. Funcionan como los dirigibles: a menos de {barco_naval.alcance} m disparan andanadas ({barco_naval.dano} de daño por proyectil) <b>solo por los costados</b>; de proa, de popa o justo por encima no pueden apuntarte. Sobre cada uno, un rombo rojo; en el radar, una cápsula hueca que apunta a su proa.',
+      'Barcos de guerra de {barco_naval.largo} m en el agua. Funcionan como los dirigibles: a menos de {barco_naval.alcance} m disparan andanadas ({barco_naval.dano} de daño por proyectil) <b>solo por los costados</b>; de proa, de popa o justo por encima no pueden apuntarte. Cada uno lleva un marco circular verde; en el radar, una cápsula hueca que apunta a su proa.',
       'Aguantan {barco_naval.vida} de daño (la bola guiada hace {guiado_dano}) y dan {barco_naval.puntos} puntos. Al hundirse escoran, arden y se van al fondo.'] }
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
-      '<b>En el centro</b>, la mira naranja (con los slots del escudo debajo) y la marca blanca de la dirección; a sus lados, la velocidad (<b>SPEED</b>, km/h) con el <b>BOOST</b> debajo, en naranja, y el acelerador (<b>THR</b>) a su izquierda, y la altitud sobre el nivel del mar (<b>ALT</b>, m; debajo, <b>HOVER</b> si estás en hover). <b>Arriba</b>: la brújula con tu rumbo y, debajo, la radio y los avisos; arriba a la derecha, los objetivos de la misión y los puntos.',
-      '<b>Abajo a la izquierda</b>, el radar: un minimapa cuadrado con el relieve del terreno y tu rumbo hacia arriba, con anillos a 750 m, 1,5 y 3 km. Tú eres la flecha verde, por debajo del centro (ves más por delante); los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco fijado lleva un círculo dorado. Lo que queda más lejos sale en el borde, en su dirección.',
+      '<b>En el centro</b>, la mira naranja (con los slots del escudo debajo) y la marca blanca de la dirección; a sus lados, la velocidad (<b>SPEED</b>, km/h) con el <b>BOOST</b> debajo, en naranja, y el acelerador (<b>THR</b>) a su izquierda, y la altitud sobre el nivel del mar (<b>ALT</b>, m; debajo, <b>HOVER</b> si estás en hover). Cada enemigo, un marco verde según su tipo (ver «Blancos y selección»); al destruir uno, <b>X DESTRUIDO</b> en el centro, encima de la mira. <b>Arriba</b>: la brújula con tu rumbo y, debajo, la radio y los avisos; arriba a la derecha, los objetivos de la misión y los puntos.',
+      '<b>Abajo a la izquierda</b>, el radar: un minimapa cuadrado con el relieve del terreno y tu rumbo hacia arriba, con anillos a 750 m, 1,5 y 3 km. Tú eres la flecha verde, por debajo del centro (ves más por delante); los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco seleccionado lleva un círculo dorado. Lo que queda más lejos sale en el borde, en su dirección.',
       '<b>Abajo a la derecha</b>, las armas: <b>GUN</b> (fuego rápido) y <b>MSL</b> (bolas guiadas) con su munición, <b>FLM</b> con el calor de la llamarada y <b>LSR</b> con la carga del rayo. <b>Abajo en el centro</b>, la vida.'] },
     { id: 'escuadron', title: 'Escuadrón y radio', sum: 'Tus compañeros vuelan contigo y hablan por radio.', keys: [[['Intro'], 'Saltar la pantalla de capítulo y la voz de la entrada']], text: [   // v35
       'En algunas misiones no vuelas solo: tus compañeros de escuadrón (en el Modo Historia, el <b>Escuadrón Paladin</b>; tú eres Percival, Paladin 3) son dragones azules. Sobre cada uno, un chevrón azul con su nombre y su distancia; en el radar, triángulos azules huecos. Los enemigos no los atacan.',
@@ -9293,7 +9282,7 @@ const TUTORIAL = [
       'En <b>Opciones</b> eliges el idioma de los subtítulos (español o inglés) y el volumen de las voces; ' + K('M') + ' silencia todo el sonido. Al empezar un capítulo, ' + K('Intro') + ' salta la pantalla del capítulo y, durante la entrada de cine, corta la voz que suena.'] },
     { id: 'misiones', title: 'Misiones y objetivos', sum: 'Qué hay que hacer, dónde, y cómo se gana o se pierde.', keys: [[['Esc', 'P'], 'Pausa: continuar, reintentar o volver al menú']], text: [   // v35: sustituye a «Objetivo de la partida»
       'Cada misión empieza con unos segundos de vuelo automático, con bandas negras de cine y su nombre arriba; luego tomas el control. Los <b>objetivos</b> están arriba a la derecha, cada uno con su cuenta, y pueden ir apareciendo durante la misión (aviso <b>Nuevo objetivo</b>); los cumplidos se ponen dorados y los que llevan un rombo (◇) son opcionales. A veces, un recuadro bajo los avisos te da un consejo.',
-      'Los blancos que cuentan para un objetivo llevan la marca <b>TGT</b> junto a su distancia y destacan en el radar. Lo que no la lleva también te ataca, pero no hace falta destruirlo para ganar.',
+      'Los blancos que cuentan para un objetivo llevan la marca <b>TGT</b> junto a su marco y destacan en el radar. Lo que no la lleva también te ataca, pero no hace falta destruirlo para ganar.',
       'Las misiones tienen un <b>área</b>: en el radar, lo de fuera sale sombreado en rojo y el borde, con una línea discontinua. Si sales, una cuenta atrás de 15 s y una flecha dorada te indican el camino de vuelta; si llega a 0, la misión falla.',
       'En las misiones y en el Modo Historia no hay segunda oportunidad: si te derriban, <b>MISIÓN FALLIDA</b> (puedes reintentarla desde los resultados o desde la pausa). Al cumplir todos los objetivos, <b>MISIÓN CUMPLIDA</b> y la pantalla de resultados: tiempo, puntos, derribos, precisión, daño recibido…',
       'En el <b>combate libre</b> no hay área ni prisa: destruye las 30 torres y derriba los 20 dragones para ganar. Si caes, reapareces en el aire.'] }
@@ -10586,11 +10575,13 @@ const STATS_SCHEMA = {
     ['basico_pausa', 'Pausa mínima entre disparos', 's', 0.1, 'Un disparo por clic, como mucho uno cada tanto.', 1],
     ['basico_recarga_espera', 'Espera antes de recargar', 's', 1, 'Segundos sin disparar antes de que vuelva la munición.', 1],
     ['basico_recarga', 'Recarga de munición', 'disparos/s', 8, 'Disparos que vuelven cada segundo.', 1],
-    { sec: 'Disparo guiado (clic izquierdo mantenido)' },
+    { sec: 'Disparo guiado (se fija solo; clic izquierdo mantenido para lanzarlo)' },
     ['guiado_dano', 'Daño disparo guiado', 'puntos', 60, 'Daño del impacto.'],
     ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan. A 0, no hay más.'],
-    ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco para cargar el guiado.', 1],
-    ['guiado_fijado', 'Tiempo de fijado', 's', 2, 'Segundos con la mira en el círculo rojo hasta que sale (v31: 2, antes 3).', 1],
+    ['guiado_vel', 'Velocidad del disparo guiado', 'km/h', 2160, 'Velocidad máxima (v41: +50 %; antes 1440). Sale al 40 % y acelera; el giro va en proporción (el mismo radio de giro).'],
+    ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco seleccionado para fijarlo.', 1],
+    ['guiado_fijado', 'Tiempo de fijado', 's', 2, 'Segundos con el blanco seleccionado a tiro y cerca de la mira hasta quedar fijado (v41: se fija solo; luego, clic izquierdo mantenido para lanzarlo).', 1],
+    ['guiado_cono', 'Cono del fijado', '°', 15, 'Ángulo máximo entre la mira y el blanco para que se fije (v41). Ya fijado, aguanta hasta 1,5 veces este ángulo.', 1],
     { sec: 'Lanzallamas (clic derecho)' },
     ['llamas_dano', 'Daño lanzallamas', 'puntos/s', 15, 'Daño por segundo a todo lo que toca.'],
     ['llamas_alcance', 'Alcance lanzallamas', 'm', 300, 'Largo del chorro.'],
@@ -10642,7 +10633,7 @@ const STATS_SCHEMA = {
     ['guiada_alcance_max', 'Distancia máxima de lanzamiento', 'm', 2500, ''],
     ['guiada_pausa', 'Pausa entre guiadas de un mismo dragón', 's', 60, ''],
     ['guiada_separacion', 'Separación entre guiadas de todos', 's', 20, 'Entre dos lanzamientos de dragones cualesquiera.'],
-    ['guiada_vel', 'Velocidad máxima de la guiada', 'km/h', 1152, ''],
+    ['guiada_vel', 'Velocidad máxima de la guiada', 'km/h', 750, 'v41: −35 % (antes 1152) para dar tiempo a reaccionar. Sale al 53 % y acelera.'],
     ['guiada_giro', 'Giro de la guiada', '°/s', 40, 'Cuanto menos, más fácil esquivarla rompiendo fuerte.'],
     { sec: 'Choques' },
     ['choque_dano', 'Daño que te hace al chocar', 'puntos', 25, ''],
@@ -10914,7 +10905,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_alcance":3000,"guiado_fijado":2,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":1152,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let HP_REGEN_WAIT = 5, HP_REGEN = 10, SHIELD_CD = 15, SHIELD_KILL_CUT = 3;   // (v39) jugador: regeneración de la vida y recarga de los slots de escudo
@@ -10944,6 +10935,8 @@ function applyHeroStats() {
   W.shCd.length = SHIELD_MAX; if (W.shUse >= SHIELD_MAX) W.shUse = -1;
   GUN_DMG = S.basico_dano; GUN_AMMO = Math.max(1, Math.round(S.basico_municion)); GUN_COOL = S.basico_pausa; GUN_REFILL_DELAY = S.basico_recarga_espera; GUN_REFILL_RATE = S.basico_recarga;
   MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
+  const mv = Math.max(50, S.guiado_vel / 3.6), mk = mv / 400;   // v41: velocidad del Excel; salida, aceleración y giro en proporción a los de 400 m/s
+  MSL_SPEED[1] = mv; MSL_SPEED[0] = 160 * mk; MSL_ACCEL = 260 * mk; MSL_TURN = 3.2 * mk; MSL_CONE = clamp(S.guiado_cono, 1, 89);
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
@@ -10968,7 +10961,7 @@ function applyStats(vals, src) {
   ENEMY_EVADE_DIST = E.huida_distancia; ENEMY_EVADE_T[0] = E.huida_min; ENEMY_EVADE_T[1] = Math.max(E.huida_min, E.huida_max);
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
-  EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(EMSL_SPEED[0], E.guiada_vel / 3.6); EMSL_TURN = deg(E.guiada_giro);
+  EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(20, E.guiada_vel / 3.6); EMSL_SPEED[0] = EMSL_SPEED[1] * 0.53;   // (v41: la de salida, en proporción: 170 de 320 m/s) EMSL_TURN = deg(E.guiada_giro);
   ENEMY_RAM_DMG = E.choque_dano; ENEMY_RAM_TAKEN = E.choque_recibe;
   const T = STATS.torre;
   TOWER_HP = T.vida; TOWER_SCORE = T.puntos; TOWER_MSL_SURE = T.guiada_destruye >= 0.5;

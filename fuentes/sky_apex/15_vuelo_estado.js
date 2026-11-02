@@ -100,7 +100,7 @@ canvasGL.addEventListener('mousedown', e => {
   }
 });
 window.addEventListener('mouseup', e => {
-  if (e.button === 0) { W.lmb = false; W.lockArmed = false; W.lock = 0; }
+  if (e.button === 0) { W.lmb = false; W.lockArmed = false; }   // (v41: el fijado no depende del clic)
   else if (e.button === 2) W.rmb = false;
 });
 window.addEventListener('auxclick', e => { if (e.button === 1) e.preventDefault(); });
@@ -376,10 +376,11 @@ function aimPointFrom(origin, dir) {
 let GUN_AMMO = 20, GUN_COOL = 0.1, GUN_REFILL_DELAY = 1, GUN_REFILL_RATE = 8;     // munición, pausa mínima entre clics (s), espera antes de recargar (s), proyectiles recargados por segundo
 const GUN_SPEED = 1100, GUN_LIFE = 2.8;                                           // m/s (fija en el mundo) y vida (s)
 let GUN_DMG = 5;                                                                  // daño por impacto
-const MSL_HOLD = 0.5, MSL_DECAY = 2, MSL_CIRCLE = 0.1;                            // clic mantenido antes de empezar a cargar (s), fuera del círculo la carga se pierde x veces más rápido, radio mínimo del círculo (fracción del alto de pantalla)
-let MSL_RANGE = 3000, MSL_LOCK = 2, MSL_AMMO = 20, MSL_DMG = 60;                  // alcance (m), segundos de carga con la mira en el círculo, guiadas por misión, daño
-const MSL_CIRCLE_K = 0.5;                                                         // tamaño del círculo rojo respecto al de la v9 (que medía lo del cuadro dorado + 14 px, o el 10 % del alto)
-const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15;    // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s)
+const MSL_HOLD = 0.5, MSL_DECAY = 2;                                              // clic mantenido para lanzarla con el blanco fijado (s); fuera del cono, el fijado se pierde x veces más rápido
+let MSL_RANGE = 3000, MSL_LOCK = 2, MSL_AMMO = 20, MSL_DMG = 60, MSL_CONE = 15;   // alcance (m), segundos en fijarse, guiadas por misión, daño, cono del buscador alrededor de la mira (°, v41)
+const MSL_SPEED = [160, 400], MSL_LIFE = 15;                                      // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), vida (s)
+let MSL_ACCEL = 260, MSL_TURN = 3.2;                                              // aceleración (m/s²) y giro (rad/s). v41: la máxima sale del Excel (guiado_vel) y la de salida, la aceleración
+                                                                                  // y el giro, en proporción (mismo radio de giro y mismo tiempo en llegar a la máxima que con 400 m/s)
 const FLAME_SPEED = 240;                                                          // velocidad de las llamas (m/s)
 let FLAME_RANGE = 300, FLAME_DPS = 15, FLAME_HEAT = 5, FLAME_COOL = 4, OVERHEAT_T = 10;   // alcance (m), daño por segundo, segundos seguidos hasta sobrecalentarse, segundos en enfriarse del todo, segundos sin armas
 let ULT_TIME = 200, ULT_PER_KILL = 0.05;                                          // rayo: de 0 a 100 % en ULT_TIME s; carga por enemigo destruido (heroKill)
@@ -389,7 +390,7 @@ let LASER_T = 5, LASER_RANGE = 8000, LASER_DPS = 50;                            
 const W = {
   ammo: GUN_AMMO, cool: 0, refill: 0, refillAcc: 0, shotQ: false,                 // fuego rápido: munición, pausa entre clics, espera hasta recargar, disparo pendiente (sale en updateAttacks)
   lmb: false, rmb: false, lmbT: -9, rmbT: -9, holdT: 0,                           // botones pulsados, cuándo (para el «a la vez» del rayo) y cuánto lleva mantenido el izquierdo
-  msl: MSL_AMMO, lock: 0, lockArmed: false, lockWhy: 'sin', lockIn: false, beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, carga 0-1, si el clic actual puede cargar, estado del círculo, lanzamiento pendiente
+  msl: MSL_AMMO, lock: 0, locked: false, lockT: null, lockArmed: false, lockWhy: 'sin', beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, fijado 0-1, fijada, a qué, si el clic actual puede lanzarla, por qué no se fija (mslSeek), lanzamiento pendiente
   heat: 0, heatDelay: 0, overheat: 0, flame: false,                               // llamarada: calor 0-1, segundos de sobrecalentamiento que quedan
   ult: 0, ultFull: false, laser: 0, snd: false,                                   // rayo: carga 0-1, segundos de rayo que quedan
   shCd: [0, 0, 0], shUse: -1, shieldT: 0, shieldFade: 0, shieldHit: 0            // escudo (v39): recarga que le queda a cada slot (0 = listo), slot en uso, segundos que le quedan, desvanecido final y destello de impacto
@@ -404,7 +405,7 @@ function heroKill() {
 function weaponsReady() { return W.overheat <= 0 && W.laser <= 0; }
 function resetWeapons(full) {
   W.ammo = GUN_AMMO; W.cool = W.refill = W.refillAcc = 0; W.shotQ = false; W.lmb = W.rmb = false; W.holdT = 0;
-  W.lock = 0; W.lockArmed = false; W.mslFlash = 0; W.mslQ = null; W.heat = W.heatDelay = W.overheat = 0; W.flame = false; W.laser = 0;
+  W.lock = 0; W.locked = false; W.lockT = null; W.lockArmed = false; W.mslFlash = 0; W.mslQ = null; W.heat = W.heatDelay = W.overheat = 0; W.flame = false; W.laser = 0;
   if (W.shieldT > 0) shieldEnd();
   W.shieldT = W.shieldFade = W.shieldHit = 0;
   if (full) { W.ult = 0; W.ultFull = false; W.msl = MSL_AMMO; W.shCd.fill(0); W.shUse = -1; }
@@ -426,27 +427,18 @@ function fireGun() {
   spawnFireball(_mouth, _dir, false, 0, 'gun');
   for (let i = 0; i < 6; i++) emit(fxAdd, _mouth.x, _mouth.y, _mouth.z, _dir.x * rnd(30, 70) + rnd(-5, 5) + dragonVel.x, _dir.y * rnd(30, 70) + rnd(-5, 5) + dragonVel.y, _dir.z * rnd(30, 70) + rnd(-5, 5) + dragonVel.z, rnd(0.12, 0.25), 1.4, 3, ATTACK.r, ATTACK.g * rnd(0.8, 1.2), ATTACK.b, 0.9, 1.5, 0);
 }
-/* Círculo rojo de la bola guiada alrededor del dragón fijado: centro y radio en píxeles de pantalla (x, y, r) y si la mira está dentro (in).
-   Devuelve '' si el círculo está activo o el motivo por el que no: 'sin' (nada fijado), 'rango' (más lejos de MSL_RANGE) o 'fuera' (fuera de pantalla). */
-const _Wl = { x: 0, y: 0, r: 0, d: 0, in: false }, _Wv = new THREE.Vector3(), _Wc = new THREE.Vector3();
-function lockCircle(out) {
-  const e = enemyLock.e; out.in = false;
+/* v41: buscador de la bola guiada (fijado automático, como en Ace Combat; antes, el círculo rojo con el clic mantenido): ¿se puede fijar el
+   blanco seleccionado? '' si sí, o el motivo: 'sin' (nada seleccionado), 'no' (no se fija: los batallones), 'rango' (más lejos de MSL_RANGE)
+   o 'cono' (a más de MSL_CONE° de la mira; ya fijado, el cono es 1,5 veces mayor, para no soltarlo por un tirón). */
+const _Wv = new THREE.Vector3(), _Wc = new THREE.Vector3();
+function mslSeek() {
+  const e = enemyLock.e;
   if (!e || e.dead) return 'sin';
-  const ec = targetCenter(e);                              // (v30: el centro de las unidades nuevas, no su base)
-  out.d = ec.distanceTo(dragon.position);
-  if (out.d > MSL_RANGE) return 'rango';
-  const sw = window.innerWidth, sh = window.innerHeight;
-  camera.getWorldPosition(_Wc);
-  _Wv.copy(ec).applyMatrix4(camera.matrixWorldInverse);
-  if (_Wv.z > -1) return 'fuera';
-  _Wv.applyMatrix4(camera.projectionMatrix);
-  if (Math.abs(_Wv.x) > 1 || Math.abs(_Wv.y) > 1) return 'fuera';
-  out.x = (_Wv.x * 0.5 + 0.5) * sw; out.y = (-_Wv.y * 0.5 + 0.5) * sh;
-  const pxm = sh / (2 * e.pos.distanceTo(_Wc) * Math.tan(camera.fov * Math.PI / 360));
-  out.r = MSL_CIRCLE_K * Math.max(MSL_CIRCLE * sh, clamp(targetHalf(e) * pxm, 17, 96) + 14);   // (v10: la mitad que antes; v21: según el tamaño del blanco)
-  _Wv.copy(_Wc).addScaledVector(F.aimWorld, 1000).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
-  out.in = Math.hypot((_Wv.x * 0.5 + 0.5) * sw - out.x, (-_Wv.y * 0.5 + 0.5) * sh - out.y) < out.r;
-  return '';
+  if (e.kind === 'batallon') return 'no';
+  const ec = targetCenter(e);
+  if (ec.distanceTo(dragon.position) > MSL_RANGE) return 'rango';
+  camera.getWorldPosition(_Wc); _Wv.subVectors(ec, _Wc).normalize();
+  return Math.acos(clamp(_Wv.dot(F.aimWorld), -1, 1)) * 180 / Math.PI <= MSL_CONE * (W.locked ? 1.5 : 1) ? '' : 'cono';
 }
 function launchMissile(e) {
   heroMouth(_mouth);
@@ -460,7 +452,7 @@ function launchMissile(e) {
 }
 function tryLaser() {
   if (W.ult < 1 || !weaponsReady()) return false;
-  W.laser = LASER_T; W.lock = 0; W.lockArmed = false; W.flame = false; W.shotQ = false; stats.lasers++;
+  W.laser = LASER_T; W.lock = 0; W.locked = false; W.lockArmed = false; W.flame = false; W.shotQ = false; stats.lasers++;
   F.fireFlash = 1; camShake = Math.max(camShake, 0.4);
   sfx.laserOn(); toast('¡RAYO DE FUEGO!');
   return true;
@@ -536,7 +528,7 @@ function updateShieldFx(dt) {
   shieldMesh.scale.setScalar(SHIELD_R * (on ? lerp(0.55, 1, smooth(0, 0.25, age)) : 1 + (0.4 - W.shieldFade) * 0.35));
 }
 function overheat() {
-  W.overheat = OVERHEAT_T; W.heat = 1; W.flame = false; W.lock = 0; W.lockArmed = false;
+  W.overheat = OVERHEAT_T; W.heat = 1; W.flame = false; W.lock = 0; W.locked = false; W.lockArmed = false;
   sfx.overheat(); toast('¡SOBRECALENTADO!  Sin armas ' + OVERHEAT_T + ' s');
 }
 /* Por fotograma, en partida (desde updateFlight): munición, calor, cargas y bloqueo. Disparos, efectos y daño de la llamarada y del rayo: updateAttacks. */
@@ -562,16 +554,23 @@ function updateWeapons(dt) {
   if (W.flame) { W.heat += dt / FLAME_HEAT; W.heatDelay = 0.35; if (W.heat >= 1) overheat(); }
   else if (W.overheat <= 0) { if (W.heatDelay > 0) W.heatDelay -= dt; else W.heat = Math.max(0, W.heat - dt / FLAME_COOL); }
   if (W.flame || W.laser > 0) F.fireFlash = 1;                                    // boca abierta y fogonazo mientras sale el aliento
-  // bola guiada: con el clic mantenido más de MSL_HOLD s y la mira dentro del círculo, carga; pitidos cada vez más rápidos
-  W.lockWhy = lockCircle(_Wl); W.lockIn = W.lockWhy === '' && _Wl.in;
+  // bola guiada (v41, como en Ace Combat): con un blanco seleccionado, a tiro y a menos de MSL_CONE° de la mira, se fija sola en MSL_LOCK s
+  // (pitidos cada vez más rápidos y un tono al fijarse); fijada, mantener el clic izquierdo MSL_HOLD s la lanza. El fijado sigue tras lanzar
+  // (otro clic mantenido, otra guiada); si el blanco sale del cono, se pierde poco a poco
+  if (enemyLock.e !== W.lockT) { W.lockT = enemyLock.e; W.lock = 0; W.locked = false; }
+  W.lockWhy = W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';
   if (W.lmb) W.holdT += dt;
-  if (W.lmb && W.lockArmed && W.holdT >= MSL_HOLD && W.msl > 0 && weaponsReady() && W.lockWhy === '') {
-    if (W.lockIn) {
+  if (W.lockWhy === '') {
+    if (!W.locked) {
       W.lock += dt / MSL_LOCK;
       W.beepT -= dt; if (W.beepT <= 0) { W.beepT = lerp(0.3, 0.07, W.lock); sfx.lockTick(W.lock); }
-      if (W.lock >= 1) { W.mslQ = enemyLock.e; W.lock = 0; W.lockArmed = false; }   // sale en updateAttacks, de la boca ya animada
-    } else W.lock = Math.max(0, W.lock - dt * MSL_DECAY / MSL_LOCK);
-  } else W.lock = 0;
+      if (W.lock >= 1) { W.lock = 1; W.locked = true; sfx.locked(); }
+    }
+  } else {
+    W.locked = false;
+    W.lock = W.lockWhy === 'cono' || W.lockWhy === 'rango' ? Math.max(0, W.lock - dt * MSL_DECAY / MSL_LOCK) : 0;
+  }
+  if (W.locked && W.lmb && W.lockArmed && W.holdT >= MSL_HOLD) { W.mslQ = enemyLock.e; W.lockArmed = false; }   // sale en updateAttacks, de la boca ya animada
 }
 
 /* Rayo (kamehameha): tres cintas que miran a la cámara —núcleo casi blanco, halo y aura— con vetas que corren hacia fuera y un ancho que late a lo

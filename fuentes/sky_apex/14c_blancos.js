@@ -7,7 +7,7 @@
      v29: así entran las unidades nuevas de 6f (artillería, batallones, barcos, superdirigibles y sus torretas, la sierpe y sus hechiceros).
    · TGT: lo es todo lo que cuenta para un objetivo de la misión visible, sin cumplir y no opcional (isTgt). Se marca «TGT» en el HUD y
      destaca en el radar; lo demás se ve, pero no cuenta para ganar.
-   · Fijar (clic central, cycleTarget): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE). v31: primero el más
+   · Seleccionar (clic central, cycleTarget; hasta la v40, «fijar»): cualquier blanco a la vista (torres y dirigibles a menos de LOCK_STATIC_RANGE). v31: primero el más
      cercano a la mira en pantalla (antes, los TGT de más cerca a más lejos: con muchos blancos había que pasar por todos). Si apuntas a otro
      sitio, el clic fija lo que tienes en la mira; si sigues apuntando al mismo sitio (menos de LOCK_CYCLE.ang, en LOCK_CYCLE.t s), cada clic
      pasa al siguiente más cercano a la mira. Si el único es el fijado, se libera.
@@ -57,6 +57,6 @@ function cycleTarget() {
   lockCycle.t = gameTime; lockCycle.aim.copy(F.aimWorld);
   const i = cand.findIndex(c => c.t === enemyLock.e);
   const next = again && i >= 0 ? cand[(i + 1) % cand.length] : cand[0] !== cand[i] ? cand[0] : cand[1 % cand.length];   // (apuntando al mismo sitio: el siguiente)
-  if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); toast('Objetivo liberado'); }
-  else { enemyLock.e = next.t; sfx.lock(); toast('Objetivo fijado  ·  ' + (next.tgt ? 'TGT  ·  ' : '') + (next.t.label || BLANCO[next.t.kind].name) + '  ·  ' + fmtDist(next.d)); }
+  if (next.t === enemyLock.e) { enemyLock.e = null; sfx.beep(); }   // (v41: sin aviso: el marco del seleccionado lleva su nombre y su distancia)
+  else { enemyLock.e = next.t; sfx.lock(); }
 }

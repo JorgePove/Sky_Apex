@@ -297,5 +297,6 @@ function damageTower(t, amount, soft, at, sure) {
   }
   explode(t.x, t.y + TOWER_TOP * 0.35, t.z, 2.2); explode(t.x, t.y + TOWER_TOP * 0.75, t.z, 1.6); sfx.boom(1.0);
   debris(t.x, t.y + TOWER_TOP * 0.3, t.z);
-  toast('Torre destruida  +' + TOWER_SCORE + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
+  if (!byAlly) killFeed('Torre destruida');                // v41: mensaje en el centro (16)
+  else toast(allyName(byAlly) + ': torre destruida  +' + TOWER_SCORE + '  ·  ' + towerState.kills + '/' + RUN.towers.total);
 }

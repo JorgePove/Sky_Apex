@@ -94,7 +94,7 @@ function serpentModel(u) {
 /* mode: 'idle' (quieta, ondulando) o 'circle' (vuela en círculo alrededor de donde nace). */
 function addSierpe(x, z, height, heading, tags, mode) {
   const S = STATS.sierpe, ang = heading * Math.PI / 180;
-  const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: '¡Sierpe abatida!', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+  const u = newUnit('sierpe', { tags: tags || [], label: 'Sierpe', killText: 'Sierpe destruida', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
     markR: 16000, lockRange: 14000, radar: 'serpent', crashText: 'la sierpe', vel: new THREE.Vector3(), mode: mode || 'idle', U: serpentUniforms(), shieldMeshes: [], shield: true, shieldA: 1, shieldHitT: 0, hint: false,
     breath: 0, breathCool: 2, fireCool: 2, theta: 0, t: Math.random() * 10, dieT: 4.5, upd: updSierpe, hurt: serpentHurt, onKill: serpentDie, cleanup: u => { if (u.shieldMat) u.shieldMat.dispose(); } });
   u.size = S.largo; u.half = 40;
@@ -106,7 +106,7 @@ function addSierpe(x, z, height, heading, tags, mode) {
   if (unitRes.sierpe) serpentModel(u);
   const n = clamp(Math.round(S.hechiceros), 0, SORC_AT.length);
   for (let i = 0; i < n; i++) {
-    const k = newUnit('hechicero', { tags: tags || [], label: 'Hechicero', killText: 'Hechicero abatido', hp: S.hechicero_vida, hpMax: S.hechicero_vida, score: S.hechicero_puntos,
+    const k = newUnit('hechicero', { tags: tags || [], label: 'Hechicero', killText: 'Hechicero destruido', hp: S.hechicero_vida, hpMax: S.hechicero_vida, score: S.hechicero_puntos,
       parent: u, at: SORC_AT[i], modelKey: 'hechicero', size: SORC_SCALE, half: 7, markR: 6000, lockRange: 14000, radar: '', noCrash: true,
       capDef: [[0, 0.3 * SORC_SCALE, 0, 0, 2.1 * SORC_SCALE, 0, 0.65 * SORC_SCALE]], onKill: sorcererDie,
       killTail: k => { const left = k.parent.kids.filter(x => !x.dead).length; return left ? '  ·  quedan ' + left : '  ·  ¡el escudo cae!'; } });

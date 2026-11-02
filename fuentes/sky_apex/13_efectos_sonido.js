@@ -314,10 +314,6 @@ function updateFireballs(dt) {
     const dP = f.pos.distanceTo(dragon.position);
     if (!fast && dP < nearD) { nearD = dP; near = f; }
     if (emsl && !f.lost && state === 'playing' && dP < 3500) threat.incoming.push(f);
-    if (f.enemy && !aa && !arc && state === 'playing' && dP < 700) {   // aviso de proyectil enemigo que se acerca a tu trayectoria (los antiaéreos y los arcanos van demasiado rápido)
-      _fs.subVectors(dragon.position, f.pos); const along = _fs.dot(f.vel) / f.speed;
-      if (along > 0 && dP * dP - along * along < 3600) boltWarn = Math.max(boltWarn, 1 - dP / 700);
-    }
     const fl = 1 + Math.sin(performance.now() * 0.05 + i) * 0.12; f.core.scale.setScalar(f.r0 * fl); f.halo.scale.setScalar(f.r1 * fl);
     const c = f.c;
     if (fast) {                                            // trazadora: chispas cortas a lo largo del tramo recorrido
@@ -347,15 +343,12 @@ function spawnBolt(from, dir) {
   mesh.lookAt(from.clone().add(dir)); scene.add(mesh);
   bolts.push({ pos: from.clone(), vel: dir.clone().multiplyScalar(215), life: 7, mesh });
 }
-let boltWarn = 0;
 function updateBolts(dt) {
-  boltWarn = 0;
   for (let i = bolts.length - 1; i >= 0; i--) {
     const b = bolts[i];
     b.pos.addScaledVector(b.vel, dt); b.life -= dt; b.mesh.position.copy(b.pos);
     emit(fxAdd, b.pos.x, b.pos.y, b.pos.z, 0, 0, 0, 0.5, 2.2, 0.4, 1, 0.7, 0.35, 0.7, 0, 0);
     const d = b.pos.distanceTo(dragon.position);
-    if (d < 400) boltWarn = Math.max(boltWarn, 1 - d / 400);
     let remove = b.life <= 0 || b.pos.y < Math.max(heightAt(b.pos.x, b.pos.z), WL) || !!islandAt(b.pos.x, b.pos.y, b.pos.z, 0);
     if (shieldOn() && b.pos.distanceTo(shieldCenter(_shC)) < SHIELD_R) { shieldHit(b.pos, 0.5); remove = true; }
     else if (d < 7.5 && state === 'playing') { hurtDragon(12); remove = true; }

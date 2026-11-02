@@ -31,11 +31,13 @@ const STATS_SCHEMA = {
     ['basico_pausa', 'Pausa mínima entre disparos', 's', 0.1, 'Un disparo por clic, como mucho uno cada tanto.', 1],
     ['basico_recarga_espera', 'Espera antes de recargar', 's', 1, 'Segundos sin disparar antes de que vuelva la munición.', 1],
     ['basico_recarga', 'Recarga de munición', 'disparos/s', 8, 'Disparos que vuelven cada segundo.', 1],
-    { sec: 'Disparo guiado (clic izquierdo mantenido)' },
+    { sec: 'Disparo guiado (se fija solo; clic izquierdo mantenido para lanzarlo)' },
     ['guiado_dano', 'Daño disparo guiado', 'puntos', 60, 'Daño del impacto.'],
     ['guiado_municion', 'Munición disparo guiado', 'disparos', 20, 'Cantidad fija por misión: no se recargan. A 0, no hay más.'],
-    ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco para cargar el guiado.', 1],
-    ['guiado_fijado', 'Tiempo de fijado', 's', 2, 'Segundos con la mira en el círculo rojo hasta que sale (v31: 2, antes 3).', 1],
+    ['guiado_vel', 'Velocidad del disparo guiado', 'km/h', 2160, 'Velocidad máxima (v41: +50 %; antes 1440). Sale al 40 % y acelera; el giro va en proporción (el mismo radio de giro).'],
+    ['guiado_alcance', 'Alcance del fijado', 'm', 3000, 'Distancia máxima al blanco seleccionado para fijarlo.', 1],
+    ['guiado_fijado', 'Tiempo de fijado', 's', 2, 'Segundos con el blanco seleccionado a tiro y cerca de la mira hasta quedar fijado (v41: se fija solo; luego, clic izquierdo mantenido para lanzarlo).', 1],
+    ['guiado_cono', 'Cono del fijado', '°', 15, 'Ángulo máximo entre la mira y el blanco para que se fije (v41). Ya fijado, aguanta hasta 1,5 veces este ángulo.', 1],
     { sec: 'Lanzallamas (clic derecho)' },
     ['llamas_dano', 'Daño lanzallamas', 'puntos/s', 15, 'Daño por segundo a todo lo que toca.'],
     ['llamas_alcance', 'Alcance lanzallamas', 'm', 300, 'Largo del chorro.'],
@@ -87,7 +89,7 @@ const STATS_SCHEMA = {
     ['guiada_alcance_max', 'Distancia máxima de lanzamiento', 'm', 2500, ''],
     ['guiada_pausa', 'Pausa entre guiadas de un mismo dragón', 's', 60, ''],
     ['guiada_separacion', 'Separación entre guiadas de todos', 's', 20, 'Entre dos lanzamientos de dragones cualesquiera.'],
-    ['guiada_vel', 'Velocidad máxima de la guiada', 'km/h', 1152, ''],
+    ['guiada_vel', 'Velocidad máxima de la guiada', 'km/h', 750, 'v41: −35 % (antes 1152) para dar tiempo a reaccionar. Sale al 53 % y acelera.'],
     ['guiada_giro', 'Giro de la guiada', '°/s', 40, 'Cuanto menos, más fácil esquivarla rompiendo fuerte.'],
     { sec: 'Choques' },
     ['choque_dano', 'Daño que te hace al chocar', 'puntos', 25, ''],
@@ -389,6 +391,8 @@ function applyHeroStats() {
   W.shCd.length = SHIELD_MAX; if (W.shUse >= SHIELD_MAX) W.shUse = -1;
   GUN_DMG = S.basico_dano; GUN_AMMO = Math.max(1, Math.round(S.basico_municion)); GUN_COOL = S.basico_pausa; GUN_REFILL_DELAY = S.basico_recarga_espera; GUN_REFILL_RATE = S.basico_recarga;
   MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
+  const mv = Math.max(50, S.guiado_vel / 3.6), mk = mv / 400;   // v41: velocidad del Excel; salida, aceleración y giro en proporción a los de 400 m/s
+  MSL_SPEED[1] = mv; MSL_SPEED[0] = 160 * mk; MSL_ACCEL = 260 * mk; MSL_TURN = 3.2 * mk; MSL_CONE = clamp(S.guiado_cono, 1, 89);
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
@@ -413,7 +417,7 @@ function applyStats(vals, src) {
   ENEMY_EVADE_DIST = E.huida_distancia; ENEMY_EVADE_T[0] = E.huida_min; ENEMY_EVADE_T[1] = Math.max(E.huida_min, E.huida_max);
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
-  EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(EMSL_SPEED[0], E.guiada_vel / 3.6); EMSL_TURN = deg(E.guiada_giro);
+  EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(20, E.guiada_vel / 3.6); EMSL_SPEED[0] = EMSL_SPEED[1] * 0.53;   // (v41: la de salida, en proporción: 170 de 320 m/s) EMSL_TURN = deg(E.guiada_giro);
   ENEMY_RAM_DMG = E.choque_dano; ENEMY_RAM_TAKEN = E.choque_recibe;
   const T = STATS.torre;
   TOWER_HP = T.vida; TOWER_SCORE = T.puntos; TOWER_MSL_SURE = T.guiada_destruye >= 0.5;

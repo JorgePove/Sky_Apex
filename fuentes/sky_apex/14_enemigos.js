@@ -398,7 +398,7 @@ function enemyShoot(e) {
    pitidos rápidos y flechas rojas hacia cada bola (drawMissileWarn). */
 let EMSL_DMG = 35, EMSL_CD = 60, EMSL_GAP = 20, EMSL_LOCK = 4;                 // daño, segundos entre bolas de un mismo tirador, separación entre dos lanzamientos de cualquiera, segundos para fijar (v24: del Excel)
 const EMSL_RANGE = [500, 2500];                                                // distancia de lanzamiento (m): más cerca de 500 no lanzan
-const EMSL_SPEED = [170, 320], EMSL_ACCEL = 110, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s), aceleración (m/s²), cono del buscador (rad), adelanto, vida (s)
+const EMSL_SPEED = [110, 208], EMSL_ACCEL = 110, EMSL_FOV = 1.2, EMSL_LEAD = 0.35, EMSL_LIFE = 14;   // velocidad al salir y máxima (m/s: las pone applyStats con guiada_vel; v41: 750 km/h), aceleración (m/s²), cono del buscador (rad), adelanto, vida (s)
 let EMSL_TURN = 0.7;                                                           // giro (rad/s: con 0,7 se esquiva rompiendo fuerte con la bola a 400-600 m)
 const threat = { lock: 0, lastLaunch: -99, beepT: 0, incoming: [] };           // para los avisos: cuánto llevan fijándote (0-1) y bolas en camino
 const _Emd = new THREE.Vector3(), _Emo2 = new THREE.Vector3();
@@ -594,7 +594,8 @@ function killEnemy(e) {
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  if (mine) killFeed('Dragón destruido');                  // v41: mensaje en el centro (16); los de los aliados, aviso arriba como antes
+  else toast(allyName(byAlly) + ' derribó un dragón  +' + ENEMY_SCORE + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
   if (!mine) allySay(byAlly, 'kill');
   else storyChatter('kill');                               // v34: los compañeros reaccionan a tus derribos (19e)
 }

@@ -45,7 +45,7 @@ function addBatallon(x, z, heading, tags, n, seed) {
   n = clamp(n, 1, 2000);
   const gap = Math.max(0.8, S.separacion), cols = Math.ceil(Math.sqrt(n * 2.2)), rows = Math.ceil(n / cols);
   const w = (cols - 1) * gap, dpt = (rows - 1) * gap, fx = Math.sin(ang), fz = -Math.cos(ang), rx = -fz, rz = fx;
-  const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón aniquilado', hp: n, hpMax: n, score: S.puntos, heading: ang,
+  const u = newUnit('batallon', { tags: tags || [], label: 'Batallón', killText: 'Batallón destruido', hp: n, hpMax: n, score: S.puntos, heading: ang,
     n, alive: n, ground: true, w: w + 2, d: dpt + 2, half: Math.max(w, dpt) * 0.5 + 2, markR: 4500, radar: 'rect', noCrash: true, mesh: null, volleyT: rnd(0.5, 2),
     upd: updBatallon, hurt: battHurt, flame: battFlame, laserHit: battLaser, boxHit: battBox, cleanup: battCleanup, onKill: () => {} });
   u.pos.set(x, groundAt(x, z) + 1, z); u.q.setFromAxisAngle(UP, -ang);

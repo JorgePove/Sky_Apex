@@ -197,7 +197,9 @@ function killUnit(u, silent) {
   if (!silent) {
     if (!byAlly) heroKill();
     towerState.score += u.score; unitState.kills++; missionKill(u);
-    toast((byAlly ? allyName(byAlly) + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
+    const tail = u.killTail ? u.killTail(u) : '';
+    if (!byAlly) killFeed(u.killText || u.label + ' destruido', tail.replace(/^\s*·\s*/, ''));   // v41: mensaje en el centro (16)
+    else toast(allyName(byAlly) + ': ' + (u.killText || u.label + ' destruido') + '  +' + u.score + tail);
     if (byAlly) allySay(byAlly, 'kill'); else storyChatter(u.kind === 'batallon' ? 'battalion' : 'unit');   // (v34: reacciones, 19e)
   }
   for (const k of u.kids) killUnit(k, true);
@@ -330,7 +332,7 @@ function dmgSmoke(u, dt, d, y) {                            // tocado: humo, má
    y en la vertical). Se mece con las olas. Al hundirse escora, se llena de humo y fuego y se va al fondo. */
 function addBarco(x, z, heading, tags) {
   const S = STATS.barco_naval, ang = heading * Math.PI / 180;
-  const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco hundido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
+  const u = newUnit('barco', { tags: tags || [], label: 'Barco', killText: 'Barco destruido', hp: S.vida, hpMax: S.vida, score: S.puntos, heading: ang,
     modelKey: 'barco', markR: 8500, radar: 'ship', port: 0, crashText: 'un barco', ground: true, upd: updBarco, onKill: u => { u.dieT0 = u.dying = 9; explode(u.bc.x, u.bc.y + 6, u.bc.z, 2); } });
   u.base = new THREE.Vector3(x, WL, z); u.pos.copy(u.base); u.q0 = new THREE.Quaternion().setFromAxisAngle(UP, -ang); u.q.copy(u.q0);
   unitResize(u);

@@ -186,7 +186,8 @@ function killAirship(a) {
   if (!byAlly) heroKill();                                 // (v24: como cualquier blanco; v39: también recarga el escudo)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
-  toast((byAlly ? allyName(byAlly) + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
+  if (!byAlly) killFeed('Dirigible destruido');            // v41: mensaje en el centro (16)
+  else toast(allyName(byAlly) + ' destruyó un dirigible  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);
   if (byAlly) allySay(byAlly, 'kill'); else storyChatter('ship');   // (v34: reacciones, 19e)
   sfx.energyCharge(airshipVol(a));
 }

@@ -112,126 +112,106 @@ function drawMarkers(fwd) {
   }
   hctx.globalAlpha = 1;
 }
-/* Marcador de triángulo rojo sobre cada dragón enemigo (visible a cualquier distancia) con distancia y vida restante.
-   El blanco fijado (clic central) lleva además un cuadrado dorado; si sale de pantalla, una flecha en el borde indica hacia dónde está.
-   v21: «TGT» delante de la distancia en los que cuentan para la misión (los demás, más apagados); rombo rojo sobre cada dirigible (hasta
-   AIRSHIP_DRAW) y, sobre las torres TGT a menos de LOCK_STATIC_RANGE, una marca con «TGT» (las demás solo tienen su cristal). */
-const C_TGT = '#ff6a4a';
-function drawLockBox(t, a, d) {                            // recuadro dorado del blanco fijado; devuelve su medio lado (px)
-  const pxm = HH / (2 * d * Math.tan(camera.fov * Math.PI / 360)), half = clamp(targetHalf(t) * pxm, 17, 96);
-  hctx.globalAlpha = 1; hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2;
-  hctx.strokeRect(a.x - half, a.y - half, half * 2, half * 2);
-  hctx.lineWidth = 3.5; hctx.beginPath();                                         // esquinas reforzadas
-  for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-    const cx = a.x + sx * half, cy = a.y + sy * half, l = Math.min(10, half * 0.45);
-    hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l);
-  }
-  hctx.stroke();
-  return half;
+/* ---------- v41: blancos en el HUD, como en Ace Combat ----------
+   Cada enemigo lleva solo un marco verde a su alrededor: nada encima (los rombos rojos sobre los dirigibles se confundían con el blanco). La
+   forma dice el tipo (FRAME_SHAPE): dragones y la sierpe, cuadrado; dirigibles, barcos y el superdirigible, círculo; torres, artillería,
+   torretas y hechiceros, triángulo; batallones, rectángulo apaisado. Los que cuentan para la misión, más vivos y con «TGT» al lado; los
+   demás, más tenues. El seleccionado (clic central) parpadea y lleva a su derecha la distancia (m), el nombre y, si está herido, su vida.
+   Con la guiada, a tiro y cerca de la mira se fija sola (W.lock, 15): cuatro escuadras rojas se cierran sobre su marco y, fijado, el marco
+   pasa a rojo con «LOCK». Fuera de la pantalla, una flecha verde alrededor del centro con su distancia. Los aliados, su chevrón azul. */
+const FRAME_SHAPE = { dragon: 'sq', sierpe: 'sq', airship: 'ci', barco: 'ci', superdirigible: 'ci', tower: 'tri', artilleria: 'tri', torreta: 'tri', hechicero: 'tri', batallon: 'rect' };
+const FRAME_EXT = { sq: 1, ci: 1.05, tri: 1.08, rect: 1.15 };   // del centro al lado derecho del marco, en medios tamaños
+const FRAME_K = { dragon: 0.55 };                         // tamaño del marco respecto al medio tamaño del blanco (BLANCO.half: el del dragón es su envergadura, mucho mayor de lo que se ve)
+const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20;
+const _fa = { x: 0, y: 0 }, _fl = [[], []];               // marcos tenues y TGT del fotograma: x, y, r, forma
+function frameRange(t) {                                   // hasta dónde se marca cada tipo (m; el seleccionado, siempre)
+  if (t.kind === 'dragon') return t.squad ? 15000 : 9000;   // (v34: los escuadrones, desde más lejos)
+  if (t.kind === 'airship') return isTgt(t) ? 15000 : AIRSHIP_DRAW;
+  if (t.kind === 'tower') return LOCK_STATIC_RANGE;
+  return isTgt(t) ? 16000 : t.markR || 4000;
 }
-function hpBar(x, y, f) {
-  hctx.fillStyle = 'rgba(241,230,211,.28)'; hctx.fillRect(x - 15, y, 30, 4);
-  hctx.fillStyle = C_DANGER; hctx.fillRect(x - 15, y, 30 * clamp(f, 0, 1), 4);
+function framePath(shape, x, y, r) {                       // traza la forma (sin pintarla); r: medio tamaño en px
+  if (shape === 'ci') { hctx.moveTo(x + r * 1.05, y); hctx.arc(x, y, r * 1.05, 0, 6.2832); }
+  else if (shape === 'tri') { const R = r * 1.25; hctx.moveTo(x, y - R); hctx.lineTo(x + R * 0.866, y + R * 0.5); hctx.lineTo(x - R * 0.866, y + R * 0.5); hctx.closePath(); }
+  else if (shape === 'rect') hctx.rect(x - r * 1.15, y - r * 0.6, r * 2.3, r * 1.2);
+  else hctx.rect(x - r, y - r, 2 * r, 2 * r);
 }
-const onScreenAt = a => a.x > 20 && a.x < HW - 20 && a.y > 20 && a.y < HH - 20, nearScreen = a => a.x > -30 && a.x < HW + 30 && a.y > -30 && a.y < HH + 30;
-function drawEnemyMarkers() {
-  const a = {}, lock = enemyLock.e;
-  let lockShown = false;
-  for (const e of enemies) {
-    if (e.dead || e.off) continue;
-    const d = e.pos.distanceTo(_camP), locked = e === lock, tgt = isTgt(e);
-    if (d > (e.squad ? 15000 : 9000) || !proj(e.pos.x, e.pos.y, e.pos.z, a)) continue;   // (v34: los escuadrones, desde más lejos)
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let top = 14, half = 0;
-    if (locked && onScreen) { lockShown = true; half = drawLockBox(e, a, d); top = half + 6; }
-    const s = 6 + 5 * (1 - smooth(250, 3000, d)), x = a.x, ay = a.y - top, by = ay - s * 1.7;
-    hctx.globalAlpha = locked ? 1 : !tgt ? 0.6 : e.mode === 'patrol' ? 0.82 : 1;
-    hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.85)'; hctx.lineWidth = 1.5;
-    hctx.beginPath(); hctx.moveTo(x, ay); hctx.lineTo(x - s, by); hctx.lineTo(x + s, by); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hudText((e.unknown && e.mode === 'cruise' ? 'DESCONOCIDO  ' : tgt ? 'TGT  ' : '') + fmtDist(d), x, by - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');   // (v34: sin identificar)
-    if (e.hp < ENEMY_HP) hpBar(x, locked && onScreen ? a.y + half + 6 : ay + 5, e.hp / ENEMY_HP);   // barra de vida cuando está dañado
+function targetName(t) {
+  if (t.kind === 'dragon') return t.unknown && t.mode === 'cruise' ? 'DESCONOCIDO' : 'DRAGÓN';   // (v34: sin identificar)
+  if (t.kind === 'batallon') return 'BATALLÓN · ' + t.alive;
+  if (t.kind === 'sierpe' && t.shield) return 'SIERPE · ESCUDO';
+  return String(t.label || (BLANCO[t.kind] || BLANCO.dragon).name).toUpperCase();
+}
+function drawTargets() {
+  const k = HUD_K, sel = enemyLock.e, a = _fa, tanFov = Math.tan(camera.fov * Math.PI / 360);
+  let selF = null, sup = null;
+  _fl[0].length = _fl[1].length = 0;
+  const add = t => {
+    const c = targetCenter(t), d = c.distanceTo(_camP);
+    if ((t !== sel && d > frameRange(t)) || !proj(c.x, c.y, c.z, a) || !onScreenAt(a)) return;
+    const r = clamp(targetHalf(t) * (FRAME_K[t.kind] || 1) * HH / (2 * d * tanFov), 7 * k, HH * 0.35), shape = FRAME_SHAPE[t.kind] || 'sq';
+    if (t.kind === 'superdirigible') sup = { u: t, x: a.x, y: a.y, r };
+    if (t === sel) selF = { t, x: a.x, y: a.y, r, shape, d };
+    else _fl[isTgt(t) ? 1 : 0].push(a.x, a.y, r, shape);
+  };
+  eachTarget(add);
+  hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
+  for (let g = 0; g < 2; g++) {                            // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
+    const L = _fl[g]; if (!L.length) continue;
+    hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
+    hctx.globalAlpha = g ? 0.95 : 0.5;
+    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = 'rgba(0,18,8,.5)'; hctx.stroke();
+    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = PAL_G.line; hctx.stroke();
   }
-  let nearAir = null, nearAirD = Infinity;                  // v23: de lejos (más de 4 km) solo el más cercano lleva texto (una flota no se amontona)
-  for (const s of airships) if (!s.dead) { const d = s.pos.distanceTo(_camP); if (d < nearAirD) { nearAirD = d; nearAir = s; } }
-  for (const s of airships) {                               // v21: dirigibles: rombo rojo hueco, distancia y vida
-    if (s.dead) continue;
-    const d = s.pos.distanceTo(_camP), locked = s === lock, tgt = isTgt(s);
-    if (d > (tgt ? 15000 : AIRSHIP_DRAW) || !proj(s.pos.x, s.pos.y, s.pos.z, a)) continue;   // (v23: los TGT, marcados hasta 15 km aunque la niebla ya no deje verlos)
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let half = 0;
-    if (locked && onScreen) { lockShown = true; half = drawLockBox(s, a, d); }
-    const r = 6 + 4 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : 26);
-    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath(); hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); hctx.stroke();
-    if (d < 4000 || locked || s === nearAir) hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
-    if (s.hp < AIRSHIP_HP) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, s.hp / AIRSHIP_HP);
+  const T = _fl[1];                                        // «TGT» junto a los que cuentan para la misión
+  if (T.length) {
+    hctx.globalAlpha = 0.95; hctx.font = FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = 'rgba(0,16,7,.8)'; hctx.fillStyle = PAL_G.ink;
+    for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
   }
-  if (drawUnitMarkers(a, lock)) lockShown = true;          // v29: unidades nuevas (6f)
-  for (const t of TOWER_SITES) {                            // v21: torres TGT (y la fijada): marca sobre el tejado
-    if (t.dead) continue;
-    const locked = t === lock, tgt = isTgt(t);
-    if (!tgt && !locked) continue;
-    const d = t.pos.distanceTo(_camP);
-    if (d > LOCK_STATIC_RANGE) continue;
-    if (locked && proj(t.pos.x, t.pos.y, t.pos.z, a) && onScreenAt(a)) { lockShown = true; drawLockBox(t, a, d); }
-    if (!proj(t.x, t.y + TOWER_TOP + 12, t.z, a) || !onScreenAt(a)) continue;
-    hctx.globalAlpha = 1; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath(); hctx.moveTo(a.x - 6, a.y - 10); hctx.lineTo(a.x, a.y - 3); hctx.lineTo(a.x + 6, a.y - 10); hctx.stroke();
-    hudText((tgt ? 'TGT  ' : '') + fmtDist(d), a.x, a.y - 15, FM(locked ? 13 : 11), locked ? C_GOLD : C_TGT, 'center');
-  }
-  hctx.globalAlpha = 1;
-  if (lock && !lock.dead) { if (lockShown) { drawLockCircle(); drawLeadPipper(lock); } else drawLockArrow(lock); }
+  hctx.restore();
+  if (sup) superBar(sup.u, sup.x, sup.y, sup.r);
+  if (sel && !sel.dead) { if (selF) { drawSelected(selF); drawLeadPipper(sel); } else drawLockArrow(sel); }
   drawAllyMarker(a);
 }
-/* v29: unidades nuevas (6f). Artillería y torretas: cuadrado hueco; batallones: rectángulo con los soldados que quedan; barcos: rombo
-   (como los dirigibles); superdirigible y sierpe: rombo doble con su nombre (la sierpe, «ESCUDO» mientras lo tiene); hechiceros: círculo.
-   Se ven hasta u.markR (las TGT y la fijada, siempre); el texto, de cerca, si es TGT o si está fijada. Devuelve si dibujó el recuadro del
-   blanco fijado. */
-function drawUnitMarkers(a, lock) {
-  let shown = false;
-  for (const u of UNITS) {
-    if (u.dead) continue;
-    const d = u.pos.distanceTo(_camP), locked = u === lock, tgt = isTgt(u);
-    if ((d > u.markR && !locked && !tgt) || d > 16000 || !proj(u.bc.x, u.bc.y, u.bc.z, a)) continue;
-    const onScreen = onScreenAt(a);
-    if (!onScreen && !nearScreen(a)) continue;
-    let half = 0;
-    if (locked && onScreen) { shown = true; half = drawLockBox(u, a, d); }
-    const big = u.kind === 'superdirigible' || u.kind === 'sierpe', r = (big ? 9 : 5) + 3 * (1 - smooth(300, 4000, d)), y = a.y - (half ? half + 6 + r : big ? 34 : 18);
-    hctx.globalAlpha = locked || tgt ? 1 : 0.6; hctx.strokeStyle = u.kind === 'hechicero' ? C_TGT : C_DANGER; hctx.lineWidth = 2;
-    hctx.beginPath();
-    if (u.kind === 'artilleria' || u.kind === 'torreta') hctx.rect(a.x - r, y - r, 2 * r, 2 * r);
-    else if (u.kind === 'batallon') hctx.rect(a.x - r * 1.8, y - r * 0.8, 3.6 * r, 1.6 * r);
-    else if (u.kind === 'hechicero') hctx.arc(a.x, y, r, 0, 6.283);
-    else { hctx.moveTo(a.x, y - r); hctx.lineTo(a.x + r * 1.5, y); hctx.lineTo(a.x, y + r); hctx.lineTo(a.x - r * 1.5, y); hctx.closePath(); }
+/* El seleccionado: su marco parpadea (verde) o, fijado para la guiada, rojo fijo; mientras se fija, cuatro escuadras rojas se cierran sobre
+   él. A la derecha: «LOCK» si está fijado, la distancia en metros, el nombre (con «TGT» si cuenta para la misión) y su vida si está herido. */
+function drawSelected(f) {
+  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = locked ? PAL_R : PAL_G, p = W.lock;
+  const blink = locked ? 1 : Math.sin(gameTime * 2 * Math.PI * 2.4) > -0.3 ? 1 : 0.3;
+  hctx.save(); hctx.lineJoin = 'round';
+  hctx.globalAlpha = blink; hctx.beginPath(); framePath(shape, x, y, r);
+  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = 'rgba(0,18,8,.55)'; hctx.stroke();
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
+  hctx.globalAlpha = 1;
+  if (p > 0.01 && !locked) {                               // fijando: escuadras rojas que se cierran del doble de lejos hasta el marco
+    const q = r * FRAME_EXT[shape] + 4 * k + (r + 26 * k) * (1 - p), l = 7 * k;
+    hctx.shadowColor = PAL_R.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PAL_R.line; hctx.lineWidth = 2 * k; hctx.beginPath();
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const cx = x + sx * q, cy = y + sy * q; hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l); }
     hctx.stroke();
-    if (big) { hctx.beginPath(); hctx.moveTo(a.x, y - r * 0.5); hctx.lineTo(a.x + r * 0.75, y); hctx.lineTo(a.x, y + r * 0.5); hctx.lineTo(a.x - r * 0.75, y); hctx.closePath(); hctx.stroke(); }
-    if (d < (big ? 15000 : u.kind === 'batallon' ? 2500 : 1000) || locked || tgt) {   // (la artillería va en grupos: de lejos, solo el símbolo)
-      const name = big ? u.label.toUpperCase() + (u.kind === 'sierpe' && u.shield ? ' · ESCUDO' : '') + '  ' : u.kind === 'batallon' ? u.alive + '  ·  ' : '';
-      hudText((tgt ? 'TGT  ' : '') + name + fmtDist(d), a.x, y - r - 6, FM(locked ? 13 : 11), locked ? C_GOLD : tgt ? C_TGT : C_BONE, 'center');
-    }
-    if (u.kind === 'superdirigible') superBar(u, a, half);
-    else if (u.hp < u.hpMax) hpBar(a.x, half ? a.y + half + 6 : y + r + 5, u.hp / u.hpMax);
   }
-  hctx.globalAlpha = 1;
-  return shown;
+  hctx.restore();
+  let lx = x + r * FRAME_EXT[shape] + 9 * k, al = 'left';  // etiqueta a la derecha (si no cabe, a la izquierda)
+  if (lx > HW - 150 * k) { lx = x - r * FRAME_EXT[shape] - 9 * k; al = 'right'; }
+  if (locked) hudGlow('LOCK', lx, y - 17 * k, 11 * k, P.ink, P.glow, al, 2 * k);
+  hudGlow(String(Math.round(d)), lx, y - 1 * k, 14 * k, P.ink, P.glow, al, 1 * k);
+  hudGlow((isTgt(t) ? 'TGT  ' : '') + targetName(t), lx, y + 15 * k, 11.5 * k, P.line, P.glow, al, 1.2 * k);
+  const hm = t.hpMax || (t.kind === 'dragon' ? ENEMY_HP : t.kind === 'airship' ? AIRSHIP_HP : 0);
+  if (hm > 0 && t.hp < hm) {                               // vida, si está herido
+    const w = 52 * k, bx = al === 'left' ? lx : lx - w, by = y + 21 * k, fr = clamp(t.hp / hm, 0, 1);
+    hctx.save(); hctx.fillStyle = 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
+    hctx.shadowColor = P.glow; hctx.shadowBlur = 5 * k; hctx.fillStyle = P.line; hctx.fillRect(bx, by, w * fr, 3 * k); hctx.restore();
+  }
 }
-/* v31: barra de vida del superdirigible, grande y bajo el casco (siempre, no solo tocado), con su vida y las torretas que le quedan. */
-const _sb = { x: 0, y: 0 };
-function superBar(u, a, half) {
-  const bx = a.x, by0 = proj(u.bc.x, u.bc.y - u.size * 0.06, u.bc.z, _sb) ? _sb.y + 18 : a.y + 40, by = Math.max(by0, half ? a.y + half + 12 : 0);
-  if (by > HH - 60) return;
-  const w = 220, h = 9, f = clamp(u.hp / u.hpMax, 0, 1), left = u.kids.filter(k => !k.dead).length;
-  hctx.globalAlpha = 1;
-  hctx.fillStyle = 'rgba(13,10,15,.7)'; hctx.fillRect(bx - w / 2 - 3, by - 3, w + 6, h + 6);
-  hctx.fillStyle = 'rgba(241,230,211,.22)'; hctx.fillRect(bx - w / 2, by, w, h);
-  hctx.fillStyle = f < 0.35 ? '#ff3b2e' : C_DANGER; hctx.fillRect(bx - w / 2, by, w * f, h);
-  hctx.strokeStyle = 'rgba(241,230,211,.55)'; hctx.lineWidth = 1; hctx.strokeRect(bx - w / 2 - 0.5, by - 0.5, w + 1, h + 1);
-  hudText('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '   ·   TORRETAS ' + left + ' / ' + u.kids.length, bx, by + h + 14, FM(11), C_BONE, 'center');
+/* v31: barra de vida del superdirigible, grande y bajo el casco (siempre, no solo tocado), con su vida y las torretas que le quedan. v41: con
+   el estilo del HUD, bajo su marco circular. */
+function superBar(u, x, y, r) {
+  const k = HUD_K, w = 220 * k, h = 11 * k, by = y + r * 1.05 + 14 * k;
+  if (by > HH - 110 * k) return;
+  const left = u.kids.filter(c => !c.dead).length;
+  hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
+  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.2 * k);
 }
-/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. */
+/* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. v41: el texto, en Graduate. */
 const C_ALLY = '#5ab4ff';
 function drawAllyMarker(a) {
   for (const al of allies) {
@@ -241,29 +221,14 @@ function drawAllyMarker(a) {
     const s = 6 + 3 * (1 - smooth(250, 3000, d)), y = a.y - 16;
     hctx.globalAlpha = 1; hctx.strokeStyle = C_ALLY; hctx.lineWidth = 2;
     hctx.beginPath(); hctx.moveTo(a.x - s, y - s); hctx.lineTo(a.x, y); hctx.lineTo(a.x + s, y - s); hctx.stroke();
-    hudText(allyName(al).toUpperCase() + '  ' + fmtDist(d), a.x, y - s - 6, FM(11), C_ALLY, 'center');
+    hudGlow(allyName(al).toUpperCase() + '  ' + Math.round(d), a.x, y - s - 6, 10.5 * HUD_K, C_ALLY, 'rgba(60,150,255,.6)', 'center', HUD_K);
   }
-}
-/* Círculo rojo de la bola guiada (dragón fijado a menos de 3 km): la carga del bloqueo lo rodea en dorado. */
-const _Wh = { x: 0, y: 0, r: 0, d: 0, in: false };
-function drawLockCircle() {
-  if (W.msl <= 0 || lockCircle(_Wh) !== '' || !weaponsReady()) return;
-  const { x, y, r } = _Wh, p = W.lock;
-  hctx.globalAlpha = _Wh.in ? 1 : 0.7;
-  hctx.lineWidth = 4.5; hctx.strokeStyle = 'rgba(25,6,6,.55)'; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
-  hctx.lineWidth = _Wh.in ? 2.4 : 1.6; hctx.strokeStyle = C_DANGER; hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283); hctx.stroke();
-  if (p > 0) {
-    hctx.globalAlpha = 1; hctx.lineWidth = 5; hctx.strokeStyle = C_GOLD;
-    hctx.beginPath(); hctx.arc(x, y, r, -Math.PI / 2, -Math.PI / 2 + p * 6.283); hctx.stroke();
-    hudText('FIJANDO  ' + Math.round(p * 100) + ' %', x, y + r + 18, FM(12), C_GOLD, 'center');
-  }
-  hctx.globalAlpha = 1;
 }
 /* Indicador de adelanto (estilo Star Citizen): círculo gris donde hay que apuntar para que la bola de fuego alcance al dragón fijado. */
 const _lp = new THREE.Vector3(), _lm = new THREE.Vector3(), _lq = new THREE.Vector3();
 const LEAD_MIN_V = 150 / 3.6;                              // v31: el círculo de adelanto solo sale con blancos a más de 150 km/h (lo quieto o lento se ve mejor sin él)
 function drawLeadPipper(e) {
-  if (e.vel.lengthSq() < LEAD_MIN_V * LEAD_MIN_V) return;
+  if (!e.vel || e.vel.lengthSq() < LEAD_MIN_V * LEAD_MIN_V) return;
   heroMouth(_lm);                                                                                            // boca del jugador: de donde sale la bola
   if (interceptPoint(e, _lm, _lp) < 0) return;                                                               // fuera de alcance
   _lq.subVectors(_lp, _lm).normalize().multiplyScalar(1400).add(_lm);                                        // el marcador de disparo va a un punto lejano de esa línea
@@ -276,24 +241,36 @@ function drawLeadPipper(e) {
   hctx.beginPath(); hctx.arc(p.x, p.y, 7.5, 0, 6.283); hctx.stroke();
   hctx.fillStyle = hctx.strokeStyle; hctx.beginPath(); hctx.arc(p.x, p.y, 1.7, 0, 6.283); hctx.fill();
 }
-/* Flecha en el borde de la pantalla hacia el dragón fijado que está fuera del campo de visión (estilo Ace Combat). */
-function drawLockArrow(e) {
-  _pv.set(e.pos.x, e.pos.y, e.pos.z).applyMatrix4(camera.matrixWorldInverse);       // espacio de cámara
-  const pm = camera.projectionMatrix.elements;
-  let dx = _pv.x * pm[0] * HW * 0.5, dy = -_pv.y * pm[5] * HH * 0.5;               // dirección en pantalla (y hacia abajo); válida también si está detrás
-  const l = Math.hypot(dx, dy);
-  if (l < 1e-3) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
-  const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * HUD_K;      // márgenes: brújula arriba, vida abajo
-  const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
-  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, d = e.pos.distanceTo(_camP);
-  hctx.save(); hctx.globalAlpha = 0.8 + 0.2 * Math.sin(gameTime * 6);
-  hctx.fillStyle = 'rgba(13,10,15,.62)'; hctx.beginPath(); hctx.arc(x, y, 25, 0, 6.283); hctx.fill();   // fondo para leerla sobre cualquier cosa
-  hctx.translate(x, y); hctx.rotate(Math.atan2(dy, dx));
-  hctx.fillStyle = C_GOLD; hctx.strokeStyle = 'rgba(25,14,4,.9)'; hctx.lineWidth = 1.6;
-  hctx.beginPath(); hctx.moveTo(18, 0); hctx.lineTo(-11, -14); hctx.lineTo(-3, 0); hctx.lineTo(-11, 14); hctx.closePath(); hctx.fill(); hctx.stroke();
+/* v41: flecha alargada de holograma (punta en x, y; apunta a ang), con degradado de la punta a la cola, contorno y halo. */
+function hudArrow(x, y, ang, P, len) {
+  const k = HUD_K, L = len * k, w = 10 * k, sw = w * 0.36;
+  hctx.save(); hctx.translate(x, y); hctx.rotate(ang);
+  hctx.beginPath(); hctx.moveTo(0, 0); hctx.lineTo(-L * 0.4, -w); hctx.lineTo(-L * 0.34, -sw); hctx.lineTo(-L, -sw); hctx.lineTo(-L, sw); hctx.lineTo(-L * 0.34, sw); hctx.lineTo(-L * 0.4, w); hctx.closePath();
+  const g = hctx.createLinearGradient(0, 0, -L, 0); g.addColorStop(0, P.ink); g.addColorStop(0.35, P.line); g.addColorStop(1, P.faint);
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 12 * k; hctx.fillStyle = g; hctx.fill();
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = 1.2 * k; hctx.strokeStyle = P.line; hctx.stroke();
   hctx.restore();
-  hctx.globalAlpha = 1;
-  hudText(fmtDist(d), x - dx * 44, y - dy * 36 + 4, FM(13), C_GOLD, 'center');
+}
+/* Dirección en pantalla hacia un punto del mundo (vale también si está detrás de la cámara): en out.x, out.y, normalizada (y hacia abajo). */
+const _dr = { x: 0, y: 0 };
+function screenDir(p, out) {
+  _pv.set(p.x, p.y, p.z).applyMatrix4(camera.matrixWorldInverse);
+  const pm = camera.projectionMatrix.elements;
+  let dx = _pv.x * pm[0] * HW * 0.5, dy = -_pv.y * pm[5] * HH * 0.5; const l = Math.hypot(dx, dy);
+  if (l < 1e-3) { dx = 0; dy = 1; } else { dx /= l; dy /= l; }
+  out.x = dx; out.y = dy; return out;
+}
+/* Flecha hacia el blanco seleccionado que está fuera de la pantalla (estilo Ace Combat), en una elipse alrededor del centro. v41: verde,
+   alargada y con su distancia (m) en Graduate, como los demás números del HUD. */
+function drawLockArrow(e) {
+  const k = HUD_K, c = targetCenter(e), { x: dx, y: dy } = screenDir(c, _dr);
+  const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * k;          // márgenes: brújula arriba, vida abajo
+  const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
+  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = W.locked ? PAL_R : PAL_G;
+  hctx.save(); hctx.globalAlpha = 0.82 + 0.18 * Math.sin(gameTime * 6);
+  hudArrow(x, y, Math.atan2(dy, dx), P, L);
+  hctx.restore();
+  hudGlow(String(Math.round(c.distanceTo(_camP))), x - dx * (L + 26) * k, y - dy * (L + 16) * k + 5 * k, 14 * k, P.ink, P.glow, 'center', k);
 }
 /* v39: minimapa cuadrado (abajo a la izquierda; mockup de Jorge), con el rumbo hacia arriba: tú, abajo del centro (a 2/3 del alto), con
    más campo por delante; anillos a 750 m, 1,5 y 3 km (el de 3 km toca los lados); cruz y líneas a las esquinas de arriba; N, E, S y W en
@@ -448,32 +425,17 @@ function drawMinimap(heading, fwd) {
   hctx.restore();
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
-/* Bolas guiadas enemigas en camino: rombo rojo sobre cada una si está en pantalla; si no, flecha roja en un anillo alrededor del centro,
-   con la distancia (como el aviso de misil de Ace Combat). */
+/* Bolas guiadas enemigas en camino. v41: solo una flecha roja de holograma en un anillo alrededor del centro, hacia de donde viene cada una
+   (se vea o no), con la distancia (m) por fuera (si apunta arriba, por dentro: arriba va la radio); el pitido que se acelera al acercarse va
+   en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const a = {}, pm = camera.projectionMatrix.elements, blink = 0.6 + 0.4 * Math.sin(gameTime * 14);
-  hctx.save();
+  const k = HUD_K, R = Math.min(HW, HH) * 0.36, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);
   for (const f of threat.incoming) {
-    const d = f.pos.distanceTo(_camP);
-    if (proj(f.pos.x, f.pos.y, f.pos.z, a) && a.x > 30 && a.x < HW - 30 && a.y > 30 && a.y < HH - 30) {
-      hctx.globalAlpha = blink; hctx.strokeStyle = C_DANGER; hctx.lineWidth = 2.5;
-      hctx.beginPath(); hctx.moveTo(a.x, a.y - 16); hctx.lineTo(a.x + 16, a.y); hctx.lineTo(a.x, a.y + 16); hctx.lineTo(a.x - 16, a.y); hctx.closePath(); hctx.stroke();
-      hudText(fmtDist(d), a.x, a.y - 22, FM(12), C_DANGER, 'center');
-      continue;
-    }
-    _pv.set(f.pos.x, f.pos.y, f.pos.z).applyMatrix4(camera.matrixWorldInverse);
-    let dx = _pv.x * pm[0], dy = -_pv.y * pm[5]; const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
-    if (_pv.z > 0 && l < 1e-3) { dx = 0; dy = 1; }                         // justo detrás: abajo
-    const R = Math.min(HW, HH) * 0.36, x = HW / 2 + dx * R, y = HH / 2 + dy * R;   // (v39: fuera de las cajas de SPEED y ALT; antes 0,24)
-    hctx.globalAlpha = blink;
-    hctx.translate(x, y); hctx.rotate(Math.atan2(dy, dx));
-    hctx.fillStyle = C_DANGER; hctx.strokeStyle = 'rgba(25,6,6,.9)'; hctx.lineWidth = 1.5;
-    hctx.beginPath(); hctx.moveTo(20, 0); hctx.lineTo(-10, -13); hctx.lineTo(-3, 0); hctx.lineTo(-10, 13); hctx.closePath(); hctx.fill(); hctx.stroke();
-    hctx.setTransform(hudEl.width / HW, 0, 0, hudEl.width / HW, 0, 0);
-    hudText(fmtDist(d), x - dx * 34, y - dy * 30 + 4, FM(12), C_DANGER, 'center');
+    const { x: dx, y: dy } = screenDir(f.pos, _dr), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
+    hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
+    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
   }
-  hctx.restore(); hctx.globalAlpha = 1;
 }
 /* v15: fuera del área de la misión, hacia su centro (a la altura del jugador): rombo dorado si se ve; si no, flecha dorada en un anillo
    alrededor del centro de la pantalla, como la de los misiles. */
@@ -691,6 +653,33 @@ function drawHealth() {
   hudBar(x, y, w, h, f, Math.ceil(F.health) + '/' + fmtStat(hpMax), 18 * k, f <= 0.35 ? PAL_R : PAL_G, 10);
   hctx.restore();
 }
+/* v41: mensaje al destruir un enemigo (tú), como en Ace Combat: «DRAGÓN DESTRUIDO» en el centro de la pantalla, por encima de la mira, en
+   un panel translúcido con el estilo del HUD; debajo, en pequeño, lo que añada la unidad (torretas o hechiceros que quedan). Entra algo más
+   ancho y se ajusta, dura KILL_T s y se apaga; si llegan varios seguidos, los anteriores suben y se atenúan (tres como mucho). Los derribos
+   de los aliados siguen con el aviso de arriba. */
+const KILLS = [], KILL_T = 2.4;
+function killFeed(txt, sub) {
+  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
+  if (KILLS.length > 3) KILLS.length = 3;
+}
+function drawKills() {
+  for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
+  if (!KILLS.length) return;
+  const k = HUD_K, size = 16 * k, sp = 2.4 * k;
+  let y = HH * 0.31;
+  hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px';
+  const tws = KILLS.map(m => hctx.measureText(m.txt).width); hctx.restore();
+  KILLS.forEach((m, i) => {
+    const t = gameTime - m.t0, al = Math.min(1, t / 0.12) * Math.min(1, (KILL_T - t) / 0.5) * (i ? 0.6 : 1);
+    const w = (tws[i] + 54 * k) * (1 + 0.22 * Math.max(0, 1 - t / 0.16)), h = (m.sub ? 40 : 30) * k;
+    hctx.save(); hctx.globalAlpha = al;
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_G, 8 * k, 0.8);
+    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, PAL_G.ink, PAL_G.glow, 'center', sp);
+    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k);
+    hctx.restore();
+    y -= h + 8 * k;
+  });
+}
 /* Boost en pantalla: túnel (los bordes se oscurecen y se cierran hacia el centro, con un velo cálido) y líneas radiales que nacen
    en el borde del túnel y se aceleran hacia fuera. Van debajo de los instrumentos. fx = intensidad del boost, kick = golpe al activarlo. */
 function drawSpeedLines(fx, kick) {
@@ -723,12 +712,13 @@ function drawHUD() {
   drawCompass(heading);
   if (dragonAnim.cam < 0.5) drawLadder(fwd);                 // (v27: en 1ª persona de verdad; la cámara de apuntado la saca)
   drawMarkers(fwd);
-  drawEnemyMarkers();
+  drawTargets();                                           // (v41: marcos por tipo, como en Ace Combat)
   drawMinimap(heading, fwd);                               // (v39: el HUD de Ace Combat; antes, radar redondo, velocidad e instrumentos a los lados)
   drawWeapons();
   drawMissileWarn();
   if (MS.out && state === 'playing') drawAreaArrow();       // v15: fuera del área de la misión
   drawFlightBoxes();
+  drawKills();                                             // v41: «X DESTRUIDO»
   drawHealth();
   // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
   const k = HUD_K; let oy = 36 * k;
@@ -811,17 +801,16 @@ function updateWorld(dt) {
   // sonido y aviso de proyectiles (v32: el aleteo, arriba, con el golpe de ala); viento según velocidad y aceleración
   F.accS += ((F.speed - F.prevSpeed) / Math.max(dt, 1e-3) - F.accS) * (1 - Math.exp(-dt * 3)); F.prevSpeed = F.speed;
   sfx.update(clamp(sn, 0, 1), F.throttle, F.boostFx, F.hoverK, state === 'playing' ? F.speed / VMAX : 0, F.accS);
-  // avisos: bola guiada en camino > te están fijando > virote o bola cerca
+  // avisos. v41: solo las bolas guiadas que vienen a por ti: flecha roja en el HUD (drawMissileWarn) y pitido que se acelera al acercarse
+  // (de 0,6 s a 3 km a casi continuo a menos de 150 m); y «TE ESTÁN FIJANDO» mientras un dragón te fija. Fuera el texto «¡PROYECTIL
+  // APROXIMÁNDOSE!» y el aviso de los proyectiles sueltos (salía a menudo y confundía)
   const near = threat.incoming.reduce((m, f) => Math.min(m, f.pos.distanceTo(p)), 1e9);
   if (state === 'playing' && threat.incoming.length) {
-    setWarn('¡PROYECTIL APROXIMÁNDOSE!', '', 0.4 + 0.6 * Math.abs(Math.sin(gameTime * 14)));
-    if (gameTime - lastBeep > lerp(0.09, 0.4, clamp(near / 2500, 0, 1))) { lastBeep = gameTime; sfx.warnMissile(); }
+    warnEl.style.opacity = '0';
+    if (gameTime - lastBeep > lerp(0.06, 0.6, clamp((near - 150) / 2850, 0, 1))) { lastBeep = gameTime; sfx.warnMissile(); }
   } else if (state === 'playing' && threat.lock > 0.05) {
     setWarn('TE ESTÁN FIJANDO', 'var(--gold)', 0.45 + 0.55 * Math.abs(Math.sin(gameTime * 6)));
     if (gameTime - lastBeep > 0.6) { lastBeep = gameTime; sfx.warnLock(); }
-  } else if (boltWarn > 0.02 && state === 'playing') {
-    setWarn('PROYECTIL', '', 0.45 + 0.55 * Math.abs(Math.sin(gameTime * 9)));
-    if (gameTime - lastBeep > 0.55 - boltWarn * 0.35) { lastBeep = gameTime; sfx.beep(); }
   } else warnEl.style.opacity = '0';
   vigAlpha = Math.max(0, vigAlpha - dt * 1.5); vigEl.style.opacity = String(vigAlpha);
   updateRider(dt);                                         // al final: la cámara ya está colocada (temblores y campo de visión incluidos)
