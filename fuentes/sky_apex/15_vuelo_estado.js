@@ -13,7 +13,7 @@ let gameTime = 0;
 const keys = {};
 const dragonVel = new THREE.Vector3();
 const F = {
-  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, armor: 50, lastHit: -99, fireFlash: 0,   // (v24: armadura)
+  speed: 70, throttle: 0.5, rate: { p: 0, y: 0, r: 0 }, health: 100, lastHit: -99, fireFlash: 0,   // (v39: sin armadura; la vida se regenera)
   aimWorld: new THREE.Vector3(0, 0, -1), aimLocal: new THREE.Vector3(0, 0, -1),
   flapTarget: 0.6, third: false, sens: 1, locked: false, lockRequested: false, ndcX: 0, ndcY: 0, pdx: 0, pdy: 0,
   sink: 0, deadT: 0, lookYaw: 0, lookPit: 0, lookHeld: false,   // mirar alrededor con la Z (rad)
@@ -226,7 +226,7 @@ function startGame() {
   resetRun(true);
   sfx.init(); menuEl.hidden = true; state = 'playing';
   music.menu.stop(1.6); music.tension.stop(1); music.game.play(2.5);   // la música del menú se funde y entra la de la partida (v34: y fuera la de tensión, al reintentar)
-  F.health = heroHpMax(); F.armor = ARMOR_MAX; F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida y armadura del dragón elegido)
+  F.health = heroHpMax(); F.lastHit = -99; towerState.score = 0; towerState.kills = 0;   // (v24: vida del dragón elegido)
   spawnEnemies();
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   devHoverStart();                                         // v32: en los modos de prueba se empieza en hover
@@ -297,7 +297,7 @@ function toggleHover() {
 function crash(why) {
   if (state !== 'playing') return;
   if (devCheat('noCrash')) { const p = dragon.position, g = Math.max(heightAt(p.x, p.z), WL); if (p.y < g + 3) p.y = g + 3; return; }   // v27: Dev Test, «sin choques»
-  state = 'dead'; F.deadT = 0; W.lmb = W.rmb = false; stats.deaths++; if (W.shieldT > 0) { W.shieldT = 0; W.shieldFade = 0.4; }
+  state = 'dead'; F.deadT = 0; W.lmb = W.rmb = false; stats.deaths++; if (W.shieldT > 0) { W.shieldT = 0; W.shieldFade = 0.4; shieldEnd(); }
   document.getElementById('deadwhy').textContent = why; F.deadWhy = why;
   deadEl.hidden = false;
   const p = dragon.position;
@@ -309,19 +309,19 @@ function respawn() {
   for (let i = 0, s; i < 6 && (s = islandAt(p.x, p.y, p.z, 90)); i++) p.y = s.yMax + 130;
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion); _f.y = 0; if (_f.lengthSq() < 1e-4) _f.set(0, 0, -1); _f.normalize();
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
-  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.armor = ARMOR_MAX; F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
+  F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
   dodgeReset(); devHoverStart();                           // (v32: en los modos de prueba, también al reaparecer)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
 function boltsClear() { for (const b of bolts) scene.remove(b.mesh); bolts.length = 0; }
-/* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. v24: el daño se lo lleva primero la armadura y lo que sobra, la vida. */
+/* light: impacto pequeño (antiaéreo): menos sacudida y sin estallido. v39: sin armadura; tras HP_REGEN_WAIT s sin daño, la vida se regenera (updateFlight). */
 function hurtDragon(n, why, light) {
   if (cine.on || devCheat('god')) return;                  // v26: la entrada de cine no se interrumpe (v27: ni en Dev Test con «invulnerable»)
   F.lastHit = gameTime; stats.dmgTaken += n;
-  const a = Math.min(F.armor, n); F.armor -= a; F.health -= n - a;
-  if (n - a > 0 && F.health > 0) storyChatter(F.health < heroHpMax() * 0.3 ? 'lowhp' : !light ? 'hurt' : '');   // v34: los compañeros reaccionan (19e)
+  F.health -= n;
+  if (n > 0 && F.health > 0) storyChatter(F.health < heroHpMax() * 0.3 ? 'lowhp' : !light ? 'hurt' : '');   // v34: los compañeros reaccionan (19e)
   if (light) { vigAlpha = Math.max(vigAlpha, 0.45); camShake = Math.max(camShake, 0.22); if (!(gameTime - hurtDragon.sndT < 0.1)) { hurtDragon.sndT = gameTime; sfx.hit(); } }
   else { vigAlpha = 1; camShake = Math.max(camShake, 0.7); sfx.hurt(); const p = dragon.position; explode(p.x, p.y - 2, p.z, 0.35); }
   if (F.health <= 0) { F.health = 0; crash(why || 'Te derribaron'); }
@@ -382,7 +382,7 @@ const MSL_CIRCLE_K = 0.5;                                                       
 const MSL_SPEED = [160, 400], MSL_ACCEL = 260, MSL_TURN = 3.2, MSL_LIFE = 15;    // velocidad al salir (al menos la del dragón + 40) y máxima (m/s), aceleración (m/s²), giro (rad/s), vida (s)
 const FLAME_SPEED = 240;                                                          // velocidad de las llamas (m/s)
 let FLAME_RANGE = 300, FLAME_DPS = 15, FLAME_HEAT = 5, FLAME_COOL = 4, OVERHEAT_T = 10;   // alcance (m), daño por segundo, segundos seguidos hasta sobrecalentarse, segundos en enfriarse del todo, segundos sin armas
-let ULT_TIME = 200, ULT_PER_KILL = 0.05;                                          // rayo: de 0 a 100 % en ULT_TIME s; carga por blanco destruido (dragón, torre o dirigible)
+let ULT_TIME = 200, ULT_PER_KILL = 0.05;                                          // rayo: de 0 a 100 % en ULT_TIME s; carga por enemigo destruido (heroKill)
 const COMBO_WIN = 0.3;                                                            // ventana de los dos clics (s)
 const LASER_CHARGE = 0.4, LASER_SHOOT = 6000, LASER_R = 8;                        // carga en la boca (s), velocidad a la que sale el rayo (m/s), radio de daño (m)
 let LASER_T = 5, LASER_RANGE = 8000, LASER_DPS = 50;                              // duración (s, desde el clic), alcance (m), daño por segundo
@@ -392,15 +392,22 @@ const W = {
   msl: MSL_AMMO, lock: 0, lockArmed: false, lockWhy: 'sin', lockIn: false, beepT: 0, mslFlash: 0, mslQ: null,   // bola guiada: munición, carga 0-1, si el clic actual puede cargar, estado del círculo, lanzamiento pendiente
   heat: 0, heatDelay: 0, overheat: 0, flame: false,                               // llamarada: calor 0-1, segundos de sobrecalentamiento que quedan
   ult: 0, ultFull: false, laser: 0, snd: false,                                   // rayo: carga 0-1, segundos de rayo que quedan
-  shield: 2, shieldT: 0, shieldFade: 0, shieldHit: 0                              // escudo: cargas, segundos que le quedan, desvanecido final y destello de impacto
+  shCd: [0, 0, 0], shUse: -1, shieldT: 0, shieldFade: 0, shieldHit: 0            // escudo (v39): recarga que le queda a cada slot (0 = listo), slot en uso, segundos que le quedan, desvanecido final y destello de impacto
 };
 function ultGain(x) { if (W.laser <= 0) W.ult = Math.min(1, W.ult + x); }
+/* v39: un enemigo destruido por ti, de cualquier tipo (dragón, torre, dirigible u otra unidad; el batallón, al caer entero; los de tus
+   compañeros no cuentan): carga el rayo y quita SHIELD_KILL_CUT s a la recarga de cada slot de escudo gastado. */
+function heroKill() {
+  ultGain(ULT_PER_KILL);
+  for (let i = 0; i < W.shCd.length; i++) if (W.shCd[i] > 0) W.shCd[i] = Math.max(0, W.shCd[i] - SHIELD_KILL_CUT);
+}
 function weaponsReady() { return W.overheat <= 0 && W.laser <= 0; }
 function resetWeapons(full) {
   W.ammo = GUN_AMMO; W.cool = W.refill = W.refillAcc = 0; W.shotQ = false; W.lmb = W.rmb = false; W.holdT = 0;
   W.lock = 0; W.lockArmed = false; W.mslFlash = 0; W.mslQ = null; W.heat = W.heatDelay = W.overheat = 0; W.flame = false; W.laser = 0;
+  if (W.shieldT > 0) shieldEnd();
   W.shieldT = W.shieldFade = W.shieldHit = 0;
-  if (full) { W.ult = 0; W.ultFull = false; W.msl = MSL_AMMO; W.shield = SHIELD_MAX; }
+  if (full) { W.ult = 0; W.ultFull = false; W.msl = MSL_AMMO; W.shCd.fill(0); W.shUse = -1; }
 }
 /* Clic izquierdo: siempre un disparo de fuego rápido (sale en el siguiente fotograma, de la boca ya animada). Si se mantiene más de MSL_HOLD s,
    empieza a cargar la bola guiada (updateWeapons). */
@@ -460,9 +467,11 @@ function tryLaser() {
 }
 /* ---------- Escudo (R; F hasta la v25) ----------
    Esfera de energía azul alrededor del dragón durante SHIELD_T s: anula el daño de bolas de fuego, bolas guiadas y virotes, que revientan
-   contra ella (no el de los choques). SHIELD_MAX cargas, marcadas con rayas azules bajo la mira (la usada se vacía y queda negra); solo se
-   recargan derribando dragones (+1 cada uno). En su último SHIELD_BLINK s parpadea y luego se disipa. */
-let SHIELD_MAX = 2, SHIELD_T = 5;                                                   // cargas y duración (s): stats del dragón (v24; antes 3 cargas)
+   contra ella (no el de los choques). SHIELD_MAX slots, marcados con rayas azules bajo la mira (el que está en uso se vacía mientras dura).
+   v39: cada slot gastado se recarga solo en SHIELD_CD s desde que se apaga su escudo (la raya se vuelve a llenar, más apagada) y cada enemigo
+   que destruyes tú le quita SHIELD_KILL_CUT s (heroKill); antes solo los dragones derribados devolvían cargas. En su último SHIELD_BLINK s
+   parpadea y luego se disipa. */
+let SHIELD_MAX = 3, SHIELD_T = 5;                                                   // slots y duración (s): stats del dragón (v24; v39: 3 slots)
 const SHIELD_R = 18, SHIELD_BLINK = 1.2, SHIELD_POS = new THREE.Vector3(0, 0.5, 2.5);   // radio (m: cubre la envergadura y deja fuera la cámara de 3ª persona), parpadeo final (s), centro (ejes del dragón)
 const shieldMesh = (() => {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), new THREE.ShaderMaterial({
@@ -491,8 +500,14 @@ function shieldOn() { return W.shieldT > 0 && state === 'playing'; }
 function shieldCenter(out) { return dragon.localToWorld(out.copy(SHIELD_POS)); }
 function activateShield() {
   if (state !== 'playing' || W.shieldT > 0) return;
-  if (W.shield <= 0) { sfx.empty(); toast('Sin cargas de escudo' + (SHIELD_PER_KILL > 0 ? '  ·  derriba dragones' : '')); return; }
-  W.shield--; W.shieldT = SHIELD_T; W.shieldFade = 0; stats.shields++; sfx.shieldOn(); toast('ESCUDO');
+  const i = W.shCd.findIndex(c => c <= 0);
+  if (i < 0) { sfx.empty(); toast(W.shCd.length ? 'Escudo recargando  ·  ' + Math.ceil(Math.min(...W.shCd)) + ' s' : 'Sin escudo'); return; }
+  W.shUse = i; W.shieldT = SHIELD_T; W.shieldFade = 0; stats.shields++; sfx.shieldOn(); toast('ESCUDO');
+}
+/* v39: el escudo en uso se apaga (se acaba, te derriban o se reinician las armas): su slot empieza a recargarse. */
+function shieldEnd() {
+  if (W.shUse >= 0 && W.shUse < W.shCd.length) W.shCd[W.shUse] = SHIELD_CD;
+  W.shUse = -1;
 }
 /* Un proyectil revienta contra el escudo en `at` (mundo): chispas azules, destello en ese punto y sonido. */
 function shieldHit(p, k) {
@@ -527,7 +542,8 @@ function overheat() {
 /* Por fotograma, en partida (desde updateFlight): munición, calor, cargas y bloqueo. Disparos, efectos y daño de la llamarada y del rayo: updateAttacks. */
 function updateWeapons(dt) {
   W.cool = Math.max(0, W.cool - dt); W.mslFlash = Math.max(0, W.mslFlash - dt);
-  if (W.shieldT > 0) { W.shieldT = Math.max(0, W.shieldT - dt); if (W.shieldT <= 0) { W.shieldFade = 0.4; sfx.shieldOff(); } }
+  if (W.shieldT > 0) { W.shieldT = Math.max(0, W.shieldT - dt); if (W.shieldT <= 0) { W.shieldFade = 0.4; sfx.shieldOff(); shieldEnd(); } }
+  for (let i = 0; i < W.shCd.length; i++) if (W.shCd[i] > 0) W.shCd[i] = Math.max(0, W.shCd[i] - dt);   // v39: recarga de los slots gastados
   // fuego rápido: tras GUN_REFILL_DELAY s sin disparar, la munición vuelve de uno en uno
   if (W.refill > 0) W.refill -= dt;
   else if (W.ammo < GUN_AMMO) { W.refillAcc += dt * GUN_REFILL_RATE; while (W.refillAcc >= 1 && W.ammo < GUN_AMMO) { W.ammo++; W.refillAcc--; } }
@@ -1054,6 +1070,6 @@ function updateFlight(dt, auto) {
   }
   F.fireFlash = Math.max(0, F.fireFlash - dt * 3.2);
   if (!auto && state === 'playing') { updateWeapons(dt); stats.time += dt; stats.dist += F.speed * dt; stats.vmax = Math.max(stats.vmax, F.speed); missionUpdate(dt); }   // v15: objetivos, eventos, área y final
-  // v24: la vida ya no se regenera; la armadura sí, tras ARMOR_WAIT s sin recibir daño
-  if (F.armor < ARMOR_MAX && gameTime - F.lastHit > ARMOR_WAIT) F.armor = Math.min(ARMOR_MAX, F.armor + ARMOR_REGEN * dt);
+  // v39: la vida se regenera tras HP_REGEN_WAIT s sin recibir daño (v24-v38: no se regeneraba y la que se regeneraba era la armadura)
+  if (state === 'playing' && F.health > 0 && F.health < heroHpMax() && gameTime - F.lastHit > HP_REGEN_WAIT) F.health = Math.min(heroHpMax(), F.health + HP_REGEN * dt);
 }

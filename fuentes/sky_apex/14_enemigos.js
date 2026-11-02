@@ -587,15 +587,14 @@ function damageEnemy(e, n, at, soft) {
 }
 function killEnemy(e) {
   const mine = !byAlly;                                    // v23: los derribos del aliado no recargan el rayo ni el escudo
-  if (mine) ultGain(ULT_PER_KILL);
+  if (mine) heroKill();                                    // (v39: el escudo se recarga con el tiempo; cada derribo le quita unos segundos)
   e.dead = true; showEnemy(e, false); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
   releaseLock(e);
   towerState.score += ENEMY_SCORE; enemyState.kills++; missionKill(e);   // (v21: objetivos por tipo y etiqueta)
-  const sh = mine ? Math.max(0, Math.min(SHIELD_PER_KILL, SHIELD_MAX - W.shield)) : 0; W.shield += sh;   // derribar dragones recarga el escudo (v24: SHIELD_PER_KILL)
-  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + (sh ? '  ·  +' + sh + ' escudo' : '') + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
+  toast((mine ? 'Dragón derribado' : allyName(byAlly) + ' derribó un dragón') + '  +' + ENEMY_SCORE + '  ·  ' + enemyState.kills + '/' + dragonsTotal());
   if (!mine) allySay(byAlly, 'kill');
   else storyChatter('kill');                               // v34: los compañeros reaccionan a tus derribos (19e)
 }

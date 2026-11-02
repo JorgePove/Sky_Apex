@@ -144,14 +144,14 @@
     F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = 0; F.pdx = F.pdy = 0; dragonVel.copy(dir).multiplyScalar(F.speed);
     F.hover = !!o.hover; F.hoverK = o.hover ? 1 : 0; F.hvy = 0; if (o.hover) F.speed = 0;
     F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-    F.third = !!o.third; F.health = o.health != null ? o.health : heroHpMax(); F.armor = o.armor != null ? o.armor : ARMOR_MAX; F.lastHit = -99; F.fireFlash = 0;   // (v24: vida del dragón y armadura)
+    F.third = !!o.third; F.health = o.health != null ? o.health : heroHpMax(); F.lastHit = -99; F.fireFlash = 0;   // (v24: vida del dragón; v39: sin armadura)
     F.lookVY = F.lookVP = 0; F.tgtCam = F.tgtBack = F.straight = false; F.effort = F.diveT = F.spreadT = 0;   // (v26-v32: vuelo recto, cámara al blanco, aleteo)
     F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null; dodgeReset();
     F.aimPt.copy(dir).multiplyScalar(1400).add(dragon.position); cineEnd(true);
     resetWeapons(true);
     if (o.ult != null) { W.ult = o.ult; W.ultFull = o.ult >= 1; }
     if (o.msl != null) W.msl = o.msl;
-    if (o.shield != null) W.shield = o.shield;
+    if (o.shield != null) W.shCd = W.shCd.map((cd, i) => i < o.shield ? 0 : SHIELD_CD);   // (v39: los demás slots, recién gastados)
     if (o.ammo != null) W.ammo = o.ammo;
     S.base = { x, y, z, dir: dir.clone(), right: new THREE.Vector3(-dir.z, 0, dir.x) };
     return S.base;
@@ -635,8 +635,8 @@
       callouts: [[0.6, 8.8, BOX.msl, 'BOLAS GUIADAS']]
     },
     vida: {
-      place: { x: 0, z: 0, heading: 4.2, agl: 150, speed: 420, throttle: 0.7, third: true, health: 74, armor: 12 }, dur: 8, show: ['mouse'], pre: 0.8,
-      setup() { F.lastHit = gameTime - 3.5; },              // la armadura empieza a rellenarse enseguida
+      place: { x: 0, z: 0, heading: 4.2, agl: 150, speed: 420, throttle: 0.7, third: true, health: 74 }, dur: 8, show: ['mouse'], pre: 0.8,
+      setup() { F.lastHit = gameTime - 3.5; },              // la vida empieza a rellenarse enseguida (v39; antes, la armadura)
       moves: [[4.2, 5.0, 0, 200], [6.4, 7.2, 0, -200]],
       callouts: [[0.0, 4.0, BOX.health, 'VIDA Y ARMADURA'], [4.2, 7.8, BOX.agl, 'SOBRE EL SUELO']]
     },

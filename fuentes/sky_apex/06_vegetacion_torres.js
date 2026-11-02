@@ -278,7 +278,7 @@ function damageTower(t, amount, soft, at, sure) {
     if (!(gameTime - t.sndT < 0.22)) { t.sndT = gameTime; sfx.hit(); }
     return;
   }
-  if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco; antes, la mitad)
+  if (!byAlly) heroKill();                                 // (v24: como cualquier blanco; v39: también recarga el escudo)
   t.dead = true; towerState.destroyed.add(t.id);
   towerState.score += TOWER_SCORE; towerState.kills++;
   if (t.site) { t.site.dead = true; releaseLock(t.site); missionKill(t.site); }   // v21: el sitio es el blanco (fijado, objetivos)

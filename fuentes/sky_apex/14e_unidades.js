@@ -195,7 +195,7 @@ function killUnit(u, silent) {
   u.hp = 0; u.dead = true; u.dying = u.dieT || 0; u.hitFlash = 0;
   releaseLock(u);
   if (!silent) {
-    if (!byAlly) ultGain(ULT_PER_KILL);
+    if (!byAlly) heroKill();
     towerState.score += u.score; unitState.kills++; missionKill(u);
     toast((byAlly ? allyName(byAlly) + ': ' : '') + (u.killText || u.label + ' destruido') + '  +' + u.score + (u.killTail ? u.killTail(u) : ''));
     if (byAlly) allySay(byAlly, 'kill'); else storyChatter(u.kind === 'batallon' ? 'battalion' : 'unit');   // (v34: reacciones, 19e)

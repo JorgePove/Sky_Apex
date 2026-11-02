@@ -481,7 +481,7 @@ function setDragon(id) {
   applyHeroStats();                                         // v24: sus stats (vuelo, armas, vida…)
   return true;
 }
-/* v24: stats del dragón elegido, del Excel (STATS, ver 7c): vida, armadura, armas, velocidades… con las claves de STATS_SCHEMA.dragon. */
+/* v24: stats del dragón elegido, del Excel (STATS, ver 7c): vida, escudos, armas, velocidades… con las claves de STATS_SCHEMA.dragon. */
 function heroStats() { return STATS[alt.id] || STATS.base; }
 /* Boca, asiento y huesos del cuello del dragón visible (para el fuego, la cámara y las riendas). */
 function seatBone() { return alt.D ? alt.D.seat : hero.B[HERO_FP_BONE]; }

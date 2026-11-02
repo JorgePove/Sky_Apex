@@ -51,8 +51,8 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #vig{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;
   background:radial-gradient(ellipse at center,rgba(255,40,20,0) 45%,rgba(255,40,20,.55) 100%)}
 #warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:4;font-family:var(--f-display);font-weight:700;letter-spacing:.3em;color:var(--danger);font-size:18px;opacity:0;pointer-events:none;text-shadow:0 0 14px rgba(255,60,40,.7)}
-/* v15: misiones. Radio (abajo en el centro, entre el radar y las armas), aviso al salir del área, botones de la pausa y resultado fallido */
-#radio{position:fixed;left:50%;bottom:66px;transform:translate(-50%,10px);z-index:4;display:flex;gap:12px;align-items:flex-start;box-sizing:border-box;
+/* v15: misiones. Radio (abajo en el centro, entre el radar y las armas; v39: encima de la vida), aviso al salir del área, botones de la pausa y resultado fallido */
+#radio{position:fixed;left:50%;bottom:calc(9.15vh + 18px);transform:translate(-50%,10px);z-index:4;display:flex;gap:12px;align-items:flex-start;box-sizing:border-box;
   width:clamp(300px,calc(100vw - 660px),560px);padding:10px 14px 11px;background:var(--glass);border:1px solid rgba(241,230,211,.16);border-left:3px solid var(--gold);
   opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
 #radio.on{opacity:1;transform:translate(-50%,0)}

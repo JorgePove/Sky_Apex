@@ -115,7 +115,7 @@ MISSIONS.capitulo1 = {
     ],
     lowhp: [
       ['volger', { en: "I can't take much more of this, Percival!", es: '¡No aguanto mucho más, Percival!' }],
-      ['seraphin', { en: 'Percival, pull back! Let your armor recover!', es: '¡Percival, retírate! ¡Deja que se recupere tu armadura!' }]
+      ['seraphin', { en: 'Percival, pull back! Catch your breath!', es: '¡Percival, retírate! ¡Recupera el aliento!' }]
     ]
   },
   events: [
@@ -229,6 +229,6 @@ MISSIONS.capitulo1 = {
       SAY('seraphin', "Paladin Squadron, form up. We're going home.", 'Escuadrón Paladin, en formación. Volvemos a casa.')] },
     { id: 'fundido', when: { after: { event: 'final', t: 1 }, quiet: true }, do: [{ fade: 3 }] },
     { when: { after: { event: 'fundido', t: 3.4 } }, do: [{ win: 0 }] },
-    { when: { hp: 30 }, repeat: 35, do: [SAY('oracle', "Paladin Three, you're badly hurt! Pull back and let your armor recover!", '¡Paladin Tres, estás muy tocado! ¡Retírate y deja que tu armadura se recupere!')] }
+    { when: { hp: 30 }, repeat: 35, do: [SAY('oracle', "Paladin Three, you're badly hurt! Pull back and recover!", '¡Paladin Tres, estás muy tocado! ¡Retírate y recupérate!')] }
   ]
 };

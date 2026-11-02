@@ -91,7 +91,7 @@ function refreshDragonButtons() {
   // v24: stats del Excel, con una barra respecto al mejor de los cuatro; en dorado lo que está por encima de la Base y en rojo lo que está
   // por debajo. Daño: la media de sus cuatro armas respecto a las de la Base (en %)
   const B = STATS.base, dmg = S => ['basico_dano', 'guiado_dano', 'llamas_dano', 'rayo_dano'].reduce((a, k) => a + S[k] / (B[k] || 1), 0) / 4;
-  const ROWS = [['Vida', S => S.vida, v => fmtStat(v)], ['Armadura', S => S.armadura, v => fmtStat(v)], ['Velocidad', S => S.vel_max, v => fmtStat(v) + ' km/h'],
+  const ROWS = [['Vida', S => S.vida, v => fmtStat(v)], ['Escudos', S => S.escudos, v => fmtStat(v)], ['Velocidad', S => S.vel_max, v => fmtStat(v) + ' km/h'],
     ['Boost', S => S.vel_boost, v => fmtStat(v) + ' km/h'], ['Daño', dmg, v => Math.abs(v - 1) < 1e-3 ? '=' : (v > 1 ? '+' : '−') + Math.round(Math.abs(v - 1) * 100) + ' %']];
   const S = heroStats(), all = DRAGON_IDS.map(k => STATS[k] || B);
   document.getElementById('selStats').innerHTML = ROWS.map(([n, f, txt]) => {

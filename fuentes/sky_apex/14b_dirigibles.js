@@ -183,7 +183,7 @@ function damageAirship(a, n, soft, at) {
 }
 function killAirship(a) {
   a.hp = 0; a.dead = true; a.dying = AIRSHIP_DIE;
-  if (!byAlly) ultGain(ULT_PER_KILL);                      // (v24: como cualquier blanco)
+  if (!byAlly) heroKill();                                 // (v24: como cualquier blanco; v39: también recarga el escudo)
   towerState.score += AIRSHIP_SCORE; airshipState.kills++;
   releaseLock(a); missionKill(a);
   toast((byAlly ? allyName(byAlly) + ' destruyó un dirigible' : 'Dirigible destruido') + '  +' + AIRSHIP_SCORE + '  ·  ' + airshipState.kills + '/' + airships.length);

@@ -18,13 +18,13 @@ const STATS_FILE = 'datos/sky_apex_stats.xlsx', STATS_POLL = 2;
 const STATS_SCHEMA = {
   dragon: [
     { sec: 'Vida y defensa' },
-    ['vida', 'Puntos de vida', 'puntos', 100, 'Vida máxima. Ya no se regenera: lo que pierdes no vuelve hasta la siguiente misión (o al reaparecer en el combate libre).'],
-    ['armadura', 'Puntos de armadura', 'puntos', 50, 'Barra amarilla encima de la de vida. El daño la gasta primero a ella y, cuando llega a 0, a la vida.'],
-    ['armadura_espera', 'Espera para regenerar la armadura', 's', 5, 'Segundos sin recibir daño antes de que la armadura empiece a rellenarse.'],
-    ['armadura_regen', 'Regeneración de armadura', 'puntos/s', 5, 'Lo que se rellena cada segundo, hasta el máximo.'],
-    ['escudos', 'Slots de escudo', 'cargas', 2, 'Cargas del escudo (R) al empezar; también es el máximo.'],
-    ['escudo_duracion', 'Duración del escudo', 's', 5, 'Segundos que dura cada carga.', 1],
-    ['escudo_por_derribo', 'Escudo por dragón derribado', 'cargas', 1, 'Cargas que devuelve cada dragón que derribas tú (0 = no se recargan).', 1],
+    ['vida', 'Puntos de vida', 'puntos', 100, 'Vida máxima (v39: se regenera; la armadura ya no existe, volverá como mejora del loadout).'],
+    ['vida_espera', 'Espera para regenerar la vida', 's', 5, 'Segundos sin recibir daño antes de que la vida empiece a rellenarse.'],
+    ['vida_regen', 'Regeneración de vida', 'puntos/s', 10, 'Lo que se rellena cada segundo, hasta el máximo.'],
+    ['escudos', 'Slots de escudo', 'slots', 3, 'Escudos (R) disponibles a la vez. Cada slot gastado se recarga solo (v39; antes solo derribando dragones).'],
+    ['escudo_duracion', 'Duración del escudo', 's', 5, 'Segundos que dura cada escudo.', 1],
+    ['escudo_recarga', 'Recarga de cada slot de escudo', 's', 15, 'Segundos que tarda un slot gastado en volver a estar listo (empieza a contar al apagarse su escudo).'],
+    ['escudo_derribo', 'Recarga del escudo por enemigo destruido', 's', 3, 'Segundos que quita a la recarga de cada slot gastado cada enemigo que destruyes tú, de cualquier tipo (como en el rayo: no los de tus compañeros; el batallón, al caer entero).'],
     { sec: 'Disparo básico (clic izquierdo)' },
     ['basico_dano', 'Daño disparo básico', 'puntos', 5, 'Daño de cada impacto.'],
     ['basico_municion', 'Munición disparo básico', 'disparos', 20, 'Disparos seguidos; se recargan solos.'],
@@ -362,7 +362,7 @@ function statsResolve(vals) {
 const STATS_EMBED = /*STATS_EMBED*/null/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
-let ARMOR_MAX = 50, ARMOR_WAIT = 5, ARMOR_REGEN = 5, SHIELD_PER_KILL = 1;   // (v24) jugador: armadura y escudo
+let HP_REGEN_WAIT = 5, HP_REGEN = 10, SHIELD_CD = 15, SHIELD_KILL_CUT = 3;   // (v39) jugador: regeneración de la vida y recarga de los slots de escudo
 let BOOST_ACCEL = 37;                                      // m/s² de más con boost (de la velocidad máxima a la de boost en boost_aceleracion s)
 const TURN_RATE = [1.75, 0.95];                            // giro máximo (rad/s) despacio y a la velocidad máxima: sale de giro_radio
 const TURN_K = 1.45;                                       // el alabeo y el cabeceo ayudan a girar: el rumbo cambia ~1,45 veces más deprisa que la guiñada
@@ -375,7 +375,7 @@ const deg = d => d * Math.PI / 180;
 function heroHpMax() { return Math.max(1, heroStats().vida); }
 /* El dragón elegido (o el Excel) cambia: sus stats pasan a las variables de vuelo y armas. En partida, si un máximo sube, lo actual sube
    lo mismo (cambiar el Excel en pleno vuelo se nota al momento); si baja, lo actual baja al nuevo máximo. */
-let heroPools = null;                                      // máximos de la última vez (vida, armadura, munición, guiadas, escudos)
+let heroPools = null;                                      // máximos de la última vez (vida, munición y guiadas)
 function applyHeroStats() {
   const S = heroStats(), old = heroPools;
   VCRUISE_MAX = S.vel_max / 3.6; VMAX = Math.max(S.vel_boost, S.vel_max) / 3.6;
@@ -383,19 +383,22 @@ function applyHeroStats() {
   BOOST_DRAIN = 1 / Math.max(0.1, S.boost_duracion); BOOST_REFILL = S.boost_recarga / 100; BOOST_DELAY = S.boost_espera;
   BOOST_ACCEL = (VMAX - VCRUISE_MAX) / Math.max(0.1, S.boost_aceleracion);
   TURN_RATE[1] = VCRUISE_MAX / (Math.max(20, S.giro_radio) * TURN_K); TURN_RATE[0] = TURN_RATE[1] * 1.75 / 0.95;   // (la proporción de antes entre despacio y deprisa)
-  ARMOR_MAX = S.armadura; ARMOR_WAIT = S.armadura_espera; ARMOR_REGEN = S.armadura_regen;
-  SHIELD_MAX = Math.max(0, Math.round(S.escudos)); SHIELD_T = S.escudo_duracion; SHIELD_PER_KILL = Math.round(S.escudo_por_derribo);
+  HP_REGEN_WAIT = S.vida_espera; HP_REGEN = S.vida_regen;
+  SHIELD_MAX = Math.max(0, Math.round(S.escudos)); SHIELD_T = S.escudo_duracion; SHIELD_CD = Math.max(0, S.escudo_recarga); SHIELD_KILL_CUT = Math.max(0, S.escudo_derribo);
+  while (W.shCd.length < SHIELD_MAX) W.shCd.push(0);       // v39: un slot por escudo; los que se añaden, listos
+  W.shCd.length = SHIELD_MAX; if (W.shUse >= SHIELD_MAX) W.shUse = -1;
   GUN_DMG = S.basico_dano; GUN_AMMO = Math.max(1, Math.round(S.basico_municion)); GUN_COOL = S.basico_pausa; GUN_REFILL_DELAY = S.basico_recarga_espera; GUN_REFILL_RATE = S.basico_recarga;
   MSL_DMG = S.guiado_dano; MSL_AMMO = Math.max(0, Math.round(S.guiado_municion)); MSL_RANGE = S.guiado_alcance; MSL_LOCK = Math.max(0.1, S.guiado_fijado);
   FLAME_DPS = S.llamas_dano; FLAME_RANGE = S.llamas_alcance; FLAME_HEAT = Math.max(0.1, S.llamas_sobrecarga); OVERHEAT_T = Math.max(0.1, S.llamas_bloqueo); FLAME_COOL = Math.max(0.1, S.llamas_enfriado);
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
   DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
-  heroPools ={ hp: S.vida, armor: ARMOR_MAX, ammo: GUN_AMMO, msl: MSL_AMMO, shield: SHIELD_MAX };
+  heroPools ={ hp: S.vida, ammo: GUN_AMMO, msl: MSL_AMMO };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);
-    F.health = fit(F.health, 'hp', heroHpMax()); F.armor = fit(F.armor, 'armor', ARMOR_MAX); W.ammo = Math.round(fit(W.ammo, 'ammo', GUN_AMMO));
-    W.msl = Math.max(0, W.msl + Math.max(0, MSL_AMMO - old.msl)); W.shield = Math.round(fit(W.shield, 'shield', SHIELD_MAX));
+    F.health = fit(F.health, 'hp', heroHpMax()); W.ammo = Math.round(fit(W.ammo, 'ammo', GUN_AMMO));
+    W.msl = Math.max(0, W.msl + Math.max(0, MSL_AMMO - old.msl));
+    for (let i = 0; i < W.shCd.length; i++) W.shCd[i] = Math.min(W.shCd[i], SHIELD_CD);
     if (W.laser > LASER_T) W.laser = LASER_T;
   }
 }

@@ -138,7 +138,7 @@ const MISSIONS = {
       { id: 'inicio', when: { t: 2 }, do: [{ say: ['mando', 'Jinete, aquí Mando. Treinta torres de cristal y una bandada enemiga en el valle. Despéjalo todo.'] }] },
       { when: { after: { event: 'inicio', t: 9 } }, do: [{ say: ['mando', 'No salgas de la zona de operaciones: el radar marca el límite en rojo.'] }] },
       { when: { kills: { tower: 1 } }, do: [{ say: ['mando', 'Primera torre abajo. Al caer, cada una te recarga bolas guiadas.'] }] },
-      { when: { kills: { dragon: 1 } }, do: [{ say: ['mando', 'Dragón derribado. Cada derribo te devuelve una carga de escudo.'] }] },
+      { when: { kills: { dragon: 1 } }, do: [{ say: ['mando', 'Dragón derribado. Cada derribo acelera la recarga de tus escudos.'] }] },
       { when: { kills: { tower: 15 }, pending: ['torres'] }, do: [{ say: ['mando', 'La mitad de las torres, destruidas. Sigue así.'] }] },
       { when: { kills: { dragon: 10 }, pending: ['dragones'] }, do: [{ say: ['mando', 'Diez dragones menos. Todavía quedan en el aire.'] }] },
       { when: { done: ['torres'], pending: ['dragones'] }, do: [{ say: ['mando', 'Todas las torres destruidas. Acaba con los dragones.'] }] },

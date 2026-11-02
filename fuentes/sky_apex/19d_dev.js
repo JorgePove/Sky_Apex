@@ -30,11 +30,11 @@ function devStatsSnap() { devStats.base = JSON.parse(JSON.stringify(STATS)); if 
 /* ---------- Trucos (cada fotograma, en el modo Dev Test) ---------- */
 function devUpdate(dt) {
   if (state !== 'playing') return;
-  if (DEV.god) { F.health = heroHpMax(); F.armor = ARMOR_MAX; }
+  if (DEV.god) F.health = heroHpMax();
   if (DEV.ammo) W.ammo = GUN_AMMO;
   if (DEV.msl) W.msl = Math.max(1, MSL_AMMO);
   if (DEV.boost) { F.boost = 1; F.boostExhausted = false; }
-  if (DEV.shield) W.shield = Math.max(1, SHIELD_MAX);
+  if (DEV.shield) W.shCd.fill(0);                         // (v39: todos los slots listos)
   if (DEV.heat) { W.heat = 0; W.overheat = 0; }
   if (DEV.ult && W.laser <= 0) W.ult = 1;
 }

@@ -127,7 +127,7 @@ const TUTORIAL = [
       'Úsala en el último segundo: para no chocar con una torre, una isla o un dirigible que se te echa encima, o para quitarte de encima una <b>bola guiada</b>: las que vienen a por ti a menos de {esquiva_guiadas} m pierden el blanco y siguen rectas.',
       'En la cámara exterior, la cámara tarda un momento en seguirte (el dragón sale hacia un lado de la pantalla y luego la cámara se recoloca); en la del jinete, la vista da la vuelta con el dragón. Entre una esquiva y la siguiente hay que esperar {esquiva_recarga} s.'] },
     { id: 'hover', title: 'Hover: parar en el aire', sum: 'Frena del todo y quédate aleteando en el sitio.', keys: [[['Ctrl izq.'], 'Entrar o salir del hover'], [['W', 'S'], 'En hover: subir / bajar']], text: [
-      'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> y la barra del acelerador pasa a ser la de <b>ALTURA</b>.',
+      'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> bajo la altitud (<b>ALT</b>).',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',
       'Pulsa ' + K('Ctrl izq.') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
     { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor'], [['F'], 'Mantener: mirar al blanco fijado']], text: [
@@ -137,20 +137,20 @@ const TUTORIAL = [
   ] },
   { cat: 'Velocidad', items: [
     { id: 'acelerar', title: 'Acelerar y frenar', sum: 'W abre el acelerador y S lo cierra.', keys: [[['W', 'S'], 'Acelerar / frenar']], text: [
-      K('W') + ' abre el acelerador y ' + K('S') + ' lo cierra. A la izquierda tienes la <b>VELOCIDAD</b> en km/h y, debajo, la barra del <b>ACELERADOR</b>. A todo gas, en vuelo nivelado, el dragón llega a {vel_max} km/h. Mientras mantienes ' + K('W') + ', bate las alas con más fuerza.',
+      K('W') + ' abre el acelerador y ' + K('S') + ' lo cierra. A la izquierda de la mira tienes la velocidad (<b>SPEED</b>, en km/h). A todo gas, en vuelo nivelado, el dragón llega a {vel_max} km/h. Mientras mantienes ' + K('W') + ', bate las alas con más fuerza.',
       'Volar más despacio permite girar más cerrado, pero por debajo de unos 120 km/h el dragón pierde sustentación y empieza a hundirse.'] },
     { id: 'boost', title: 'Boost', sum: 'Mucha más velocidad durante unos segundos.', keys: [[['Shift'], 'Mantener: boost']], text: [
-      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y en {boost_aceleracion} s pasa de {vel_max} a {vel_boost} km/h. La barra <b>BOOST</b> dura {boost_duracion} s de uso seguido.',
-      'Se recarga sola {boost_espera} s después de soltar ' + K('Shift') + ' (<b>RECARGA EN…</b> y luego <b>RECARGANDO</b>), un {boost_recarga} % por segundo. Si la vacías por completo (<b>AGOTADO</b>), tiene que recargar un poco antes de volver a usarla.',
+      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y en {boost_aceleracion} s pasa de {vel_max} a {vel_boost} km/h. La barra naranja <b>BOOST</b>, bajo la velocidad, dura {boost_duracion} s de uso seguido.',
+      'Se recarga sola {boost_espera} s después de soltar ' + K('Shift') + ', un {boost_recarga} % por segundo. Si la vacías por completo (la barra parpadea), tiene que recargar un poco antes de volver a usarla.',
       'Con boost casi no se puede girar: úsalo en línea recta para acercarte, escapar o esquivar. En hover no funciona.'] },
     { id: 'picados', title: 'Subidas y picados', sum: 'Subir cuesta velocidad; bajar la da.', keys: [[['Ratón'], 'Mira arriba: subir · abajo: picar']], text: [
       'La gravedad cuenta: al subir, el dragón pierde velocidad, y al bajar la gana. En un picado pronunciado pliega las alas hacia atrás y puede llegar a {vel_boost} km/h sin usar el boost; al remontar, las despliega un par de segundos antes de volver a batirlas.',
-      'Aprovéchalo: pica para ganar velocidad antes de un ataque o para escapar, y no encadenes subidas largas si vas despacio. Al picar, vigila <b>SOBRE EL SUELO</b>.'] }
+      'Aprovéchalo: pica para ganar velocidad antes de un ataque o para escapar, y no encadenes subidas largas si vas despacio. Al picar, no pierdas de vista el suelo.'] }
   ] },
   { cat: 'Ataques', items: [
     { id: 'fuego', title: 'Fuego rápido', sum: 'Un proyectil rápido por clic, hacia la mira.', keys: [[['Clic izq.'], 'Un disparo por clic']], text: [
       'Cada clic izquierdo lanza un proyectil pequeño y muy rápido (1100 m/s) hacia la mira. Hace poco daño ({basico_dano} por impacto: un dragón enemigo tiene {enemigo.vida} de vida y una torre, {torre.vida}), pero acierta fácil y desde lejos.',
-      'Tienes {basico_municion} disparos, que ves en el panel de <b>ARMAS</b> (abajo a la derecha). {basico_recarga_espera} s después de dejar de disparar empiezan a recargarse solos: las marcas se vuelven doradas.',
+      'Tienes {basico_municion} disparos: la barra <b>GUN</b> del panel de armas (abajo a la derecha) se vacía al disparar y, {basico_recarga_espera} s después de dejar de disparar, se vuelve a llenar sola.',
       'Si tienes fijado un blanco que se mueve deprisa (un dragón, por ejemplo), apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo. Con lo que está quieto o va despacio no sale: apunta directamente.'] },
     { id: 'fijar', title: 'Fijar objetivo', sum: 'Elige a qué blanco seguir.', keys: [[['Clic central'], 'Fijar el blanco más cercano a la mira'], [['Clic central'], 'Otra vez, sin mover la mira: el siguiente']], text: [
       'El clic central (la rueda) fija el blanco en pantalla que esté más cerca de la mira: lleva la mira sobre lo que quieres y haz clic. Lo rodea un recuadro dorado con su distancia y un aviso te dice qué has fijado.',
@@ -161,33 +161,33 @@ const TUTORIAL = [
       'Fija un blanco (clic central) a menos de {guiado_alcance} m: a su alrededor aparece un círculo rojo. Mantén pulsado el clic izquierdo (el primer clic dispara fuego rápido) y lleva la mira dentro del círculo.',
       'Tras medio segundo empieza la carga (<b>FIJANDO %</b>); a los {guiado_fijado} s sale una gran bola de fuego que persigue al blanco y le quita {guiado_dano} de vida. Si la mira sale del círculo, la carga baja poco a poco.',
       'Sirve contra cualquier blanco: contra los de tierra y mar cae en parábola y basta con que caiga cerca (a los soldados de un batallón los quema en un buen radio).',
-      'Tienes {guiado_municion} por misión (el contador del panel) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
+      'Tienes {guiado_municion} por misión (la barra <b>MSL</b> del panel de armas) y no se recargan: guárdalas para los blancos que lo merezcan.'] },
     { id: 'llamarada', title: 'Llamarada', sum: 'Chorro de fuego a corta distancia. Cuidado con el calor.', keys: [[['Clic dcho.'], 'Mantener: llamarada'], [['Espacio'], 'Mantener: vuelo recto, para pasadas rasantes']], text: [
       'Mientras mantienes el clic derecho, el dragón escupe un chorro de fuego de {llamas_alcance} m que quema todo lo que toca ({llamas_dano} de daño por segundo). Es el arma para los <b>batallones</b> y la artillería, y sirve también para torres y para dragones que tienes encima.',
       'Para quemar el suelo, haz una pasada rasante: vuela bajo, mantén ' + K('Espacio') + ' (vuelo recto y nivelado, con la cámara de apuntado) y barre con la mira lo que quieras quemar mientras mantienes el clic derecho.',
       'Si el suelo (o el agua, o una isla) está a su alcance en la dirección de la mira, un <b>círculo blanco</b> marca dónde caerá. Al tocarlo, la tierra salta y deja una mancha quemada que dura un minuto; en el agua levanta vapor.',
-      'Se calienta: el arco a la derecha de la mira se llena en {llamas_sobrecarga} s seguidos. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
+      'Se calienta: la barra <b>FLM</b> (y el arco a la derecha de la mira) se llena en {llamas_sobrecarga} s seguidos y, según se llena, se vuelve roja y parpadea. Si llega al 100 %, <b>SOBRECALENTADO</b>: ninguna arma funciona durante {llamas_bloqueo} s. Suelta antes y se enfría sola.'] },
     { id: 'rayo', title: 'Rayo de fuego', sum: 'El ataque definitivo: un rayo larguísimo durante unos segundos.', keys: [[['Clic izq.', 'Clic dcho.'], 'A la vez, con la barra llena']], text: [
-      'Su barra, la última del panel de <b>ARMAS</b>, se llena con el tiempo ({rayo_recarga} % por segundo) y un {rayo_por_derribo} % más por cada enemigo que destruyes tú (dragón, torre, dirigible o cualquier otra unidad; un batallón cuenta cuando cae entero). Llena, parpadea y pone <b>LISTO</b>.',
+      'Su barra, <b>LSR</b>, la última del panel de armas, se llena con el tiempo ({rayo_recarga} % por segundo) y un {rayo_por_derribo} % más por cada enemigo que destruyes tú (dragón, torre, dirigible o cualquier otra unidad; un batallón cuenta cuando cae entero). Llena (100 %), parpadea y brilla.',
       'Pulsa los dos botones a la vez: la energía se concentra en la boca y sale un rayo de hasta {rayo_alcance} km que sigue a la mira durante {rayo_duracion} s y quema todo lo que cruza ({rayo_dano} de daño por segundo). Mientras dura, las demás armas no funcionan.'] }
   ] },
   { cat: 'Defensa', items: [
     { id: 'escudo', title: 'Escudo', sum: 'Unos segundos a salvo de los proyectiles.', keys: [[['R'], 'Activar el escudo']], text: [
       K('R') + ' rodea al dragón con una esfera de energía durante {escudo_duracion} s: los proyectiles (bolas guiadas, bolas de fuego, fuego antiaéreo, cañones de dirigibles, barcos y torretas, artillería y flechas) revientan contra ella sin hacerte daño, y la llamarada de la sierpe tampoco pasa. No te protege de los choques ni del rayo del superdirigible.',
-      'Tienes {escudos} cargas: las rayas azules bajo la mira. La que está en uso se vacía mientras dura y las gastadas quedan negras. Cuando el escudo parpadea, está a punto de apagarse.',
+      'Tienes {escudos} slots de escudo: las rayas azules bajo la mira. El que está en uso se vacía mientras dura y los gastados se recargan solos (ver «Recargar el escudo»). Cuando el escudo parpadea, está a punto de apagarse.',
       'Guárdalo para cuando veas <b>¡PROYECTIL APROXIMÁNDOSE!</b> y no puedas esquivarlo.'] },
-    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Los dragones derribados devuelven cargas.', keys: [[['R'], 'Usar una carga']], text: [
-      'Las cargas del escudo no vuelven solas ni al reaparecer: solo derribando dragones. Cada dragón que derribas tú te devuelve {escudo_por_derribo} (hasta {escudos}), y el aviso lo confirma: <b>Dragón derribado · +1 escudo</b>. Los que derriban tus compañeros no cuentan.',
-      'Cuantos más dragones derribes, más escudos tendrás para lo que venga.'] },
+    { id: 'recarga_escudo', title: 'Recargar el escudo', sum: 'Cada slot gastado se recarga solo; los derribos lo aceleran.', keys: [[['R'], 'Usar un slot listo']], text: [   // (v39)
+      'Cada slot gastado se recarga solo en {escudo_recarga} s, que empiezan a contar cuando se apaga su escudo: su raya bajo la mira se vuelve a llenar, más apagada, y al acabar recupera su azul. Mientras quede alguno listo, ' + K('R') + ' lo usa.',
+      'Cada enemigo que destruyes tú, de cualquier tipo (dragón, torre, dirigible u otra unidad; un batallón cuenta cuando cae entero), quita {escudo_derribo} s a la recarga de cada slot gastado. Los que destruyen tus compañeros no cuentan.'] },
     { id: 'recarga_guiadas', title: 'Munición guiada', sum: 'No se recargan: administra las de la misión.', keys: [], text: [
-      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. El panel de <b>ARMAS</b> lleva la cuenta junto a <b>BOLA GUIADA</b> y, al llegar a 0, pone <b>SIN MUNICIÓN</b> en rojo.',
+      'Las bolas guiadas no se recargan: tienes {guiado_municion} por misión. La barra <b>MSL</b> del panel de armas lleva la cuenta y se vacía al gastarlas; a 0 ya no se pueden lanzar.',
       'Gástalas en los blancos duros o que más importan para la misión, y acaba el resto con el fuego rápido y la llamarada.'] },
-    { id: 'vida', title: 'Vida, armadura y caídas', sum: 'La armadura se regenera; la vida, no.', keys: [], text: [
-      'Abajo, en el centro, tienes la barra de <b>VIDA</b> ({vida}) rodeada por el marco amarillo de la <b>ARMADURA</b> ({armadura}, con su número encima). El daño se lo lleva primero la armadura y, cuando se acaba, la vida.',
-      'La armadura se regenera: tras {armadura_espera} s sin recibir daño se rellena a {armadura_regen} por segundo (mientras tanto, el marco late). La vida no: lo que pierdes no vuelve en toda la misión.',
+    { id: 'vida', title: 'Vida y caídas', sum: 'La vida se regenera si dejas de recibir daño.', keys: [], text: [   // (v39: sin armadura)
+      'Abajo, en el centro, tienes la barra de vida ({vida}), con lo que te queda escrito dentro; por debajo del 35 % se pone roja.',
+      'Se regenera: tras {vida_espera} s sin recibir daño se rellena a {vida_regen} por segundo (mientras tanto, la barra late). Si te están acribillando, apártate un momento.',
       'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de dirigibles ({dirigible.dano}) y barcos ({barco_naval.dano}), chocar con un dragón ({enemigo.choque_dano}) y el resto de enemigos (cada uno, en su sección).',
-      'Estrellarte contra el terreno, el agua, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe te derriba al instante, igual que quedarte sin vida. En una misión o un capítulo, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida y la armadura llenas (pero no recuperas escudos ni bolas guiadas).',
-      'Vigila <b>SOBRE EL SUELO</b>, a la derecha: se pone en rojo por debajo de 60 m.'] }
+      'Estrellarte contra el terreno, el agua, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe te derriba al instante, igual que quedarte sin vida. En una misión o un capítulo, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida llena (pero no recuperas bolas guiadas, y los escudos siguen con su recarga).',
+      'La altitud (<b>ALT</b>) es sobre el nivel del mar, no sobre el suelo: entre montañas, vuela con margen.'] }
   ] },
   { cat: 'Enemigos del aire', items: [
     { id: 'dragones', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
@@ -231,9 +231,9 @@ const TUTORIAL = [
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
-      '<b>Izquierda</b>: velocidad, acelerador (en hover, la altura) y boost. <b>Derecha</b>: altitud, altura sobre el suelo y velocidad vertical. <b>Arriba</b>: la brújula con tu rumbo y, debajo, los avisos; arriba a la derecha, los objetivos de la misión y los puntos.',
-      '<b>Abajo a la izquierda</b>, el radar (2,4 km, con tu rumbo hacia arriba): tú eres el triángulo dorado del centro; los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco fijado lleva un círculo dorado. Debajo, la distancia al blanco <b>TGT</b> más cercano.',
-      '<b>Abajo a la derecha</b>, el panel de armas; <b>abajo en el centro</b>, la vida rodeada por la armadura y, encima, la radio; y <b>en el centro</b>, la mira con las cargas del escudo.'] },
+      '<b>En el centro</b>, la mira naranja (con los slots del escudo debajo) y la marca blanca de la dirección; a sus lados, la velocidad (<b>SPEED</b>, km/h) con el <b>BOOST</b> debajo, en naranja, y la altitud sobre el nivel del mar (<b>ALT</b>, m; debajo, <b>HOVER</b> si estás en hover). <b>Arriba</b>: la brújula con tu rumbo y, debajo, los avisos; arriba a la derecha, los objetivos de la misión y los puntos.',
+      '<b>Abajo a la izquierda</b>, el radar: un minimapa cuadrado con el relieve del terreno y tu rumbo hacia arriba, con anillos a 750 m, 1,5 y 3 km. Tú eres la flecha verde, por debajo del centro (ves más por delante); los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco fijado lleva un círculo dorado. Lo que queda más lejos sale en el borde, en su dirección.',
+      '<b>Abajo a la derecha</b>, las armas: <b>GUN</b> (fuego rápido) y <b>MSL</b> (bolas guiadas) con su munición, <b>FLM</b> con el calor de la llamarada y <b>LSR</b> con la carga del rayo. <b>Abajo en el centro</b>, la vida y, encima, la radio.'] },
     { id: 'escuadron', title: 'Escuadrón y radio', sum: 'Tus compañeros vuelan contigo y hablan por radio.', keys: [[['Intro'], 'Saltar la pantalla de capítulo y la voz de la entrada']], text: [   // v35
       'En algunas misiones no vuelas solo: tus compañeros de escuadrón (en el Modo Historia, el <b>Escuadrón Paladin</b>; tú eres Percival, Paladin 3) son dragones azules. Sobre cada uno, un chevrón azul con su nombre y su distancia; en el radar, triángulos azules huecos. Los enemigos no los atacan.',
       'Vuelan en formación contigo hasta que aparece el enemigo y entonces combaten. En la Misión 1, Lance ataca por su cuenta y va a por los dragones que te persiguen. En el Modo Historia te escoltan: te dan vueltas, persiguen a los dragones que van a por ti y los debilitan, pero nunca los rematan: los derribos son tuyos. Lo que derriban ellos cuenta para la misión, pero no te devuelve escudos ni carga el rayo.',
