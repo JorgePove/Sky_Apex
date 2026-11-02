@@ -61,12 +61,63 @@ function missionStart() {
   missionHideHUD();
   storyStart();                                            // v34: voces, pantalla de capítulo, fundido y reacciones (19e)
   allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae (v34: varios)
+  const resume = cpResume(); CP.use = false;               // v43: desde un punto de control (sin pantalla de capítulo ni entrada de cine)
+  if (resume) { checkpointApply(); killFeed('Punto de control', CP.snap.label, PAL_GOLD); sfx.locked(); return; }
+  CP.snap = null;
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const I = mission.intro, intro = I != null ? I : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (I && typeof I === 'object') cineStart(Infinity, mission.name, mission.place, { title: I.title, shots: I.shots, skip: true });   // v34: hasta que la acaba un evento («cine: 'end'»), con planos de cámara
   else if (intro > 0) cineStart(intro, mission.name, mission.free && goal ? 'Objetivo: ' + goal : mission.place);   // (v38: sin objetivos, el lugar)
   else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
   if (mission.card) cardStart(mission.card);               // v34: pantalla de capítulo en negro (19e), encima de la entrada de cine
+}
+
+/* ---------- v43: puntos de control ----------
+   Petición de Jorge: en el Capítulo 01, al acabar cada oleada de enemigos se guarda solo un punto de control (acción «checkpoint» de un
+   evento, con el texto que sale debajo de «PUNTO DE CONTROL»). Si caes, la pantalla de MISIÓN FALLIDA ofrece «Volver al punto de control»:
+   la partida vuelve a empezar (startGame) sin la pantalla de capítulo ni la entrada de cine, con los eventos ya disparados, los objetivos, los
+   derribos, las señales y las estadísticas de ese momento (así no se repiten diálogos ni oleadas; las caídas sí cuentan) y el dragón en vuelo
+   donde estaba, a CP_SAFE m del suelo como mínimo, con la vida, los escudos y la munición llenos y los aliados en formación. Lo siguiente
+   llega CP_LEAD s más tarde de lo que tocaba, para situarse. «Reintentar desde el inicio», la pausa o el menú empiezan de cero. */
+const CP_SAFE = 300, CP_LEAD = 2.5;
+const CP = { snap: null, use: false, deaths: 0 };          // snap: el último punto de control; use: el próximo startGame sale de él
+const cpResume = () => !!(CP.use && CP.snap && CP.snap.mission === missionId);
+const cpAvailable = () => !!(CP.snap && CP.snap.mission === missionId);
+function checkpointSave(label) {
+  if (mission.dev || MS.ended) return;
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(dragon.quaternion); dir.y = 0;
+  if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1); dir.normalize();
+  const sig = {}; for (const k in MS.sig) sig[k] = Object.assign({}, MS.sig[k]);
+  CP.snap = { mission: missionId, label: txt(label || ''), t: MS.t, fired: new Map(MS.fired), kills: Object.assign({}, MS.kills), sig,
+    objs: MS.objs.map(o => ({ shown: o.shown, done: o.done, n: o.n, count: o.count })), chatter: STORY.chatter, stats: Object.assign({}, stats),
+    score: towerState.score, tKills: towerState.kills, eKills: enemyState.kills, squadN: enemyState.squadN, engaged: Object.assign({}, enemyState.engaged),
+    aKills: airshipState.kills, uKills: unitState.kills, pos: dragon.position.clone(), dir };
+  if (state === 'playing') { killFeed('Punto de control', CP.snap.label, PAL_GOLD); sfx.locked(); }
+}
+/* «Volver al punto de control» (pantalla de resultados). */
+function checkpointRetry() {
+  if (!cpAvailable()) return;
+  CP.use = true; CP.deaths = stats.deaths; restartGame();
+}
+/* resetRun: el dragón, donde estaba (en vuelo y a altura segura), mirando hacia donde iba. */
+function checkpointPlace() {
+  const S = CP.snap, p = dragon.position.copy(S.pos), g = Math.max(heightAt(p.x, p.z), WL);
+  p.y = Math.max(p.y, g + CP_SAFE);
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, S.dir, UP));
+  F.aimWorld.copy(S.dir); F.aimPt.copy(S.dir).multiplyScalar(1400).add(p);
+}
+/* missionStart: el estado del motor y las cuentas de ese momento. */
+function checkpointApply() {
+  const S = CP.snap;
+  MS.t = S.t - CP_LEAD;
+  MS.fired.clear(); S.fired.forEach((v, k) => MS.fired.set(k, v));
+  MS.kills = Object.assign({}, S.kills); MS.planned = {};
+  MS.sig = {}; for (const k in S.sig) MS.sig[k] = Object.assign({}, S.sig[k]);
+  S.objs.forEach((o, i) => { const m = MS.objs[i]; if (m) { Object.assign(m, o); m.doneT = -1e9; } });   // (los cumplidos, ya fuera del HUD)
+  STORY.chatter = S.chatter;
+  Object.assign(stats, S.stats); stats.deaths = CP.deaths;
+  towerState.score = S.score; towerState.kills = S.tKills; airshipState.kills = S.aKills; unitState.kills = S.uKills;
+  enemyState.kills = S.eKills; enemyState.squadN = S.squadN; enemyState.engaged = Object.assign({}, S.engaged);
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
@@ -204,6 +255,7 @@ function runAction(a) {
   if (a.fade) fadeBlack(a.fade);                           // v34: fundido a negro (s)
   if (a.chatter != null) STORY.chatter = !!a.chatter;      // v34: reacciones de los compañeros (19e), sí o no
   if (a.hint) hintShow(txt(a.hint));                       // v34: consejo en pantalla (más largo que un aviso)
+  if (a.checkpoint) checkpointSave(a.checkpoint);         // v43: punto de control (texto de debajo)
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
 }

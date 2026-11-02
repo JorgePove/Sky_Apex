@@ -62,7 +62,12 @@ const STATS_SCHEMA = {
     ['esquiva_distancia', 'Distancia de la esquiva', 'm', 30, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
     ['esquiva_duracion', 'Duración de la esquiva', 's', 1.5, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
     ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
-    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).']
+    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).'],
+    { sec: 'Choques' },                                    // v43
+    ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
+    ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
+    ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43). Será también la de aterrizar.']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -397,6 +402,7 @@ function applyHeroStats() {
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
   DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
+  CRASH_DMG = Math.max(0, S.choque_dano); CRASH_PUSH = Math.max(0, S.choque_rebote); CRASH_GRACE = Math.max(0, S.choque_pausa); LAND_SPEED = Math.max(0, S.aterrizaje_vel) / 3.6;   // (v43)
   heroPools ={ hp: S.vida, ammo: GUN_AMMO, msl: MSL_AMMO };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);

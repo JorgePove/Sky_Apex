@@ -223,7 +223,8 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
 .stats{display:grid;grid-template-columns:1fr auto;gap:7px 24px;margin:6px 0 10px;width:100%;font-size:13px;text-align:left}
 .stats dt{color:var(--bone-dim)}.stats dd{margin:0;color:var(--bone);text-align:right;font-variant-numeric:tabular-nums}
 .vic-btns{display:flex;flex-direction:column;align-items:center;gap:9px}
-.vic-btns .cta{margin-top:0;width:min(340px,80vw);padding:14px 0}
+.vic-btns .cta{margin-top:0;width:min(360px,84vw);padding:14px 0}   /* (v43: 360, como los otros) */
+.vic-btns .mbtn{width:min(360px,84vw)}.vic-btns [hidden]{display:none}   /* v43: «Volver al punto de control» y «Reintentar desde el inicio» caben en una línea */
 /* ---------- Tutorial (v12): secciones a la izquierda (se despliegan al elegirlas) y vídeo en bucle a la derecha ---------- */
 .mpanel.tut{width:min(1180px,calc(100% - 32px));height:min(760px,calc(100% - 40px));max-height:none;overflow:hidden;padding:22px clamp(16px,2.6vw,30px) 14px;gap:14px}
 .tut-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px 20px;flex-wrap:wrap}
@@ -530,7 +531,7 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
     <h2 id="vicTitle">Victoria</h2>
     <p class="lead" id="vicWhy" hidden></p>
     <dl class="stats" id="vicStats"></dl>
-    <div class="vic-btns"><button class="cta" id="vicMenu">Menú principal</button><button class="mbtn" id="vicRestart">Reiniciar partida</button><button class="mbtn" id="vicQuit">Salir del juego</button></div>
+    <div class="vic-btns"><button class="cta" id="vicMenu">Menú principal</button><button class="mbtn story" id="vicCheckpoint" hidden>Volver al punto de control</button><button class="mbtn" id="vicRestart">Reiniciar partida</button><button class="mbtn" id="vicQuit">Salir del juego</button></div>
   </div>
 </section>
 <section class="overlay" id="worldgen" hidden>
@@ -5002,7 +5003,7 @@ function updateEnemies(dt) {
     updateTrail(e, dt);
     const dist = e.pos.distanceTo(P);
     // choque con el jugador
-    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo'); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }
+    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; crashBump(_Ev2.subVectors(P, e.pos), 'Chocaste con un dragón enemigo', ENEMY_RAM_DMG); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }   // (v43: con rebote)
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
     if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && e.mode !== 'cruise' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate
@@ -7332,9 +7333,11 @@ function showResult(win, why) {
   document.getElementById('vicKicker').textContent = free ? (win ? 'Objetivo cumplido' : 'Combate libre') : mission.name + '  ·  ' + mission.place;
   document.getElementById('vicTitle').textContent = free ? (win ? 'Victoria' : 'Derrota') : (win ? 'Misión cumplida' : 'Misión fallida');
   whyEl.textContent = why || ''; whyEl.hidden = !why;
-  retry.textContent = free ? 'Reiniciar partida' : win ? 'Repetir misión' : 'Reintentar';
+  const cpEl = document.getElementById('vicCheckpoint'), cp = !win && !free && cpAvailable();   // v43: volver al último punto de control
+  cpEl.hidden = !cp;
+  retry.textContent = free ? 'Reiniciar partida' : win ? 'Repetir misión' : cp ? 'Reintentar desde el inicio' : 'Reintentar';
   vicEl.querySelector('.vic').classList.toggle('fail', !win);
-  vicEl.hidden = false; (win ? document.getElementById('vicMenu') : retry).focus();
+  vicEl.hidden = false; (win ? document.getElementById('vicMenu') : cp ? cpEl : retry).focus();
 }
 /* Partida nueva: torres reconstruidas, estadísticas a cero y el dragón en el punto de partida (el terreno de allí, ya generado). */
 function resetRun(pump) {
@@ -7351,7 +7354,8 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
-  dodgeReset();                                            // (v32)
+  dodgeReset(); bumpReset();                               // (v32; v43: rebote)
+  if (cpResume()) checkpointPlace();                       // v43: desde un punto de control, donde estaba (19)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
   if (pump) for (let i = 0, t0 = performance.now(); i < 400 && pumpTerrain(30) > 0 && performance.now() - t0 < 4000; i++) { }   // (en el menú se genera poco a poco)
@@ -7359,7 +7363,7 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true); devPanel(false);   // (v27: panel de pruebas)
-  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset();   // (v34)
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset(); CP.use = false;   // (v34; v43)
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.stopGame(1.5); music.menu.play(1.5);
 }
@@ -7373,6 +7377,7 @@ function quitGame() {
 }
 document.getElementById('vicMenu').addEventListener('click', backToMenu);
 document.getElementById('vicRestart').addEventListener('click', restartGame);
+document.getElementById('vicCheckpoint').addEventListener('click', () => checkpointRetry());   // v43 (19)
 document.getElementById('vicQuit').addEventListener('click', quitGame);
 document.getElementById('byeBack').addEventListener('click', backToMenu);
 function startGame() {
@@ -7467,7 +7472,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-  dodgeReset(); devHoverStart();                           // (v32: en los modos de prueba, también al reaparecer)
+  dodgeReset(); bumpReset(); devHoverStart();              // (v32: en los modos de prueba, también al reaparecer; v43: rebote)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -8066,6 +8071,78 @@ function updateDodge(dt) {
   F.dodgeCam.copy(DG.off).multiplyScalar(k);
 }
 
+/* ---------- v43: choques con rebote ----------
+   Petición de Jorge: estrellarse ya no es caer al instante (era muy frustrante). Tocar el suelo, el agua, una montaña, una isla, una torre, un
+   dirigible, una unidad enemiga con colisión o un dragón enemigo quita CRASH_DMG de vida (el dragón enemigo, su choque_dano) y hace rebotar:
+   - el dragón sale despedido hacia fuera de lo que ha tocado y algo hacia arriba (BUMP.v, que se apaga en ~1 s);
+   - el morro (y la mira con él) se desvía fuera de la superficie: rozando, unos 15° hacia fuera; contra una ladera, sube por ella; casi de
+     frente contra una pared, sale de lado a lo largo de ella; en picado contra el suelo, se endereza como al tirar de las riendas;
+   - y pierde velocidad cuanto más de frente haya chocado (hasta la mitad).
+   Durante CRASH_GRACE s, otro choque rebota pero no quita vida (no se encadenan). Solo se cae si no queda vida (hurtDragon, con el motivo de
+   siempre). Despacio sobre el agua (≤ LAND_SPEED, sin picar ni ir muy de lado) no hay choque: el dragón la roza sin hundirse. Los valores son
+   stats del dragón (Excel, «Choques»: applyHeroStats). */
+let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 200 / 3.6;
+const BUMP = { v: new THREE.Vector3(), t: -99, skim: false };   // velocidad del rebote (m/s), gameTime del último choque con daño, ¿rozando el agua?
+const _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _bc = new THREE.Vector3(), _bf = new THREE.Vector3(), _bu = new THREE.Vector3(), _bq = new THREE.Quaternion();
+function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
+/* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida; dmg: el daño (por defecto, CRASH_DMG). */
+function crashBump(n, why, dmg) {
+  if (state !== 'playing' || devCheat('noCrash')) return;   // (v27: Dev Test, «sin choques»)
+  const q = dragon.quaternion;
+  _bn.copy(n).normalize();
+  _bf.set(0, 0, -1).applyQuaternion(q);
+  const into = clamp(-_bf.dot(_bn), 0, 1);                // 0 = rozando, 1 = de frente
+  BUMP.v.copy(_bn).multiplyScalar(CRASH_PUSH * (0.6 + 0.4 * into)); BUMP.v.y += CRASH_PUSH * 0.45;
+  if (into > 0) {
+    _bt.copy(_bf).addScaledVector(_bn, -_bf.dot(_bn));     // lo que iba a lo largo de la superficie
+    if (_bt.lengthSq() < 0.25) {                           // casi de frente:
+      _bc.crossVectors(_bn, UP);                           // de lado, a lo largo de la pared (hacia donde ya se inclinaba)
+      if (_bc.lengthSq() < 0.04) { _bu.set(0, 1, 0).applyQuaternion(q); _bc.copy(_bu).addScaledVector(_bn, -_bu.dot(_bn)); }   // (contra el suelo: hacia el lomo)
+      else if (_bc.dot(_bf) + 0.01 * _bc.dot(_bu.set(1, 0, 0).applyQuaternion(q)) < 0) _bc.negate();
+      if (_bc.lengthSq() < 1e-4) _bc.set(0, 1, 0);
+      _bt.addScaledVector(_bc.normalize(), 0.6);
+    }
+    _bt.normalize().addScaledVector(_bn, 0.2 + 0.2 * into); _bt.y += 0.08; _bt.normalize();
+    if (Math.abs(_bt.y) < 0.97) {
+      q.setFromRotationMatrix(_m4.lookAt(ZERO, _bt, UP));
+      F.aimWorld.copy(_bt); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
+    }
+    if (!F.hover) F.speed = Math.max(Math.min(F.speed, VMIN * 1.5), F.speed * lerp(0.9, 0.5, into));
+  }
+  F.sink = 0;
+  if (gameTime - BUMP.t < CRASH_GRACE) { camShake = Math.max(camShake, 0.35); return; }   // en la pausa: rebota, sin daño
+  BUMP.t = gameTime;
+  hurtDragon(dmg != null ? dmg : CRASH_DMG, why);
+  camShake = Math.max(camShake, 1);
+}
+/* Normal del terreno en (x, z) (hacia arriba). */
+function terrainNormal(x, z, out) {
+  const e = 3;
+  return out.set(heightAt(x - e, z) - heightAt(x + e, z), 2 * e, heightAt(x, z - e) - heightAt(x, z + e)).normalize();
+}
+/* ¿Puede rozar el agua sin chocar? Despacio, sin picar (más de 25° hacia abajo) ni ir muy de lado (más de 45° de alabeo). */
+function canSkim(q) {
+  _bf.set(0, 0, -1).applyQuaternion(q); _bc.set(1, 0, 0).applyQuaternion(q); _bu.set(0, 1, 0).applyQuaternion(q);
+  return F.speed <= LAND_SPEED * (BUMP.skim ? 1.5 : 1) && _bf.y > -0.42   // (ya rozándola, con margen: entre roce y roce acelera algo) && _bu.y > 0 && Math.abs(Math.atan2(_bc.y, _bu.y)) < Math.PI / 4;
+}
+/* Rozando el agua: no se hunde (a ras, sin hundimiento), el morro no baja del horizonte (ni la mira) y el agua lo frena a LAND_SPEED como
+   mucho (si no, al acelerar rozándola pasaría de la velocidad y rebotaría con daño); al tocarla, salpica. Para irse, morro arriba. */
+function skimWater(pos, q) {
+  pos.y = WL + 2.2; F.sink = 0; F.speed = Math.min(F.speed, LAND_SPEED);
+  _bf.set(0, 0, -1).applyQuaternion(q);
+  if (_bf.y < 0) q.multiply(_bq.setFromAxisAngle(_bc.set(1, 0, 0), Math.asin(Math.min(1, -_bf.y))));   // cabeceo hacia arriba, lo justo
+  if (F.aimWorld.y < 0) { F.aimWorld.y = 0; if (F.aimWorld.lengthSq() < 1e-4) F.aimWorld.copy(_bf).setY(0); F.aimWorld.normalize(); }
+  if (!BUMP.skim) { splash(pos.x, pos.z, 1.0); sfx.hit(); }
+  BUMP.skim = true;
+}
+/* Unidad o dirigible: normal desde el punto más cercano de su eje (o de la cápsula más cercana). */
+function capsNormal(caps, p, out) {
+  let best = Infinity;
+  for (const c of caps) { const d = segPointDist2(c.a, c.b, p); if (d < best) { best = d; out.subVectors(p, _Uc); } }
+  if (out.lengthSq() < 1e-6) out.set(0, 1, 0);
+  return out.normalize();
+}
+
 /* ---------- Vuelo ---------- */
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
@@ -8191,23 +8268,28 @@ function updateFlight(dt, auto) {
   // movimiento
   _f.set(0, 0, -1).applyQuaternion(q);
   dragonVel.copy(_f).multiplyScalar(F.speed); dragonVel.y -= F.sink; dragonVel.y += F.hvy;
+  if (!auto && BUMP.v.lengthSq() > 0.01) { dragonVel.add(BUMP.v); BUMP.v.multiplyScalar(Math.exp(-dt * 2.5)); }   // v43: rebote de un choque
   pos.addScaledVector(dragonVel, dt);
   if (!auto) updateDodge(dt);                              // v32: esquiva (desplazamiento lateral y tonel), antes de los choques
-  // colisión con el terreno o el agua
-  const g = Math.max(heightAt(pos.x, pos.z), WL);
+  // colisión con el terreno o el agua (v43: rebote con daño en vez de caer; despacio sobre el agua, la roza)
+  const hT = heightAt(pos.x, pos.z), g = Math.max(hT, WL);
   if (!auto && pos.y < g + 2.2) {
-    if (heightAt(pos.x, pos.z) < WL) { splash(pos.x, pos.z, 2.0); crash('Te sumergiste en el agua'); } else crash('Te estrellaste contra el terreno');
+    if (hT < WL) {
+      if (canSkim(q)) skimWater(pos, q);
+      else { pos.y = WL + 2.2; if (gameTime - BUMP.t >= CRASH_GRACE) splash(pos.x, pos.z, 2.0); crashBump(UP, 'Te sumergiste en el agua'); }
+    } else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
   } else if (auto && pos.y < g + 60) pos.y = g + 60;
-  if (!auto && state === 'playing' && islandAt(pos.x, pos.y, pos.z, 2.6)) crash('Te estrellaste contra una isla flotante');
+  if (BUMP.skim && pos.y > WL + 4) BUMP.skim = false;
+  if (!auto && state === 'playing') { const s = islandAt(pos.x, pos.y, pos.z, 2.6); if (s) crashBump(pos.y > s.yMax - 15 ? UP : _bt.set(pos.x - s.x, 0, pos.z - s.z), 'Te estrellaste contra una isla flotante'); }
   if (!auto && state === 'playing') for (const t of towers.values()) {   // torres en pie (desde la v7 miden ~110 m: ya no se pueden atravesar)
     if (t.dead) continue;
     const dx = pos.x - t.x, dz = pos.z - t.z;
-    if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crash('Te estrellaste contra una torre'); break; }
+    if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crashBump(pos.y > t.y + TOWER_TOP ? UP : _bt.set(dx, 0, dz), 'Te estrellaste contra una torre'); break; }
   }
   if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
-    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
+    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crashBump(capsNormal([{ a: a.ca, b: a.cb }], pos, _bt), 'Te estrellaste contra un dirigible'); break; }
   }
-  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crash('Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
+  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crashBump(capsNormal(u.caps, pos, _bt), 'Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
     for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);
@@ -8893,8 +8975,8 @@ function drawHealth() {
    ancho y se ajusta, dura KILL_T s y se apaga; si llegan varios seguidos, los anteriores suben y se atenúan (tres como mucho). Los derribos
    de los aliados siguen con el aviso de arriba. */
 const KILLS = [], KILL_T = 2.4;
-function killFeed(txt, sub) {
-  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
+function killFeed(txt, sub, pal) {                         // (v43: pal = otra paleta, p. ej. PAL_GOLD para «PUNTO DE CONTROL»)
+  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime, pal: pal || PAL_G });
   if (KILLS.length > 3) KILLS.length = 3;
 }
 /* v42: con una bola guiada enemiga en camino, en ese mismo sitio, «¡PROYECTIL APROXIMÁNDOSE!» en rojo y parpadeando (los derribos se apilan
@@ -8921,9 +9003,10 @@ function drawKills() {
     const t = gameTime - m.t0, al = Math.min(1, t / 0.12) * Math.min(1, (KILL_T - t) / 0.5) * (i ? 0.6 : 1);
     const w = (tws[i] + 54 * k) * (1 + 0.22 * Math.max(0, 1 - t / 0.16)), h = (m.sub ? 40 : 30) * k;
     hctx.save(); hctx.globalAlpha = al;
-    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_G, 8 * k, 0.8);
-    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, PAL_G.ink, PAL_G.glow, 'center', sp);
-    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k);
+    const P = m.pal;
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, P, 8 * k, 0.8);
+    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, P.ink, P.glow, 'center', sp);
+    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, P.line, P.glow, 'center', 1.6 * k);
     hctx.restore();
     y -= h + 8 * k;
   });
@@ -9255,7 +9338,8 @@ const TUTORIAL = [
       'Abajo, en el centro, tienes la barra de vida ({vida}), con lo que te queda escrito dentro; por debajo del 35 % se pone roja.',
       'Se regenera: tras {vida_espera} s sin recibir daño se rellena a {vida_regen} por segundo (mientras tanto, la barra late). Si te están acribillando, apártate un momento.',
       'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de dirigibles ({dirigible.dano}) y barcos ({barco_naval.dano}), chocar con un dragón ({enemigo.choque_dano}) y el resto de enemigos (cada uno, en su sección).',
-      'Estrellarte contra el terreno, el agua, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe te derriba al instante, igual que quedarte sin vida. En una misión o un capítulo, caer es MISIÓN FALLIDA; en el combate libre, a los pocos segundos reapareces en el aire con la vida llena (pero no recuperas bolas guiadas, y los escudos siguen con su recarga).',
+      'Chocar contra el terreno, el agua, una montaña, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe ya no te derriba: te quita {choque_dano} de vida y rebotas hacia fuera y algo hacia arriba, con el morro desviado para que te alejes. Durante {choque_pausa} s, otro choque te hace rebotar pero no te quita vida. Despacio (a {aterrizaje_vel} km/h o menos), sin picar ni ir muy de lado, rozas el agua sin daño y no te hundes.',
+      'Solo caes al quedarte sin vida. En una misión o un capítulo, caer es MISIÓN FALLIDA (en los capítulos, puedes reintentar desde el último punto de control); en el combate libre, a los pocos segundos reapareces en el aire con la vida llena (pero no recuperas bolas guiadas, y los escudos siguen con su recarga).',
       'La altitud (<b>ALT</b>) es sobre el nivel del mar, no sobre el suelo: entre montañas, vuela con margen.'] }
   ] },
   { cat: 'Enemigos del aire', items: [
@@ -9312,7 +9396,7 @@ const TUTORIAL = [
       'Cada misión empieza con unos segundos de vuelo automático, con bandas negras de cine y su nombre arriba; luego tomas el control. Los <b>objetivos</b> están arriba a la derecha, cada uno con su cuenta, y pueden ir apareciendo durante la misión (aviso <b>Nuevo objetivo</b>); los cumplidos se ponen dorados y los que llevan un rombo (◇) son opcionales. A veces, un recuadro bajo los avisos te da un consejo.',
       'Los blancos que cuentan para un objetivo llevan la marca <b>TGT</b> junto a su marco y destacan en el radar. Lo que no la lleva también te ataca, pero no hace falta destruirlo para ganar.',
       'Las misiones tienen un <b>área</b>: en el radar, lo de fuera sale sombreado en rojo y el borde, con una línea discontinua. Si sales, una cuenta atrás de 15 s y una flecha dorada te indican el camino de vuelta; si llega a 0, la misión falla.',
-      'En las misiones y en el Modo Historia no hay segunda oportunidad: si te derriban, <b>MISIÓN FALLIDA</b> (puedes reintentarla desde los resultados o desde la pausa). Al cumplir todos los objetivos, <b>MISIÓN CUMPLIDA</b> y la pantalla de resultados: tiempo, puntos, derribos, precisión, daño recibido…',
+      'En las misiones y en el Modo Historia no hay segunda oportunidad: si te derriban, <b>MISIÓN FALLIDA</b> (puedes reintentarla desde los resultados o desde la pausa). En los capítulos del Modo Historia, al acabar con cada oleada se guarda un <b>punto de control</b>: si caes, puedes reintentar desde él, con la vida, los escudos y la munición llenos. Al cumplir todos los objetivos, <b>MISIÓN CUMPLIDA</b> y la pantalla de resultados: tiempo, puntos, derribos, precisión, daño recibido…',
       'En el <b>combate libre</b> no hay área ni prisa: destruye las 30 torres y derriba los 20 dragones para ganar. Si caes, reapareces en el aire.'] }
   ] }
 ];
@@ -9590,7 +9674,8 @@ function updateIntro(now) {
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
      v38: areaOut: 'respawn' = en vez de fallar, se reaparece en el punto de partida (Vuelo Libre).
-   · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
+   · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»; v43: y «Volver al punto de control» si un evento guardó uno con la acción
+     checkpoint); 'respawn' = reapareces y la partida sigue. v43: caer = quedarse sin vida (los choques ya solo quitan vida y rebotas).
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
      ellas sobre islas flotantes). El reparto sale siempre igual con la semilla del mundo; random: true = uno nuevo en cada partida.
@@ -9862,7 +9947,8 @@ const MISSIONS = {
    · world.relief / world.islands: cordillera alrededor del inicio, llanura al norte y sin islas (M3).
    · allies (6e), squads con rel, y, gap, cruise, unknown y from: 'super' (6b), units con wave (6f), chatter (reacciones, 19e).
    · Eventos: when.card, quiet, engaged, calm, close, signal (+ n, nMin; each: true = cada vez que llega), near, unitHp;
-     do: say + voice, sayFor, hush, spawn, engage, portal, cine, music, fade, chatter, hint.
+     do: say + voice, sayFor, hush, spawn, engage, portal, cine, music, fade, chatter, hint;
+     v43: checkpoint: «texto» = punto de control (al acabar cada oleada: patrulla, escuadrones y ejército; ver 19_misiones_motor.js).
    ============================================================ */
 const SAY = (who, en, es, voice) => voice ? { say: [who, { en, es }], voice } : { say: [who, { en, es }] };   // (atajo para escribir el guion)
 MISSIONS.capitulo1 = {
@@ -9994,7 +10080,7 @@ MISSIONS.capitulo1 = {
       SAY('oracle', 'All five hostiles down. Good kills, Paladin Three.', 'Los cinco hostiles, abatidos. Buenos derribos, Paladin Tres.'),
       SAY('seraphin', 'Not bad, Percival. Not bad at all.', 'Nada mal, Percival. Nada mal.'),
       SAY('minotaur', 'Who were they? No colors, no banners...', '¿Quiénes eran? Sin colores, sin estandartes...'),
-      SAY('seraphin', "Scouts. And scouts never fly alone.", 'Exploradores. Y los exploradores nunca vuelan solos.')] },
+      SAY('seraphin', "Scouts. And scouts never fly alone.", 'Exploradores. Y los exploradores nunca vuelan solos.'), { checkpoint: 'Patrulla abatida' }] },
     // ---------- Fase 2: dos escuadrones, este y oeste ----------
     { id: 'fase2', when: { after: { event: 'fase1', t: 1.5 }, quiet: true }, do: [
       SAY('oracle', 'Alert! Two more squadrons inbound, east and west, eight kilometers out! Six dragons each!', '¡Alerta! Dos escuadrones más se acercan, por el este y por el oeste, a ocho kilómetros. ¡Seis dragones cada uno!'),
@@ -10007,7 +10093,7 @@ MISSIONS.capitulo1 = {
       SAY('oracle', 'Both squadrons destroyed. The sky over Skyreach is yours, Paladin.', 'Los dos escuadrones, destruidos. El cielo de Skyreach es vuestro, Paladin.'),
       SAY('lance', 'Seventeen dragons... This was no patrol, Seraphin.', 'Diecisiete dragones... Esto no era una patrulla, Seraphin.'),
       SAY('seraphin', 'No. It was a screen. They were clearing the sky for something else.', 'No. Era una pantalla. Estaban despejando el cielo para otra cosa.'),
-      SAY('volger', 'I smell smoke on the wind, Percival. Smoke and steel. From the north.', 'Huelo humo en el viento, Percival. Humo y acero. Viene del norte.')] },
+      SAY('volger', 'I smell smoke on the wind, Percival. Smoke and steel. From the north.', 'Huelo humo en el viento, Percival. Humo y acero. Viene del norte.'), { checkpoint: 'Escuadrones abatidos' }] },
     // ---------- Fase 3: el ejército de las llanuras ----------
     { id: 'fase3', when: { after: { event: 'fase2b', t: 1 }, quiet: true }, do: [{ spawn: 'ejercito' },
       SAY('oracle', 'Paladin, the watchtowers on the northern plains just went dark. Large ground force, fifteen kilometers north of you: thousands of soldiers, siege artillery and an airship escort.', 'Paladin, las torres de vigía de las llanuras del norte acaban de apagarse. Una gran fuerza terrestre a quince kilómetros al norte: miles de soldados, artillería de asedio y una escolta de dirigibles.'),
@@ -10025,7 +10111,7 @@ MISSIONS.capitulo1 = {
     { id: 'fase3b', when: { done: ['batallones', 'artilleria', 'dirigibles'] }, do: [{ hush: true }, { chatter: false },
       SAY('oracle', 'Ground force neutralized. The plains are clear.', 'Fuerza terrestre neutralizada. Las llanuras están despejadas.'),
       SAY('jester', "Is it over? Tell me it's over.", '¿Se acabó? Decidme que se acabó.'),
-      SAY('seraphin', "Stay sharp. Something about this still doesn't...", 'Atentos. Hay algo en todo esto que todavía no...', null)] },
+      SAY('seraphin', "Stay sharp. Something about this still doesn't...", 'Atentos. Hay algo en todo esto que todavía no...', null), { checkpoint: 'Ejército derrotado' }] },
     // ---------- Fase 4: el portal y el superdirigible ----------
     { id: 'portal', when: { after: { event: 'fase3b', t: 0.6 }, quiet: true }, do: [
       SAY('oracle', "Paladin, wait! Massive arcane surge, six kilometers north of you! I've never seen readings like this!", '¡Paladin, esperad! ¡Una oleada arcana enorme, a seis kilómetros al norte! ¡Nunca había visto lecturas así!'),
@@ -10143,12 +10229,63 @@ function missionStart() {
   missionHideHUD();
   storyStart();                                            // v34: voces, pantalla de capítulo, fundido y reacciones (19e)
   allyStart();                                             // v23: compañero de escuadrón (6e), si la receta lo trae (v34: varios)
+  const resume = cpResume(); CP.use = false;               // v43: desde un punto de control (sin pantalla de capítulo ni entrada de cine)
+  if (resume) { checkpointApply(); killFeed('Punto de control', CP.snap.label, PAL_GOLD); sfx.locked(); return; }
+  CP.snap = null;
   const goal = MS.objs.filter(o => o.shown && !o.optional).map(o => o.count + ' ' + o.hud.toLowerCase()).join(' y ');
   const I = mission.intro, intro = I != null ? I : CINE_T;   // v26: entrada de cine (15_vuelo_estado.js), con el nombre de la misión
   if (I && typeof I === 'object') cineStart(Infinity, mission.name, mission.place, { title: I.title, shots: I.shots, skip: true });   // v34: hasta que la acaba un evento («cine: 'end'»), con planos de cámara
   else if (intro > 0) cineStart(intro, mission.name, mission.free && goal ? 'Objetivo: ' + goal : mission.place);   // (v38: sin objetivos, el lugar)
   else toast(mission.free && goal ? 'Objetivo: ' + goal : mission.name + (mission.dev ? '  ·  Tab: panel de pruebas' : ''));
   if (mission.card) cardStart(mission.card);               // v34: pantalla de capítulo en negro (19e), encima de la entrada de cine
+}
+
+/* ---------- v43: puntos de control ----------
+   Petición de Jorge: en el Capítulo 01, al acabar cada oleada de enemigos se guarda solo un punto de control (acción «checkpoint» de un
+   evento, con el texto que sale debajo de «PUNTO DE CONTROL»). Si caes, la pantalla de MISIÓN FALLIDA ofrece «Volver al punto de control»:
+   la partida vuelve a empezar (startGame) sin la pantalla de capítulo ni la entrada de cine, con los eventos ya disparados, los objetivos, los
+   derribos, las señales y las estadísticas de ese momento (así no se repiten diálogos ni oleadas; las caídas sí cuentan) y el dragón en vuelo
+   donde estaba, a CP_SAFE m del suelo como mínimo, con la vida, los escudos y la munición llenos y los aliados en formación. Lo siguiente
+   llega CP_LEAD s más tarde de lo que tocaba, para situarse. «Reintentar desde el inicio», la pausa o el menú empiezan de cero. */
+const CP_SAFE = 300, CP_LEAD = 2.5;
+const CP = { snap: null, use: false, deaths: 0 };          // snap: el último punto de control; use: el próximo startGame sale de él
+const cpResume = () => !!(CP.use && CP.snap && CP.snap.mission === missionId);
+const cpAvailable = () => !!(CP.snap && CP.snap.mission === missionId);
+function checkpointSave(label) {
+  if (mission.dev || MS.ended) return;
+  const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(dragon.quaternion); dir.y = 0;
+  if (dir.lengthSq() < 1e-4) dir.set(0, 0, -1); dir.normalize();
+  const sig = {}; for (const k in MS.sig) sig[k] = Object.assign({}, MS.sig[k]);
+  CP.snap = { mission: missionId, label: txt(label || ''), t: MS.t, fired: new Map(MS.fired), kills: Object.assign({}, MS.kills), sig,
+    objs: MS.objs.map(o => ({ shown: o.shown, done: o.done, n: o.n, count: o.count })), chatter: STORY.chatter, stats: Object.assign({}, stats),
+    score: towerState.score, tKills: towerState.kills, eKills: enemyState.kills, squadN: enemyState.squadN, engaged: Object.assign({}, enemyState.engaged),
+    aKills: airshipState.kills, uKills: unitState.kills, pos: dragon.position.clone(), dir };
+  if (state === 'playing') { killFeed('Punto de control', CP.snap.label, PAL_GOLD); sfx.locked(); }
+}
+/* «Volver al punto de control» (pantalla de resultados). */
+function checkpointRetry() {
+  if (!cpAvailable()) return;
+  CP.use = true; CP.deaths = stats.deaths; restartGame();
+}
+/* resetRun: el dragón, donde estaba (en vuelo y a altura segura), mirando hacia donde iba. */
+function checkpointPlace() {
+  const S = CP.snap, p = dragon.position.copy(S.pos), g = Math.max(heightAt(p.x, p.z), WL);
+  p.y = Math.max(p.y, g + CP_SAFE);
+  dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, S.dir, UP));
+  F.aimWorld.copy(S.dir); F.aimPt.copy(S.dir).multiplyScalar(1400).add(p);
+}
+/* missionStart: el estado del motor y las cuentas de ese momento. */
+function checkpointApply() {
+  const S = CP.snap;
+  MS.t = S.t - CP_LEAD;
+  MS.fired.clear(); S.fired.forEach((v, k) => MS.fired.set(k, v));
+  MS.kills = Object.assign({}, S.kills); MS.planned = {};
+  MS.sig = {}; for (const k in S.sig) MS.sig[k] = Object.assign({}, S.sig[k]);
+  S.objs.forEach((o, i) => { const m = MS.objs[i]; if (m) { Object.assign(m, o); m.doneT = -1e9; } });   // (los cumplidos, ya fuera del HUD)
+  STORY.chatter = S.chatter;
+  Object.assign(stats, S.stats); stats.deaths = CP.deaths;
+  towerState.score = S.score; towerState.kills = S.tKills; airshipState.kills = S.aKills; unitState.kills = S.uKills;
+  enemyState.kills = S.eKills; enemyState.squadN = S.squadN; enemyState.engaged = Object.assign({}, S.engaged);
 }
 /* Fin de la partida (resultados, menú o reinicio): fuera la radio y el aviso del área. */
 function missionHideHUD() {
@@ -10286,6 +10423,7 @@ function runAction(a) {
   if (a.fade) fadeBlack(a.fade);                           // v34: fundido a negro (s)
   if (a.chatter != null) STORY.chatter = !!a.chatter;      // v34: reacciones de los compañeros (19e), sí o no
   if (a.hint) hintShow(txt(a.hint));                       // v34: consejo en pantalla (más largo que un aviso)
+  if (a.checkpoint) checkpointSave(a.checkpoint);         // v43: punto de control (texto de debajo)
   if (a.win != null) missionWin(a.win === true ? MISSION_END_DELAY : a.win);
   if (a.fail) missionFail(a.fail);
 }
@@ -10634,7 +10772,12 @@ const STATS_SCHEMA = {
     ['esquiva_distancia', 'Distancia de la esquiva', 'm', 30, 'Lo que se desplaza de lado, sin cambiar el rumbo (v32). Con mucho más, en 3ª persona el dragón se sale de la pantalla mientras la cámara se queda atrás.'],
     ['esquiva_duracion', 'Duración de la esquiva', 's', 1.5, 'Segundos que dura el desplazamiento y el tonel de 360°.'],
     ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
-    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).']
+    ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).'],
+    { sec: 'Choques' },                                    // v43
+    ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
+    ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
+    ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43). Será también la de aterrizar.']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -10933,7 +11076,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let HP_REGEN_WAIT = 5, HP_REGEN = 10, SHIELD_CD = 15, SHIELD_KILL_CUT = 3;   // (v39) jugador: regeneración de la vida y recarga de los slots de escudo
@@ -10969,6 +11112,7 @@ function applyHeroStats() {
   LASER_DPS = S.rayo_dano; LASER_T = Math.max(LASER_CHARGE + 0.2, S.rayo_duracion); LASER_RANGE = S.rayo_alcance * 1000;
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
   DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
+  CRASH_DMG = Math.max(0, S.choque_dano); CRASH_PUSH = Math.max(0, S.choque_rebote); CRASH_GRACE = Math.max(0, S.choque_pausa); LAND_SPEED = Math.max(0, S.aterrizaje_vel) / 3.6;   // (v43)
   heroPools ={ hp: S.vida, ammo: GUN_AMMO, msl: MSL_AMMO };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);

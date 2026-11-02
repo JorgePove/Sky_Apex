@@ -658,8 +658,8 @@ function drawHealth() {
    ancho y se ajusta, dura KILL_T s y se apaga; si llegan varios seguidos, los anteriores suben y se atenúan (tres como mucho). Los derribos
    de los aliados siguen con el aviso de arriba. */
 const KILLS = [], KILL_T = 2.4;
-function killFeed(txt, sub) {
-  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime });
+function killFeed(txt, sub, pal) {                         // (v43: pal = otra paleta, p. ej. PAL_GOLD para «PUNTO DE CONTROL»)
+  KILLS.unshift({ txt: txt.toUpperCase(), sub: (sub || '').toUpperCase(), t0: gameTime, pal: pal || PAL_G });
   if (KILLS.length > 3) KILLS.length = 3;
 }
 /* v42: con una bola guiada enemiga en camino, en ese mismo sitio, «¡PROYECTIL APROXIMÁNDOSE!» en rojo y parpadeando (los derribos se apilan
@@ -686,9 +686,10 @@ function drawKills() {
     const t = gameTime - m.t0, al = Math.min(1, t / 0.12) * Math.min(1, (KILL_T - t) / 0.5) * (i ? 0.6 : 1);
     const w = (tws[i] + 54 * k) * (1 + 0.22 * Math.max(0, 1 - t / 0.16)), h = (m.sub ? 40 : 30) * k;
     hctx.save(); hctx.globalAlpha = al;
-    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, PAL_G, 8 * k, 0.8);
-    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, PAL_G.ink, PAL_G.glow, 'center', sp);
-    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k);
+    const P = m.pal;
+    hudPanel(HW / 2 - w / 2, y - h / 2, w, h, P, 8 * k, 0.8);
+    hudGlow(m.txt, HW / 2, y - h / 2 + 15 * k + size * G_CAP / 2, size, P.ink, P.glow, 'center', sp);
+    if (m.sub) hudGlow(m.sub, HW / 2, y + h / 2 - 7 * k, 10 * k, P.line, P.glow, 'center', 1.6 * k);
     hctx.restore();
     y -= h + 8 * k;
   });

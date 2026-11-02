@@ -20,7 +20,8 @@
    · area: zona de juego, un círculo { x, z, r } en metros. null = sin límites.
      Al salir: aviso con cuenta atrás de AREA_GRACE s (15) para volver; si no, MISIÓN FALLIDA. El radar dibuja el borde.
      v38: areaOut: 'respawn' = en vez de fallar, se reaparece en el punto de partida (Vuelo Libre).
-   · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»); 'respawn' = reapareces y la partida sigue.
+   · death: 'fail' = caer es MISIÓN FALLIDA (con «Reintentar»; v43: y «Volver al punto de control» si un evento guardó uno con la acción
+     checkpoint); 'respawn' = reapareces y la partida sigue. v43: caer = quedarse sin vida (los choques ya solo quitan vida y rebotas).
    · timeLimit: segundos para cumplirla (null = sin límite). Si se acaba: MISIÓN FALLIDA.
    · towers: torres de cristal del mapa. total, zone (anillo [r mín, r máx] alrededor del punto de partida, en m) e islands ([mín, máx] de
      ellas sobre islas flotantes). El reparto sale siempre igual con la semilla del mundo; random: true = uno nuevo en cada partida.

@@ -184,9 +184,11 @@ function showResult(win, why) {
   document.getElementById('vicKicker').textContent = free ? (win ? 'Objetivo cumplido' : 'Combate libre') : mission.name + '  ·  ' + mission.place;
   document.getElementById('vicTitle').textContent = free ? (win ? 'Victoria' : 'Derrota') : (win ? 'Misión cumplida' : 'Misión fallida');
   whyEl.textContent = why || ''; whyEl.hidden = !why;
-  retry.textContent = free ? 'Reiniciar partida' : win ? 'Repetir misión' : 'Reintentar';
+  const cpEl = document.getElementById('vicCheckpoint'), cp = !win && !free && cpAvailable();   // v43: volver al último punto de control
+  cpEl.hidden = !cp;
+  retry.textContent = free ? 'Reiniciar partida' : win ? 'Repetir misión' : cp ? 'Reintentar desde el inicio' : 'Reintentar';
   vicEl.querySelector('.vic').classList.toggle('fail', !win);
-  vicEl.hidden = false; (win ? document.getElementById('vicMenu') : retry).focus();
+  vicEl.hidden = false; (win ? document.getElementById('vicMenu') : cp ? cpEl : retry).focus();
 }
 /* Partida nueva: torres reconstruidas, estadísticas a cero y el dragón en el punto de partida (el terreno de allí, ya generado). */
 function resetRun(pump) {
@@ -203,7 +205,8 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
-  dodgeReset();                                            // (v32)
+  dodgeReset(); bumpReset();                               // (v32; v43: rebote)
+  if (cpResume()) checkpointPlace();                       // v43: desde un punto de control, donde estaba (19)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
   if (pump) for (let i = 0, t0 = performance.now(); i < 400 && pumpTerrain(30) > 0 && performance.now() - t0 < 4000; i++) { }   // (en el menú se genera poco a poco)
@@ -211,7 +214,7 @@ function resetRun(pump) {
 }
 function backToMenu() {
   vicEl.hidden = byeEl.hidden = deadEl.hidden = pauseEl.hidden = true; closePanels(); cineEnd(true); devPanel(false);   // (v27: panel de pruebas)
-  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset();   // (v34)
+  MS.ended = true; missionHideHUD(); allyOff(); sfx.breath(0, 0); sfx.quiet(); storyStop(false); portalReset(); CP.use = false;   // (v34; v43)
   state = 'menu'; menuEl.hidden = false; showPlayMenu(false); resetRun();   // (v22: al terminar una partida, el menú principal)
   music.stopGame(1.5); music.menu.play(1.5);
 }
@@ -225,6 +228,7 @@ function quitGame() {
 }
 document.getElementById('vicMenu').addEventListener('click', backToMenu);
 document.getElementById('vicRestart').addEventListener('click', restartGame);
+document.getElementById('vicCheckpoint').addEventListener('click', () => checkpointRetry());   // v43 (19)
 document.getElementById('vicQuit').addEventListener('click', quitGame);
 document.getElementById('byeBack').addEventListener('click', backToMenu);
 function startGame() {
@@ -319,7 +323,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-  dodgeReset(); devHoverStart();                           // (v32: en los modos de prueba, también al reaparecer)
+  dodgeReset(); bumpReset(); devHoverStart();              // (v32: en los modos de prueba, también al reaparecer; v43: rebote)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -918,6 +922,78 @@ function updateDodge(dt) {
   F.dodgeCam.copy(DG.off).multiplyScalar(k);
 }
 
+/* ---------- v43: choques con rebote ----------
+   Petición de Jorge: estrellarse ya no es caer al instante (era muy frustrante). Tocar el suelo, el agua, una montaña, una isla, una torre, un
+   dirigible, una unidad enemiga con colisión o un dragón enemigo quita CRASH_DMG de vida (el dragón enemigo, su choque_dano) y hace rebotar:
+   - el dragón sale despedido hacia fuera de lo que ha tocado y algo hacia arriba (BUMP.v, que se apaga en ~1 s);
+   - el morro (y la mira con él) se desvía fuera de la superficie: rozando, unos 15° hacia fuera; contra una ladera, sube por ella; casi de
+     frente contra una pared, sale de lado a lo largo de ella; en picado contra el suelo, se endereza como al tirar de las riendas;
+   - y pierde velocidad cuanto más de frente haya chocado (hasta la mitad).
+   Durante CRASH_GRACE s, otro choque rebota pero no quita vida (no se encadenan). Solo se cae si no queda vida (hurtDragon, con el motivo de
+   siempre). Despacio sobre el agua (≤ LAND_SPEED, sin picar ni ir muy de lado) no hay choque: el dragón la roza sin hundirse. Los valores son
+   stats del dragón (Excel, «Choques»: applyHeroStats). */
+let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 200 / 3.6;
+const BUMP = { v: new THREE.Vector3(), t: -99, skim: false };   // velocidad del rebote (m/s), gameTime del último choque con daño, ¿rozando el agua?
+const _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _bc = new THREE.Vector3(), _bf = new THREE.Vector3(), _bu = new THREE.Vector3(), _bq = new THREE.Quaternion();
+function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
+/* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida; dmg: el daño (por defecto, CRASH_DMG). */
+function crashBump(n, why, dmg) {
+  if (state !== 'playing' || devCheat('noCrash')) return;   // (v27: Dev Test, «sin choques»)
+  const q = dragon.quaternion;
+  _bn.copy(n).normalize();
+  _bf.set(0, 0, -1).applyQuaternion(q);
+  const into = clamp(-_bf.dot(_bn), 0, 1);                // 0 = rozando, 1 = de frente
+  BUMP.v.copy(_bn).multiplyScalar(CRASH_PUSH * (0.6 + 0.4 * into)); BUMP.v.y += CRASH_PUSH * 0.45;
+  if (into > 0) {
+    _bt.copy(_bf).addScaledVector(_bn, -_bf.dot(_bn));     // lo que iba a lo largo de la superficie
+    if (_bt.lengthSq() < 0.25) {                           // casi de frente:
+      _bc.crossVectors(_bn, UP);                           // de lado, a lo largo de la pared (hacia donde ya se inclinaba)
+      if (_bc.lengthSq() < 0.04) { _bu.set(0, 1, 0).applyQuaternion(q); _bc.copy(_bu).addScaledVector(_bn, -_bu.dot(_bn)); }   // (contra el suelo: hacia el lomo)
+      else if (_bc.dot(_bf) + 0.01 * _bc.dot(_bu.set(1, 0, 0).applyQuaternion(q)) < 0) _bc.negate();
+      if (_bc.lengthSq() < 1e-4) _bc.set(0, 1, 0);
+      _bt.addScaledVector(_bc.normalize(), 0.6);
+    }
+    _bt.normalize().addScaledVector(_bn, 0.2 + 0.2 * into); _bt.y += 0.08; _bt.normalize();
+    if (Math.abs(_bt.y) < 0.97) {
+      q.setFromRotationMatrix(_m4.lookAt(ZERO, _bt, UP));
+      F.aimWorld.copy(_bt); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
+    }
+    if (!F.hover) F.speed = Math.max(Math.min(F.speed, VMIN * 1.5), F.speed * lerp(0.9, 0.5, into));
+  }
+  F.sink = 0;
+  if (gameTime - BUMP.t < CRASH_GRACE) { camShake = Math.max(camShake, 0.35); return; }   // en la pausa: rebota, sin daño
+  BUMP.t = gameTime;
+  hurtDragon(dmg != null ? dmg : CRASH_DMG, why);
+  camShake = Math.max(camShake, 1);
+}
+/* Normal del terreno en (x, z) (hacia arriba). */
+function terrainNormal(x, z, out) {
+  const e = 3;
+  return out.set(heightAt(x - e, z) - heightAt(x + e, z), 2 * e, heightAt(x, z - e) - heightAt(x, z + e)).normalize();
+}
+/* ¿Puede rozar el agua sin chocar? Despacio, sin picar (más de 25° hacia abajo) ni ir muy de lado (más de 45° de alabeo). */
+function canSkim(q) {
+  _bf.set(0, 0, -1).applyQuaternion(q); _bc.set(1, 0, 0).applyQuaternion(q); _bu.set(0, 1, 0).applyQuaternion(q);
+  return F.speed <= LAND_SPEED * (BUMP.skim ? 1.5 : 1) && _bf.y > -0.42   // (ya rozándola, con margen: entre roce y roce acelera algo) && _bu.y > 0 && Math.abs(Math.atan2(_bc.y, _bu.y)) < Math.PI / 4;
+}
+/* Rozando el agua: no se hunde (a ras, sin hundimiento), el morro no baja del horizonte (ni la mira) y el agua lo frena a LAND_SPEED como
+   mucho (si no, al acelerar rozándola pasaría de la velocidad y rebotaría con daño); al tocarla, salpica. Para irse, morro arriba. */
+function skimWater(pos, q) {
+  pos.y = WL + 2.2; F.sink = 0; F.speed = Math.min(F.speed, LAND_SPEED);
+  _bf.set(0, 0, -1).applyQuaternion(q);
+  if (_bf.y < 0) q.multiply(_bq.setFromAxisAngle(_bc.set(1, 0, 0), Math.asin(Math.min(1, -_bf.y))));   // cabeceo hacia arriba, lo justo
+  if (F.aimWorld.y < 0) { F.aimWorld.y = 0; if (F.aimWorld.lengthSq() < 1e-4) F.aimWorld.copy(_bf).setY(0); F.aimWorld.normalize(); }
+  if (!BUMP.skim) { splash(pos.x, pos.z, 1.0); sfx.hit(); }
+  BUMP.skim = true;
+}
+/* Unidad o dirigible: normal desde el punto más cercano de su eje (o de la cápsula más cercana). */
+function capsNormal(caps, p, out) {
+  let best = Infinity;
+  for (const c of caps) { const d = segPointDist2(c.a, c.b, p); if (d < best) { best = d; out.subVectors(p, _Uc); } }
+  if (out.lengthSq() < 1e-6) out.set(0, 1, 0);
+  return out.normalize();
+}
+
 /* ---------- Vuelo ---------- */
 function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
@@ -1043,23 +1119,28 @@ function updateFlight(dt, auto) {
   // movimiento
   _f.set(0, 0, -1).applyQuaternion(q);
   dragonVel.copy(_f).multiplyScalar(F.speed); dragonVel.y -= F.sink; dragonVel.y += F.hvy;
+  if (!auto && BUMP.v.lengthSq() > 0.01) { dragonVel.add(BUMP.v); BUMP.v.multiplyScalar(Math.exp(-dt * 2.5)); }   // v43: rebote de un choque
   pos.addScaledVector(dragonVel, dt);
   if (!auto) updateDodge(dt);                              // v32: esquiva (desplazamiento lateral y tonel), antes de los choques
-  // colisión con el terreno o el agua
-  const g = Math.max(heightAt(pos.x, pos.z), WL);
+  // colisión con el terreno o el agua (v43: rebote con daño en vez de caer; despacio sobre el agua, la roza)
+  const hT = heightAt(pos.x, pos.z), g = Math.max(hT, WL);
   if (!auto && pos.y < g + 2.2) {
-    if (heightAt(pos.x, pos.z) < WL) { splash(pos.x, pos.z, 2.0); crash('Te sumergiste en el agua'); } else crash('Te estrellaste contra el terreno');
+    if (hT < WL) {
+      if (canSkim(q)) skimWater(pos, q);
+      else { pos.y = WL + 2.2; if (gameTime - BUMP.t >= CRASH_GRACE) splash(pos.x, pos.z, 2.0); crashBump(UP, 'Te sumergiste en el agua'); }
+    } else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
   } else if (auto && pos.y < g + 60) pos.y = g + 60;
-  if (!auto && state === 'playing' && islandAt(pos.x, pos.y, pos.z, 2.6)) crash('Te estrellaste contra una isla flotante');
+  if (BUMP.skim && pos.y > WL + 4) BUMP.skim = false;
+  if (!auto && state === 'playing') { const s = islandAt(pos.x, pos.y, pos.z, 2.6); if (s) crashBump(pos.y > s.yMax - 15 ? UP : _bt.set(pos.x - s.x, 0, pos.z - s.z), 'Te estrellaste contra una isla flotante'); }
   if (!auto && state === 'playing') for (const t of towers.values()) {   // torres en pie (desde la v7 miden ~110 m: ya no se pueden atravesar)
     if (t.dead) continue;
     const dx = pos.x - t.x, dz = pos.z - t.z;
-    if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crash('Te estrellaste contra una torre'); break; }
+    if (dx * dx + dz * dz < (TOWER_R + 3) ** 2 && pos.y > t.y - 2 && pos.y < t.y + TOWER_TOP + 6) { crashBump(pos.y > t.y + TOWER_TOP ? UP : _bt.set(dx, 0, dz), 'Te estrellaste contra una torre'); break; }
   }
   if (!auto && state === 'playing') for (const a of airships) {   // v21: dirigibles (el casco; un poco menos que la cápsula de los impactos)
-    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crash('Te estrellaste contra un dirigible'); break; }
+    if (!a.dead && airshipPointDist2(a, pos) < (a.r * 0.8) ** 2) { crashBump(capsNormal([{ a: a.ca, b: a.cb }], pos, _bt), 'Te estrellaste contra un dirigible'); break; }
   }
-  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crash('Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
+  if (!auto && state === 'playing') { const u = unitPointHit(pos, 0.8); if (u) crashBump(capsNormal(u.caps, pos, _bt), 'Te estrellaste contra ' + (u.crashText || 'un enemigo')); }   // v29: unidades nuevas (6f)
   // rozar el agua levanta espuma
   if (pos.y - WL < 14 && pos.y - WL > 0 && heightAt(pos.x, pos.z) < WL - 1) {
     for (let i = 0; i < 2; i++) emit(fxSmoke, pos.x + rnd(-4, 4), WL + 0.3, pos.z + rnd(-4, 4), -dragonVel.x * 0.15 + rnd(-4, 4), rnd(3, 9), -dragonVel.z * 0.15 + rnd(-4, 4), rnd(0.7, 1.3), 2, 6, 0.85, 0.92, 0.95, 0.4, 1, 12);

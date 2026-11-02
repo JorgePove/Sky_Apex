@@ -14,7 +14,8 @@
    · world.relief / world.islands: cordillera alrededor del inicio, llanura al norte y sin islas (M3).
    · allies (6e), squads con rel, y, gap, cruise, unknown y from: 'super' (6b), units con wave (6f), chatter (reacciones, 19e).
    · Eventos: when.card, quiet, engaged, calm, close, signal (+ n, nMin; each: true = cada vez que llega), near, unitHp;
-     do: say + voice, sayFor, hush, spawn, engage, portal, cine, music, fade, chatter, hint.
+     do: say + voice, sayFor, hush, spawn, engage, portal, cine, music, fade, chatter, hint;
+     v43: checkpoint: «texto» = punto de control (al acabar cada oleada: patrulla, escuadrones y ejército; ver 19_misiones_motor.js).
    ============================================================ */
 const SAY = (who, en, es, voice) => voice ? { say: [who, { en, es }], voice } : { say: [who, { en, es }] };   // (atajo para escribir el guion)
 MISSIONS.capitulo1 = {
@@ -146,7 +147,7 @@ MISSIONS.capitulo1 = {
       SAY('oracle', 'All five hostiles down. Good kills, Paladin Three.', 'Los cinco hostiles, abatidos. Buenos derribos, Paladin Tres.'),
       SAY('seraphin', 'Not bad, Percival. Not bad at all.', 'Nada mal, Percival. Nada mal.'),
       SAY('minotaur', 'Who were they? No colors, no banners...', '¿Quiénes eran? Sin colores, sin estandartes...'),
-      SAY('seraphin', "Scouts. And scouts never fly alone.", 'Exploradores. Y los exploradores nunca vuelan solos.')] },
+      SAY('seraphin', "Scouts. And scouts never fly alone.", 'Exploradores. Y los exploradores nunca vuelan solos.'), { checkpoint: 'Patrulla abatida' }] },
     // ---------- Fase 2: dos escuadrones, este y oeste ----------
     { id: 'fase2', when: { after: { event: 'fase1', t: 1.5 }, quiet: true }, do: [
       SAY('oracle', 'Alert! Two more squadrons inbound, east and west, eight kilometers out! Six dragons each!', '¡Alerta! Dos escuadrones más se acercan, por el este y por el oeste, a ocho kilómetros. ¡Seis dragones cada uno!'),
@@ -159,7 +160,7 @@ MISSIONS.capitulo1 = {
       SAY('oracle', 'Both squadrons destroyed. The sky over Skyreach is yours, Paladin.', 'Los dos escuadrones, destruidos. El cielo de Skyreach es vuestro, Paladin.'),
       SAY('lance', 'Seventeen dragons... This was no patrol, Seraphin.', 'Diecisiete dragones... Esto no era una patrulla, Seraphin.'),
       SAY('seraphin', 'No. It was a screen. They were clearing the sky for something else.', 'No. Era una pantalla. Estaban despejando el cielo para otra cosa.'),
-      SAY('volger', 'I smell smoke on the wind, Percival. Smoke and steel. From the north.', 'Huelo humo en el viento, Percival. Humo y acero. Viene del norte.')] },
+      SAY('volger', 'I smell smoke on the wind, Percival. Smoke and steel. From the north.', 'Huelo humo en el viento, Percival. Humo y acero. Viene del norte.'), { checkpoint: 'Escuadrones abatidos' }] },
     // ---------- Fase 3: el ejército de las llanuras ----------
     { id: 'fase3', when: { after: { event: 'fase2b', t: 1 }, quiet: true }, do: [{ spawn: 'ejercito' },
       SAY('oracle', 'Paladin, the watchtowers on the northern plains just went dark. Large ground force, fifteen kilometers north of you: thousands of soldiers, siege artillery and an airship escort.', 'Paladin, las torres de vigía de las llanuras del norte acaban de apagarse. Una gran fuerza terrestre a quince kilómetros al norte: miles de soldados, artillería de asedio y una escolta de dirigibles.'),
@@ -177,7 +178,7 @@ MISSIONS.capitulo1 = {
     { id: 'fase3b', when: { done: ['batallones', 'artilleria', 'dirigibles'] }, do: [{ hush: true }, { chatter: false },
       SAY('oracle', 'Ground force neutralized. The plains are clear.', 'Fuerza terrestre neutralizada. Las llanuras están despejadas.'),
       SAY('jester', "Is it over? Tell me it's over.", '¿Se acabó? Decidme que se acabó.'),
-      SAY('seraphin', "Stay sharp. Something about this still doesn't...", 'Atentos. Hay algo en todo esto que todavía no...', null)] },
+      SAY('seraphin', "Stay sharp. Something about this still doesn't...", 'Atentos. Hay algo en todo esto que todavía no...', null), { checkpoint: 'Ejército derrotado' }] },
     // ---------- Fase 4: el portal y el superdirigible ----------
     { id: 'portal', when: { after: { event: 'fase3b', t: 0.6 }, quiet: true }, do: [
       SAY('oracle', "Paladin, wait! Massive arcane surge, six kilometers north of you! I've never seen readings like this!", '¡Paladin, esperad! ¡Una oleada arcana enorme, a seis kilómetros al norte! ¡Nunca había visto lecturas así!'),

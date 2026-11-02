@@ -671,7 +671,7 @@ function updateEnemies(dt) {
     updateTrail(e, dt);
     const dist = e.pos.distanceTo(P);
     // choque con el jugador
-    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo'); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }
+    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; crashBump(_Ev2.subVectors(P, e.pos), 'Chocaste con un dragón enemigo', ENEMY_RAM_DMG); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }   // (v43: con rebote)
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
     if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && e.mode !== 'cruise' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate
