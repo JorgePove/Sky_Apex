@@ -51,15 +51,26 @@ input[type=range]{accent-color:var(--ember);width:160px}
 #vig{position:fixed;inset:0;z-index:3;pointer-events:none;opacity:0;
   background:radial-gradient(ellipse at center,rgba(255,40,20,0) 45%,rgba(255,40,20,.55) 100%)}
 #warn{position:fixed;left:50%;top:22%;transform:translateX(-50%);z-index:4;font-family:var(--f-display);font-weight:700;letter-spacing:.3em;color:var(--danger);font-size:18px;opacity:0;pointer-events:none;text-shadow:0 0 14px rgba(255,60,40,.7)}
-/* v15: misiones. Radio (abajo en el centro, entre el radar y las armas; v39: encima de la vida), aviso al salir del área, botones de la pausa y resultado fallido */
-#radio{position:fixed;left:50%;bottom:calc(9.15vh + 18px);transform:translate(-50%,10px);z-index:4;display:flex;gap:12px;align-items:flex-start;box-sizing:border-box;
-  width:clamp(300px,calc(100vw - 660px),560px);padding:10px 14px 11px;background:var(--glass);border:1px solid rgba(241,230,211,.16);border-left:3px solid var(--gold);
+/* v15: misiones. Radio, aviso al salir del área, botones de la pausa y resultado fallido.
+   v40: la radio (mensajes mentales) va arriba, justo debajo de la brújula (antes abajo, encima de la vida), con el estilo del HUD: cristal
+   verde oscuro con líneas de barrido, contorno con brillo y el color de quien habla a la izquierda. En la entrada de cine vuelve abajo, sobre
+   la banda negra, como un subtítulo. Mientras se ve, el toast, el aviso de proyectil y las pistas del Modo Historia bajan (--radio-b: su
+   borde de abajo, lo pone updateRadio). */
+#radio{position:fixed;left:50%;top:calc(9.3vh + 2px);transform:translate(-50%,-8px);z-index:4;display:flex;gap:12px;align-items:flex-start;box-sizing:border-box;
+  width:clamp(300px,calc(100vw - 660px),560px);padding:10px 14px 11px;
+  background:repeating-linear-gradient(0deg,rgba(170,255,210,.035) 0 1px,transparent 1px 3px),linear-gradient(180deg,rgba(8,40,22,.8),rgba(2,13,7,.86));
+  border:1px solid rgba(118,255,168,.45);border-left:3px solid var(--gold);border-radius:2px;
+  box-shadow:0 0 14px rgba(50,255,130,.22),inset 0 1px 0 rgba(255,255,255,.08);
   opacity:0;transition:opacity .3s,transform .3s;pointer-events:none}
 #radio.on{opacity:1;transform:translate(-50%,0)}
-#radio .r-icon{flex:none;width:40px;height:40px;display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:21px;color:var(--ink);background:var(--gold);border-radius:2px}
-#radio .r-name{font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);margin:1px 0 4px}
-#radio .r-text{font-size:15px;line-height:1.42;color:var(--bone)}
-@media (max-width:1000px){#radio{bottom:auto;top:118px}}
+#radio .r-icon{flex:none;width:40px;height:40px;display:grid;place-items:center;font-family:'Graduate',var(--f-display);font-size:21px;color:#04140a;background:var(--gold);border-radius:2px;
+  box-shadow:0 0 10px rgba(255,255,255,.18),inset 0 -6px 10px rgba(0,0,0,.22)}
+#radio .r-name{font-family:'Graduate',var(--f-data);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin:1px 0 4px;text-shadow:0 0 8px currentColor}
+#radio .r-text{font-size:15px;line-height:1.42;color:#e4fbea;text-shadow:0 1px 3px rgba(0,0,0,.85)}
+body:has(#cine.on) #radio{top:auto;bottom:calc(max(56px,12vh) + 14px)}
+body:has(#radio.on):not(:has(#cine.on)) #toast{top:calc(var(--radio-b,170px) + 12px)}
+body:has(#radio.on):not(:has(#cine.on)) #warn{top:max(22%,calc(var(--radio-b,170px) + 50px))}
+body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48px)}
 #area{position:fixed;left:50%;top:29%;transform:translateX(-50%);z-index:4;display:none;text-align:center;pointer-events:none;white-space:nowrap;
   font-family:var(--f-display);font-weight:700;color:var(--danger);text-shadow:0 0 16px rgba(255,60,40,.6),0 2px 8px rgba(0,0,0,.85)}
 #area.on{display:block}

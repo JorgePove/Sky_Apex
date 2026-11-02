@@ -16,29 +16,35 @@ function proj(x, y, z, out) {
 function hudText(str, x, y, font, color, align) {
   hctx.font = font; hctx.fillStyle = color; hctx.textAlign = align || 'left'; hctx.fillText(str, x, y);
 }
-const COMPASS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SO', 270: 'O', 315: 'NO' };
+const COMPASS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };   // (v40: en inglés, como el resto del HUD)
 
+/* Brújula (arriba, en el centro). v40: con el estilo del HUD (verde con halo, Graduate) y el rumbo en un panel bajo la flecha. */
 function drawCompass(heading) {
-  const cw = Math.min(520, HW - 40), cx = HW / 2, cy = 34, ppd = cw / 90;
-  hctx.save(); hctx.beginPath(); hctx.rect(cx - cw / 2, cy - 22, cw, 48); hctx.clip();
-  hctx.strokeStyle = C_BONE; hctx.lineWidth = 1;
+  const k = HUD_K, P = PAL_G, cw = Math.min(520 * k, HW - 40), cx = HW / 2, cy = 34 * k, ppd = cw / 90;
+  hctx.save(); hctx.beginPath(); hctx.rect(cx - cw / 2, cy - 24 * k, cw, 36 * k); hctx.clip();
+  const bl = hctx.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0);   // línea base, que se desvanece en los extremos
+  bl.addColorStop(0, 'rgba(118,255,168,0)'); bl.addColorStop(0.5, 'rgba(118,255,168,.45)'); bl.addColorStop(1, 'rgba(118,255,168,0)');
+  hctx.fillStyle = bl; hctx.fillRect(cx - cw / 2, cy + 6 * k, cw, k);
+  hctx.strokeStyle = P.line; hctx.lineWidth = 1.2 * k; hctx.shadowColor = P.glow; hctx.shadowBlur = 4 * k;
   for (let d = Math.floor(heading - 46); d <= Math.ceil(heading + 46); d++) {
     if (d % 5) continue;
     const x = cx + (d - heading) * ppd, n = ((d % 360) + 360) % 360, big = d % 15 === 0;
     const edge = 1 - Math.pow(Math.abs(x - cx) / (cw / 2), 3);
     hctx.globalAlpha = clamp(edge, 0, 1) * 0.9;
-    hctx.beginPath(); hctx.moveTo(x, cy + 6); hctx.lineTo(x, cy + (big ? -4 : 1)); hctx.stroke();
-    if (COMPASS[n] !== undefined) hudText(COMPASS[n], x, cy - 9, FM(n % 90 === 0 ? 15 : 12), n === 0 ? C_EMBER : C_BONE, 'center');
+    hctx.beginPath(); hctx.moveTo(x, cy + 6 * k); hctx.lineTo(x, cy + (big ? -4 : 1) * k); hctx.stroke();
+    if (COMPASS[n] !== undefined) hudGlow(COMPASS[n], x, cy - 9 * k, (n % 90 === 0 ? 14 : 11) * k, n === 0 ? PAL_A.line : P.line, n === 0 ? PAL_A.glow : P.glow, 'center', 0.8 * k);
   }
   hctx.restore(); hctx.globalAlpha = 1;
-  hctx.fillStyle = C_GOLD; hctx.beginPath(); hctx.moveTo(cx, cy + 9); hctx.lineTo(cx - 5, cy + 17); hctx.lineTo(cx + 5, cy + 17); hctx.closePath(); hctx.fill();
-  hudText(String(Math.round(heading) % 360).padStart(3, '0') + '°', cx, cy + 34, FM(13), C_GOLD, 'center');
+  hctx.save(); hctx.fillStyle = P.ink; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
+  hctx.beginPath(); hctx.moveTo(cx, cy + 8 * k); hctx.lineTo(cx - 5 * k, cy + 15 * k); hctx.lineTo(cx + 5 * k, cy + 15 * k); hctx.closePath(); hctx.fill(); hctx.restore();
+  hudPanel(cx - 25 * k, cy + 17 * k, 50 * k, 19 * k, P, 4 * k);
+  hudGlow(String(Math.round(heading) % 360).padStart(3, '0'), cx, cy + 26.5 * k + 13 * k * G_CAP / 2, 13 * k, P.ink, P.glow, 'center', 0.8 * k);
 }
 function drawLadder(fwd) {
   const hl = Math.hypot(fwd.x, fwd.z);
   let hx, hz; if (hl < 0.05) { hx = 0; hz = -1; } else { hx = fwd.x / hl; hz = fwd.z / hl; }
   const rx = -hz, rz = hx, a = {}, b = {};
-  hctx.lineWidth = 1.4;
+  hctx.save(); hctx.lineWidth = 1.4; hctx.shadowColor = PAL_G.glow; hctx.shadowBlur = 4 * HUD_K;   // (v40: verde con halo, como el resto del HUD)
   for (let d = -60; d <= 60; d += 10) {
     const th = d * Math.PI / 180, dx = hx * Math.cos(th) * 1000, dy = Math.sin(th) * 1000, dz = hz * Math.cos(th) * 1000;
     const wd = d === 0 ? 220 : 70;
@@ -49,7 +55,7 @@ function drawLadder(fwd) {
     const dist = Math.hypot(mx - HW / 2, my - HH / 2) / (HH * 0.5);
     const al = clamp(1.15 - dist, 0, 1) * (d === 0 ? 0.85 : 0.6);
     if (al <= 0.02) continue;
-    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? C_GOLD : C_BONE;
+    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? PAL_G.ink : PAL_G.line;
     const gap = d === 0 ? 0.18 : 0.30, ux = b.x - a.x, uy = b.y - a.y;
     hctx.beginPath();
     hctx.moveTo(a.x, a.y); hctx.lineTo(a.x + ux * (0.5 - gap), a.y + uy * (0.5 - gap));
@@ -58,10 +64,10 @@ function drawLadder(fwd) {
     if (d !== 0) {
       const tick = d > 0 ? 8 : -8;
       hctx.beginPath(); hctx.moveTo(a.x, a.y); hctx.lineTo(a.x, a.y + tick); hctx.moveTo(b.x, b.y); hctx.lineTo(b.x, b.y + tick); hctx.stroke();
-      hudText(String(Math.abs(d)), a.x - 8, a.y + 4, FM(11), C_BONE, 'right');
+      hudGlow(String(Math.abs(d)), a.x - 8, a.y + 4, 10 * HUD_K, PAL_G.line, PAL_G.glow, 'right');
     }
   }
-  hctx.globalAlpha = 1;
+  hctx.restore(); hctx.globalAlpha = 1;
 }
 const _pth = new THREE.Vector3();
 function drawMarkers(fwd) {
@@ -88,10 +94,10 @@ function drawMarkers(fwd) {
     // apagadas, durante su recarga)
     for (let i = 0; i < W.shCd.length; i++) {
       const x = a.x - (W.shCd.length * 15 - 2) / 2 + i * 15, y = a.y + 33;   // (v24: centradas, sean las que sean)
-      hctx.fillStyle = 'rgba(4,6,10,.88)'; hctx.fillRect(x - 1, y - 1, 15, 6);
+      hctx.shadowBlur = 0; hctx.fillStyle = 'rgba(2,8,18,.85)'; hctx.fillRect(x - 1, y - 1, 15, 6);
       const use = i === W.shUse && W.shieldT > 0, cd = W.shCd[i];
       const f = use ? W.shieldT / SHIELD_T : cd > 0 ? 1 - cd / Math.max(SHIELD_CD, 0.01) : 1;
-      if (f > 0) { hctx.fillStyle = use ? '#9fd8ff' : cd > 0 ? 'rgba(63,169,255,.38)' : '#3fa9ff'; hctx.fillRect(x, y, 13 * f, 4); }
+      if (f > 0) { hctx.shadowColor = 'rgba(80,170,255,.8)'; hctx.shadowBlur = cd > 0 && !use ? 0 : 6; hctx.fillStyle = use ? '#bfe6ff' : cd > 0 ? 'rgba(63,169,255,.4)' : '#4fb2ff'; hctx.fillRect(x, y, 13 * f, 4); }   // (v40: con brillo)
     }
     // calor de la llamarada: arco a la derecha de la mira que se llena de abajo arriba (como el calor de las armas de Star Citizen)
     if (W.heat > 0.01 || W.overheat > 0) {
@@ -329,12 +335,14 @@ function drawMinimap(heading, fwd) {
   const cx = xa + S / 2, cy = ya + S * 0.667, kk = (S / 2) / MM_RANGE;                     // tú y px por m
   const hl = Math.hypot(fwd.x, fwd.z) || 1, fx = fwd.x / hl, fz = fwd.z / hl, rx = -fz, rz = fx, p = dragon.position;
   minimapTerrain(p.x, p.z);
+  const P = PAL_G, ch = 12 * k;                            // (v40: con el acabado del resto del HUD: cristal, esquinas cortadas, viñeta y barrido)
   hctx.save(); hctx.shadowBlur = 0;
-  hctx.beginPath(); hctx.rect(xa, ya, S, S); hctx.clip();
-  hctx.fillStyle = 'rgba(16,64,34,.5)'; hctx.fillRect(xa, ya, S, S);
+  chamferPath(xa, ya, S, S, ch); hctx.clip();
+  const bg = hctx.createLinearGradient(0, ya, 0, yb); bg.addColorStop(0, 'rgba(6,40,20,.7)'); bg.addColorStop(1, 'rgba(2,16,8,.82)');
+  hctx.fillStyle = bg; hctx.fillRect(xa, ya, S, S);
   if (MM.ready) {                                          // relieve: la textura (norte arriba) girada con tu rumbo
     const s = MM_SPAN / MM_N, X0 = MM.cx - MM_SPAN / 2 - p.x, Z0 = MM.cz - MM_SPAN / 2 - p.z;
-    hctx.save(); hctx.globalAlpha = 0.72; hctx.imageSmoothingEnabled = true; hctx.imageSmoothingQuality = 'high';
+    hctx.save(); hctx.globalAlpha = 0.78; hctx.imageSmoothingEnabled = true; hctx.imageSmoothingQuality = 'high';
     hctx.transform(kk * s * rx, -kk * s * fx, kk * s * rz, -kk * s * fz, cx + kk * (rx * X0 + rz * Z0), cy - kk * (fx * X0 + fz * Z0));
     hctx.drawImage(MM.cv, 0, 0); hctx.restore();
   }
@@ -346,12 +354,23 @@ function drawMinimap(heading, fwd) {
     hctx.setLineDash([5, 4]); hctx.strokeStyle = 'rgba(255,74,58,.9)'; hctx.lineWidth = 1.6;
     hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]);
   }
-  hctx.strokeStyle = G_MAP; hctx.lineWidth = 1;            // anillos, cruz y líneas a las esquinas de arriba
-  hctx.globalAlpha = 0.5;
-  for (const r of MM_RINGS) { hctx.beginPath(); hctx.arc(cx, cy, r * kk, 0, 6.283); hctx.stroke(); }
+  const vg = hctx.createRadialGradient(cx, cy, S * 0.25, cx, cy, S * 0.95);   // viñeta: bordes más oscuros
+  vg.addColorStop(0, 'rgba(0,12,5,0)'); vg.addColorStop(1, 'rgba(0,12,5,.45)'); hctx.fillStyle = vg; hctx.fillRect(xa, ya, S, S);
+  hctx.fillStyle = scanPattern(); hctx.fillRect(xa, ya, S, S);
+  if (hctx.createConicGradient) {                          // barrido de radar: una vuelta cada 4 s, con estela
+    const a = gameTime * 1.57 % 6.2832, cg = hctx.createConicGradient(a, cx, cy);
+    cg.addColorStop(0, 'rgba(120,255,170,0)'); cg.addColorStop(0.8, 'rgba(120,255,170,0)'); cg.addColorStop(1, 'rgba(120,255,170,.2)');
+    hctx.fillStyle = cg; hctx.fillRect(xa, ya, S, S);
+    hctx.strokeStyle = 'rgba(160,255,200,.35)'; hctx.lineWidth = k; hctx.beginPath(); hctx.moveTo(cx, cy); hctx.lineTo(cx + Math.cos(a) * S, cy + Math.sin(a) * S); hctx.stroke();
+  }
+  hctx.strokeStyle = P.line; hctx.lineWidth = k;          // anillos, cruz y líneas a las esquinas de arriba
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 4 * k; hctx.globalAlpha = 0.55;
+  MM_RINGS.forEach((r, i) => { hctx.setLineDash(i < MM_RINGS.length - 1 ? [3 * k, 3 * k] : []); hctx.beginPath(); hctx.arc(cx, cy, r * kk, 0, 6.283); hctx.stroke(); });
+  hctx.setLineDash([]); hctx.globalAlpha = 0.35;
   hctx.beginPath(); hctx.moveTo(xa, cy); hctx.lineTo(xb, cy); hctx.moveTo(cx, ya); hctx.lineTo(cx, yb);
   hctx.moveTo(xa, ya); hctx.lineTo(cx, cy); hctx.lineTo(xb, ya); hctx.stroke();
-  hctx.globalAlpha = 1;
+  hctx.globalAlpha = 1; hctx.shadowBlur = 0;
+  for (const [r, t] of [[1500, '1.5'], [3000, '3 KM']]) hudGlow(t, cx + 4 * k, cy - r * kk + 11 * k, 9 * k, P.line, 'rgba(0,0,0,0)', 'left', 0.6 * k);
   const at = (x, z) => {                                   // punto del mundo → minimapa; fuera del cuadrado, en el borde (_rp.far)
     const dx = x - p.x, dz = z - p.z, ox = (dx * rx + dz * rz) * kk, oy = -(dx * fx + dz * fz) * kk, m = 4 * k;
     let t = 1;
@@ -361,7 +380,7 @@ function drawMinimap(heading, fwd) {
   };
   for (const [l, wx, wz] of [['N', 0, -1], ['E', 1, 0], ['S', 0, 1], ['W', -1, 0]]) {   // puntos cardinales en el borde
     const q = at(p.x + wx * 1e6, p.z + wz * 1e6), ix = clamp(q.x, xa + 9 * k, xb - 9 * k), iy = clamp(q.y, ya + 10 * k, yb - 8 * k);
-    hudText(l, ix, iy + 5 * k, FG(13 * k), l === 'N' ? C_EMBER : G_LABEL, 'center');
+    hudGlow(l, ix, iy + 5 * k, 13 * k, l === 'N' ? PAL_A.line : P.line, l === 'N' ? PAL_A.glow : P.glow, 'center');
   }
   // v21: los TGT, en rojo vivo; lo que no cuenta para la misión, apagado. El blanco fijado, con un círculo dorado.
   const col = (tgt, far, fill) => tgt ? (far ? (fill ? 'rgba(255,74,58,.45)' : 'rgba(255,74,58,.55)') : C_DANGER) : 'rgba(241,180,170,.35)';
@@ -418,11 +437,15 @@ function drawMinimap(heading, fwd) {
     hctx.globalAlpha = 0.5 + 0.5 * Math.sin(gameTime * 14); hctx.fillStyle = C_DANGER;
     hctx.beginPath(); hctx.arc(q.x, q.y, 3.2, 0, 6.283); hctx.fill();
   }
-  hctx.globalAlpha = 1;                                    // tú: flecha verde
-  hctx.fillStyle = G_MAP; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2;
+  hctx.globalAlpha = 1;                                    // tú: flecha verde con halo
+  hctx.fillStyle = P.ink; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
   hctx.beginPath(); hctx.moveTo(cx, cy - 8 * k); hctx.lineTo(cx - 5.5 * k, cy + 6 * k); hctx.lineTo(cx, cy + 3 * k); hctx.lineTo(cx + 5.5 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
   hctx.restore();
-  hctx.save(); hctx.shadowBlur = 0; hctx.strokeStyle = 'rgba(111,237,124,.55)'; hctx.lineWidth = 1; hctx.strokeRect(xa + 0.5, ya + 0.5, S - 1, S - 1); hctx.restore();
+  hctx.save();                                             // marco: contorno con brillo y escuadras (sin cristal: el mapa ya lo lleva)
+  chamferPath(xa, ya, S, S, ch); hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 1.3 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  const LB = 16 * k; hctx.lineWidth = 2.6 * k; hctx.beginPath();
+  hctx.moveTo(xb - LB, ya); hctx.lineTo(xb, ya); hctx.lineTo(xb, ya + LB); hctx.moveTo(xa + LB, yb); hctx.lineTo(xa, yb); hctx.lineTo(xa, yb - LB); hctx.stroke();
+  hctx.restore();
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
 /* Bolas guiadas enemigas en camino: rombo rojo sobre cada una si está en pantalla; si no, flecha roja en un anillo alrededor del centro,
@@ -473,50 +496,125 @@ function drawAreaArrow() {
   }
   hctx.restore(); hctx.globalAlpha = 1;
 }
-/* ---------- v39: HUD al estilo de Ace Combat (mockup de Jorge, tras la primera prueba con un jugador externo) ----------
-   Verde, minimalista y más cerca del centro, para no tener que pasear la vista; textos y números en Graduate. SPEED y ALT a los lados de
-   la marca blanca de la trayectoria (no de la mira naranja) y, bajo SPEED, el boost en naranja; abajo, el minimapa cuadrado (izquierda),
-   la vida (centro) y las armas (derecha). Medidas del mockup en px con la ventana a 864 de alto: HUD_K las escala con el alto. */
+/* ---------- v39-v40: HUD al estilo de Ace Combat ----------
+   v39: posiciones y tamaños del mockup de Jorge (tras la primera prueba con un jugador externo): verde, minimalista y más cerca del centro;
+   SPEED y ALT a los lados de la marca blanca de la trayectoria (no de la mira naranja), con el boost bajo SPEED y el acelerador (THR, v40)
+   a su izquierda; abajo, el minimapa cuadrado (izquierda), la vida (centro) y las armas (derecha). Medidas en px con la ventana a 864 de
+   alto: HUD_K las escala con el alto.
+   v40: acabado de HUD de cabina en lugar de cajas planas: paneles de cristal oscuro con esquinas cortadas, líneas de barrido, contorno con
+   brillo y escuadras en las otras dos esquinas; barras con degradado, brillo arriba, segmentos y un borde de avance luminoso; textos y
+   números en Graduate con contorno oscuro y halo. Verde para casi todo, ámbar para el boost y rojo para el peligro. */
 const FG = n => `${n.toFixed(1)}px 'Graduate', 'Share Tech Mono', ui-monospace, monospace`, G_CAP = 0.75;   // Graduate: alto de mayúsculas y cifras (em)
-const HB_GREEN = { line: '#146b2d', fill: '#aef0c7', ink: '#0c682e', empty: 'rgba(6,36,18,.55)' };
-const HB_BOOST = { line: '#e8a462', fill: '#f8d3af', ink: '#84541d', empty: 'rgba(42,22,6,.5)' };
-const HB_RED = { line: '#8a1c12', fill: '#ff9a8a', ink: '#6a0f08', empty: 'rgba(48,8,4,.55)' };
-const G_LABEL = '#bde8c2', B_LABEL = '#fbd8bf', G_MAP = '#6fed7c';
 let HUD_K = 1;
 try { document.fonts.load("20px 'Graduate'"); } catch (e) { }   // (el lienzo no la pide solo: sin esto, los primeros fotogramas salen con otra)
-const hexRGB = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
-const HB_HEAT = [HB_GREEN, { line: '#7a4a0c', fill: '#ffd27a', ink: '#5a3606' }, HB_RED].map(P => ({ line: hexRGB(P.line), fill: hexRGB(P.fill), ink: hexRGB(P.ink) }));
-const _hbMix = { empty: HB_GREEN.empty };
-function hbHeat(t) {                                       // verde (0) → ámbar (0,5) → rojo (1): la barra de la llamarada según se calienta
-  const u = clamp(t, 0, 1) * 2, A = HB_HEAT[u < 1 ? 0 : 1], B = HB_HEAT[u < 1 ? 1 : 2], f = u < 1 ? u : u - 1;
-  for (const c of ['line', 'fill', 'ink']) _hbMix[c] = 'rgb(' + A[c].map((v, i) => Math.round(v + (B[c][i] - v) * f)).join(',') + ')';
-  _hbMix.empty = t > 0.5 ? HB_RED.empty : HB_GREEN.empty;
-  return _hbMix;
+const rgbStr = (c, a) => a == null ? `rgb(${c[0]},${c[1]},${c[2]})` : `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+/* Paleta: ink (números), line (líneas y rótulos), glow (halo), f0-f2 (degradado de las barras, de arriba abajo). */
+function hudPal(c) {
+  return { c, ink: rgbStr(c.ink), line: rgbStr(c.line), dim: rgbStr(c.line, 0.34), faint: rgbStr(c.line, 0.13), glow: rgbStr(c.glow, 0.7),
+    f0: rgbStr(c.f0), f1: rgbStr(c.f1), f2: rgbStr(c.f2) };
 }
-/* Caja o barra: borde de 2 px; lo lleno (fracción f, de izquierda a derecha) claro y lo vacío oscuro y translúcido; el texto, centrado,
-   oscuro sobre lo lleno y claro sobre lo vacío. size: px de la fuente. */
-function hudBox(x, y, w, h, f, txt, size, P) {
-  const k = HUD_K, fw = w * clamp(f, 0, 1);
-  hctx.fillStyle = P.empty; hctx.fillRect(x, y, w, h);
-  if (fw > 0) { hctx.fillStyle = P.fill; hctx.fillRect(x, y, fw, h); }
-  hctx.lineWidth = 2 * k; hctx.strokeStyle = P.line; hctx.strokeRect(x + k, y + k, w - 2 * k, h - 2 * k);
-  if (!txt) return;
-  const sb = hctx.shadowBlur; hctx.shadowBlur = 0;
-  hctx.font = FG(size); hctx.textAlign = 'center';
-  const ty = y + h / 2 + size * G_CAP / 2;
-  for (const [x0, ww, col] of [[x, fw, P.ink], [x + fw, w - fw, P.fill]]) {
-    if (ww <= 0.01) continue;
-    hctx.save(); hctx.beginPath(); hctx.rect(x0, y, ww, h); hctx.clip(); hctx.fillStyle = col; hctx.fillText(txt, x + w / 2, ty); hctx.restore();
+const PAL_G = hudPal({ ink: [226, 255, 236], line: [118, 255, 168], glow: [50, 255, 130], f0: [196, 255, 218], f1: [70, 226, 128], f2: [14, 112, 54] });
+const PAL_A = hudPal({ ink: [255, 243, 224], line: [255, 180, 96], glow: [255, 140, 30], f0: [255, 230, 186], f1: [255, 158, 62], f2: [150, 70, 18] });
+const PAL_R = hudPal({ ink: [255, 230, 224], line: [255, 108, 90], glow: [255, 50, 30], f0: [255, 200, 188], f1: [255, 86, 66], f2: [134, 20, 10] });
+const PAL_GOLD = hudPal({ ink: [255, 236, 190], line: [242, 196, 92], glow: [255, 180, 40], f0: [255, 236, 190], f1: [242, 184, 75], f2: [140, 90, 20] });
+const GLASS = ['rgba(8,40,22,.62)', 'rgba(2,13,7,.8)'];
+function palMix(A, B, t) { const o = {}; for (const k in A.c) o[k] = A.c[k].map((v, i) => Math.round(v + (B.c[k][i] - v) * t)); return hudPal(o); }
+function palHeat(t) { t = clamp(t, 0, 1) * 2; return t < 1 ? palMix(PAL_G, PAL_A, t) : palMix(PAL_A, PAL_R, t - 1); }   // verde → ámbar → rojo
+let _scan = null;
+function scanPattern() {                                   // líneas de barrido (textura de los paneles)
+  if (!_scan) {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 3; const g = c.getContext('2d');
+    g.fillStyle = 'rgba(170,255,210,.07)'; g.fillRect(0, 0, 4, 1); g.fillStyle = 'rgba(0,0,0,.16)'; g.fillRect(0, 2, 4, 1);
+    _scan = hctx.createPattern(c, 'repeat');
   }
-  hctx.shadowBlur = sb;
+  return _scan;
 }
-function hudLabel(txt, x, y, size, col, align) {           // rótulo con una sombra suave (y: línea base)
-  hctx.save(); hctx.shadowColor = 'rgba(0,0,0,.5)'; hctx.shadowBlur = 3 * HUD_K;
-  hudText(txt, x, y, FG(size), col, align || 'center'); hctx.restore();
+function chamferPath(x, y, w, h, c) {                      // rectángulo con las esquinas de arriba a la izquierda y abajo a la derecha cortadas
+  hctx.beginPath(); hctx.moveTo(x + c, y); hctx.lineTo(x + w, y); hctx.lineTo(x + w, y + h - c); hctx.lineTo(x + w - c, y + h);
+  hctx.lineTo(x, y + h); hctx.lineTo(x, y + c); hctx.closePath();
+}
+/* Panel de cristal: degradado oscuro, barrido, contorno con brillo y escuadras en las esquinas sin cortar. a = opacidad del cristal. */
+function hudPanel(x, y, w, h, P, c, a) {
+  const k = HUD_K; c = c != null ? c : Math.min(6 * k, h * 0.3);
+  hctx.save(); hctx.shadowBlur = 0;
+  chamferPath(x, y, w, h, c);
+  const g = hctx.createLinearGradient(0, y, 0, y + h); g.addColorStop(0, GLASS[0]); g.addColorStop(1, GLASS[1]);
+  if (a != null) hctx.globalAlpha *= a;
+  hctx.fillStyle = g; hctx.fill(); hctx.fillStyle = scanPattern(); hctx.fill();
+  if (a != null) hctx.globalAlpha /= a;
+  hctx.strokeStyle = 'rgba(255,255,255,.07)'; hctx.lineWidth = 1; hctx.beginPath(); hctx.moveTo(x + c + 1, y + 1.5); hctx.lineTo(x + w - 1.5, y + 1.5); hctx.stroke();   // filo de luz arriba
+  chamferPath(x, y, w, h, c);
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 7 * k; hctx.lineWidth = 1.2 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  const L = Math.min(9 * k, w * 0.3, h * 0.45); hctx.lineWidth = 2.4 * k; hctx.beginPath();
+  hctx.moveTo(x + w - L, y); hctx.lineTo(x + w, y); hctx.lineTo(x + w, y + L);
+  hctx.moveTo(x + L, y + h); hctx.lineTo(x, y + h); hctx.lineTo(x, y + h - L); hctx.stroke();
+  hctx.restore();
+}
+/* Texto con contorno oscuro y halo (y: línea base). */
+function hudGlow(txt, x, y, size, col, glow, align, spacing) {
+  const k = HUD_K;
+  hctx.save(); hctx.font = FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
+  const sx = hctx.textAlign === 'center' ? x + (spacing || 0) / 2 : x;   // (el espaciado se añade también tras la última letra)
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
+  hctx.shadowColor = glow; hctx.shadowBlur = 7 * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
+  hctx.restore();
+}
+/* Barra: panel, lo lleno (fracción f) con degradado, brillo arriba, segmentos (seg) y borde de avance luminoso; el texto, centrado.
+   vert: se llena de abajo arriba (el acelerador). */
+function hudBar(x, y, w, h, f, txt, size, P, seg, vert) {
+  const k = HUD_K, c = Math.min(6 * k, h * 0.3, w * 0.3), i = 2 * k, iw = w - 2 * i, ih = h - 2 * i, ff = clamp(f, 0, 1);
+  hudPanel(x, y, w, h, P, c);
+  hctx.save(); hctx.shadowBlur = 0;
+  chamferPath(x + i, y + i, iw, ih, c * 0.6); hctx.clip();
+  const fx = x + i, fy = vert ? y + i + ih * (1 - ff) : y + i, fw = vert ? iw : iw * ff, fh = vert ? ih * ff : ih;
+  if (ff > 0.002) {
+    const g = vert ? hctx.createLinearGradient(x, 0, x + w, 0) : hctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, P.f0); g.addColorStop(0.42, P.f1); g.addColorStop(1, P.f2);
+    hctx.globalAlpha *= 0.92; hctx.fillStyle = g; hctx.fillRect(fx, fy, fw, fh); hctx.globalAlpha /= 0.92;
+    const s = vert ? hctx.createLinearGradient(x, 0, x + w * 0.55, 0) : hctx.createLinearGradient(0, y, 0, y + h * 0.55);
+    s.addColorStop(0, 'rgba(255,255,255,.34)'); s.addColorStop(1, 'rgba(255,255,255,0)');
+    hctx.fillStyle = s; hctx.fillRect(fx, fy, fw, fh);
+  }
+  for (let j = 1; j < (seg || 0); j++) {                   // segmentos: oscuros sobre lo lleno y tenues en lo vacío
+    const t = j / seg, on = t < ff;
+    hctx.fillStyle = on ? 'rgba(0,26,10,.42)' : P.faint;
+    if (vert) hctx.fillRect(fx, y + i + ih * (1 - t) - 0.5 * k, iw, k); else hctx.fillRect(x + i + iw * t - 0.5 * k, y + i + (on ? 0 : ih * 0.55), k, on ? ih : ih * 0.45);
+  }
+  if (ff > 0.002 && ff < 0.998) {                          // borde de avance
+    hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.fillStyle = P.ink;
+    if (vert) hctx.fillRect(fx, fy - 0.75 * k, iw, 1.5 * k); else hctx.fillRect(fx + fw - 1.5 * k, fy, 1.5 * k, fh);
+  }
+  hctx.restore();
+  if (txt) hudGlow(txt, x + w / 2, y + h / 2 + size * G_CAP / 2, size, P.ink, P.glow, 'center', 0.4 * k);
+}
+/* Caja de un valor (SPEED, ALT): panel, marcas de escala en el lado de fuera, el número y una flecha hacia el centro (dir: +1 a la derecha). */
+function hudValueBox(x, y, w, h, txt, size, P, dir) {
+  const k = HUD_K;
+  hudPanel(x, y, w, h, P);
+  hctx.save(); hctx.strokeStyle = P.dim; hctx.lineWidth = k; hctx.beginPath();
+  const ox = dir > 0 ? x + 4 * k : x + w - 4 * k;
+  for (let j = 1; j < 6; j++) { const yy = y + h * j / 6, l = (j === 3 ? 6 : 3) * k; hctx.moveTo(ox, yy); hctx.lineTo(ox + dir * l, yy); }
+  hctx.stroke();
+  const ax = dir > 0 ? x + w + 3 * k : x - 3 * k, ay = y + h / 2;
+  hctx.fillStyle = P.line; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
+  hctx.beginPath(); hctx.moveTo(ax + dir * 6 * k, ay); hctx.lineTo(ax, ay - 5 * k); hctx.lineTo(ax, ay + 5 * k); hctx.closePath(); hctx.fill();
+  hctx.restore();
+  hudGlow(txt, x + w / 2 + dir * 2 * k, y + h / 2 + size * G_CAP / 2, size, P.ink, P.glow, 'center', 0.6 * k);
+}
+/* Rótulo de cabecera (SPEED, ALT, THR): centrado sobre la caja, con una raya a cada lado si cabe. y: línea base. */
+function hudHeader(txt, x, w, y, size, P) {
+  const k = HUD_K, sp = 1.4 * k;
+  hudGlow(txt, x + w / 2, y, size, P.line, P.glow, 'center', sp);
+  hctx.save(); hctx.font = FG(size); hctx.letterSpacing = sp.toFixed(1) + 'px'; const tw = hctx.measureText(txt).width; hctx.restore();
+  const yl = y - size * G_CAP / 2, l0 = x + w / 2 - tw / 2 - 4 * k, r0 = x + w / 2 + tw / 2 + 4 * k;
+  if (l0 - x < 4 * k) return;
+  hctx.save(); hctx.strokeStyle = P.dim; hctx.lineWidth = k; hctx.beginPath();
+  hctx.moveTo(x, yl + 3 * k); hctx.lineTo(x, yl); hctx.lineTo(l0, yl); hctx.moveTo(r0, yl); hctx.lineTo(x + w, yl); hctx.lineTo(x + w, yl + 3 * k); hctx.stroke();
+  hctx.restore();
 }
 /* SPEED y ALT, cajas de 80 × 32 a 209 px a cada lado de la marca blanca de la trayectoria y a su altura (la siguen, algo suavizado y sin
-   alejarse mucho del centro). Bajo SPEED, la barra del boost con su porcentaje y «BOOST»; bajo ALT, «HOVER» en hover. ALT es la altitud
-   sobre el nivel del agua, no sobre el suelo. */
+   alejarse mucho del centro). Bajo SPEED, la barra del boost con su porcentaje y «BOOST»; a su izquierda, el acelerador (THR, v40); bajo
+   ALT, «HOVER» en hover. ALT es la altitud sobre el nivel del agua, no sobre el suelo. */
 const _anc = { x: 0, y: 0, t: -1 };
 function drawFlightBoxes() {
   const k = HUD_K, now = performance.now() / 1000, dt = now - _anc.t;
@@ -524,52 +622,73 @@ function drawFlightBoxes() {
   if (_anc.t < 0 || dt > 0.5) { _anc.x = tx; _anc.y = ty; } else { const a = 1 - Math.exp(-20 * dt); _anc.x += (tx - _anc.x) * a; _anc.y += (ty - _anc.y) * a; }
   _anc.t = now;
   const w = 80 * k, h = 32 * k, by = _anc.y - h / 2, sx = _anc.x - 209 * k - w / 2, ax = _anc.x + 209 * k - w / 2;
-  hctx.save(); hctx.shadowBlur = 0;
-  hudLabel('SPEED', sx + w / 2, by - 4 * k, 17.5 * k, G_LABEL);
-  hudBox(sx, by, w, h, 1, String(Math.round(F.speed * 3.6)), 18.5 * k, HB_GREEN);
-  const bb = by + h + 4 * k, out = F.boostExhausted;     // boost: barra naranja con su porcentaje; agotado, parpadea
-  if (out) hctx.globalAlpha = 0.55 + 0.45 * Math.sin(gameTime * 9);
-  hudBox(sx, bb, w, 20 * k, F.boost, Math.round(F.boost * 100) + '%', 10 * k, HB_BOOST);
-  hctx.globalAlpha = 1;
-  hudLabel('BOOST', sx + w / 2, bb + 20 * k + 19 * k, 18.5 * k, B_LABEL);
-  hudLabel('ALT', ax + w / 2, by - 4 * k, 17.5 * k, G_LABEL);
-  hudBox(ax, by, w, h, 1, String(Math.round(dragon.position.y - WL)), 18.5 * k, HB_GREEN);
-  if (F.hover) { hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudLabel('HOVER', ax + w / 2, bb + 20 * k + 19 * k, 18.5 * k, G_LABEL); hctx.globalAlpha = 1; }
+  const bb = by + h + 4 * k, bh = 20 * k, lb = bb + bh + 19 * k;   // barra del boost y línea base de BOOST / HOVER
+  hudHeader('SPEED', sx, w, by - 5 * k, 15.5 * k, PAL_G);
+  hudValueBox(sx, by, w, h, String(Math.round(F.speed * 3.6)), 19 * k, PAL_G, 1);
+  hctx.save();
+  if (F.boostExhausted) hctx.globalAlpha = 0.55 + 0.45 * Math.sin(gameTime * 9);   // agotado: parpadea
+  hudBar(sx, bb, w, bh, F.boost, Math.round(F.boost * 100) + '%', 11 * k, PAL_A, 10);
+  hctx.restore();
+  hudGlow('BOOST', sx + w / 2, lb, 15.5 * k, PAL_A.line, PAL_A.glow, 'center', 1.6 * k);
+  drawThrottle(sx - 32 * k, by, 12 * k, bb + bh - by, by - 5 * k, lb);
+  hudHeader('ALT', ax, w, by - 5 * k, 15.5 * k, PAL_G);
+  hudValueBox(ax, by, w, h, String(Math.round(dragon.position.y - WL)), 19 * k, PAL_G, -1);
+  if (F.hover) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow('HOVER', ax + w / 2, lb, 15.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k); hctx.restore(); }
+}
+/* v40: acelerador (W/S), barra vertical a la izquierda de SPEED que se llena de abajo arriba, con marcas al 25, 50 y 75 %, una flecha en su
+   nivel y el porcentaje debajo. En hover (W/S suben y bajan) se apaga. ly: línea base de «THR»; vy: la del porcentaje. */
+function drawThrottle(x, y, w, h, ly, vy) {
+  const k = HUD_K, P = PAL_G, t = clamp(F.throttle, 0, 1);
+  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hudGlow('THR', x + w / 2, ly, 15.5 * k, P.line, P.glow, 'center', 1.4 * k);
+  hudBar(x, y, w, h, t, '', 0, P, 4, true);
+  const ay = y + 2 * k + (h - 4 * k) * (1 - t), ax = x + w + 3 * k;
+  hctx.fillStyle = P.ink; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
+  hctx.beginPath(); hctx.moveTo(ax, ay); hctx.lineTo(ax + 6 * k, ay - 4 * k); hctx.lineTo(ax + 6 * k, ay + 4 * k); hctx.closePath(); hctx.fill();
+  hctx.restore();
+  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hudGlow(Math.round(t * 100) + '%', x + w / 2, vy, 13 * k, P.ink, P.glow, 'center', 0.4 * k);
   hctx.restore();
 }
-/* Armas (abajo a la derecha, como en Ace Combat): GUN y MSL con su munición (la barra se vacía al gastarla), FLM con el calor de la
-   llamarada (se llena mientras la usas y, según se llena, se vuelve roja y parpadea) y LSR con la carga del rayo (llena, parpadea y brilla).
-   Durante el sobrecalentamiento o el rayo, las que no se pueden usar se apagan. */
+/* Armas (abajo a la derecha, como en Ace Combat), sobre un cristal muy tenue: GUN y MSL con su munición (la barra se vacía al gastarla), FLM
+   con el calor de la llamarada (se llena mientras la usas y, según se llena, pasa de verde a ámbar y a rojo y parpadea) y LSR con la carga
+   del rayo (llena, parpadea y brilla). Durante el sobrecalentamiento o el rayo, las que no se pueden usar se apagan. */
 function drawWeapons() {
-  const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13.5 * k;
+  const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
-  const y3 = HH - 47 * k - h, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9);
-  hctx.save(); hctx.shadowBlur = 0;
-  const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.35 : 1; hudLabel(name, lx, y + h / 2 + 18 * k * G_CAP / 2, 18 * k, G_LABEL, 'left'); return y; };
+  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9);
+  hctx.save();
+  hctx.globalAlpha = 0.55; hudPanel(lx - 12 * k, y0 - 9 * k, bx + w + 9 * k - (lx - 12 * k), y3 + h + 7 * k - (y0 - 9 * k), { line: PAL_G.faint, glow: 'rgba(0,0,0,0)' }, 10 * k, 0.6);
+  const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; hudGlow(name, lx, y + h / 2 + 17 * k * G_CAP / 2, 17 * k, PAL_G.line, PAL_G.glow, 'left', 1.5 * k); return y; };
   let y = row(0, 'GUN', oh || las);
-  hudBox(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, HB_GREEN);
+  hudBar(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, PAL_G, Math.min(GUN_AMMO, 20));
   y = row(1, 'MSL', oh || las);
-  hudBox(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, HB_GREEN);
+  hudBar(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, W.msl > 0 ? PAL_G : PAL_R, 10);
   y = row(2, 'FLM', las);
-  const heat = clamp(W.heat, 0, 1), red = oh ? 1 : heat;
+  const heat = clamp(W.heat, 0, 1);
   if (oh) hctx.globalAlpha = 0.55 + 0.45 * blink;
   else if (heat > 0.02) hctx.globalAlpha *= 1 - 0.55 * heat * heat * (0.5 + 0.5 * Math.sin(gameTime * (4 + 10 * heat)));
-  hudBox(bx, y, w, h, heat, Math.round(heat * 100) + '%', size, hbHeat(red));
+  hudBar(bx, y, w, h, heat, Math.round(heat * 100) + '%', size, palHeat(oh ? 1 : heat), 10);
   y = row(3, 'LSR', oh);
   const full = W.ult >= 1 && !las;
-  if (las || (full && !oh)) { hctx.shadowColor = G_MAP; hctx.shadowBlur = (las ? 12 : 6 + 12 * blink) * k; if (full) hctx.globalAlpha = 0.6 + 0.4 * blink; }
-  hudBox(bx, y, w, h, W.ult, Math.floor(W.ult * 100 + 1e-6) + '%', size, HB_GREEN);
+  if (full && !oh) hctx.globalAlpha = 0.65 + 0.35 * blink;
+  if (las || (full && !oh)) {                              // lleno o disparando: halo alrededor de la barra
+    hctx.save(); hctx.shadowColor = PAL_G.glow; hctx.shadowBlur = (las ? 16 : 8 + 14 * blink) * k; hctx.strokeStyle = PAL_G.ink; hctx.lineWidth = 1.5 * k;
+    chamferPath(bx - 2 * k, y - 2 * k, w + 4 * k, h + 4 * k, 7 * k); hctx.stroke(); hctx.restore();
+  }
+  hudBar(bx, y, w, h, W.ult, Math.floor(W.ult * 100 + 1e-6) + '%', size, PAL_G, 10);
   hctx.restore();
 }
-/* Vida (abajo, en el centro): caja de 118 × 32 con «vida/máxima» que se vacía de derecha a izquierda; en rojo por debajo del 35 %. v39: sin
+/* Vida (abajo, en el centro): barra de 118 × 32 con «vida/máxima» que se vacía de derecha a izquierda; en rojo por debajo del 35 %. v39: sin
    armadura; tras HP_REGEN_WAIT s sin recibir daño se rellena a HP_REGEN por segundo (mientras tanto, late). */
 function drawHealth() {
   const k = HUD_K, w = 118 * k, h = 32 * k, x = HW / 2 - w / 2, y = HH - 47 * k - h, hpMax = heroHpMax(), f = clamp(F.health / hpMax, 0, 1);
   const regen = F.health < hpMax && F.health > 0 && gameTime - F.lastHit > HP_REGEN_WAIT && state === 'playing';
-  hctx.save(); hctx.shadowBlur = 0;
+  hctx.save();
   if (regen) hctx.globalAlpha = 0.84 + 0.16 * Math.sin(gameTime * 6);
-  hudBox(x, y, w, h, f, Math.ceil(F.health) + '/' + fmtStat(hpMax), 18.5 * k, f <= 0.35 ? HB_RED : HB_GREEN);
+  else if (f <= 0.35) hctx.globalAlpha = 0.8 + 0.2 * Math.sin(gameTime * 7);
+  hudBar(x, y, w, h, f, Math.ceil(F.health) + '/' + fmtStat(hpMax), 18 * k, f <= 0.35 ? PAL_R : PAL_G, 10);
   hctx.restore();
 }
 /* Boost en pantalla: túnel (los bordes se oscurecen y se cierran hacia el centro, con un velo cálido) y líneas radiales que nacen
@@ -612,19 +731,20 @@ function drawHUD() {
   drawFlightBoxes();
   drawHealth();
   // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
-  let oy = 36;
-  if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); hudText('TIEMPO  ' + fmtClock(left), HW - 28, oy, FM(15), left < 30 ? C_DANGER : C_BONE, 'right'); oy += 22; }
+  const k = HUD_K; let oy = 36 * k;
+  const oT = (t, P, al) => { hctx.save(); if (al != null) hctx.globalAlpha = al; hudGlow(t, HW - 28, oy, 13.5 * k, P.ink, P.glow, 'right', 1.1 * k); hctx.restore(); oy += 22 * k; };   // (v40: Graduate con halo)
+  if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); oT('TIEMPO  ' + fmtClock(left), left < 30 ? PAL_R : PAL_G); }
   for (const o of MS.objs) {
     if (!o.shown || (o.done && MS.t - o.doneT > 8)) continue;   // (v34: los cumplidos se van a los 8 s: en un capítulo se acumulan)
-    hudText((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, HW - 28, oy, FM(15), o.done ? C_GOLD : C_BONE, 'right'); oy += 22;
+    oT((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, o.done ? PAL_GOLD : PAL_G);
   }
   if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
     const ed = airshipEdgeDist();
-    if (ed < Infinity) { hctx.globalAlpha = ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1; hudText('BORDE  ' + fmtDist(Math.max(0, ed)), HW - 28, oy, FM(15), ed < 2000 ? C_DANGER : C_BONE, 'right'); hctx.globalAlpha = 1; oy += 22; }
+    if (ed < Infinity) oT('BORDE  ' + fmtDist(Math.max(0, ed)), ed < 2000 ? PAL_R : PAL_G, ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1);
   }
-  hudText('PUNTOS  ' + towerState.score, HW - 28, oy, FM(15), C_GOLD, 'right');
+  oT('PUNTOS  ' + towerState.score, PAL_GOLD);
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
-  if (mission.dev) hudText('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, FM(12), DEV.fps ? C_GOLD : C_DIM);   // v27
+  if (mission.dev) hudGlow('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, 11 * k, DEV.fps ? PAL_GOLD.ink : PAL_G.dim, DEV.fps ? PAL_GOLD.glow : 'rgba(0,0,0,0)', 'left', 0.6 * k);   // v27
   hctx.shadowBlur = 0;
 }
 

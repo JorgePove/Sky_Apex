@@ -256,5 +256,7 @@ function updateRadio(dt) {
 function radioSubs(m) {
   const t = MS.t - m.t0; let i = 0;
   while (i < m.chunks.length - 1 && t >= m.chunks[i + 1].t) i++;
-  if (i !== m.ci) { m.ci = i; radioTextEl.textContent = m.chunks[i].s; }
+  if (i !== m.ci) { m.ci = i; radioTextEl.textContent = m.chunks[i].s; radioBottom(); }
 }
+/* v40: la radio va arriba: su borde de abajo (--radio-b) para que el toast, el aviso y las pistas se pongan debajo (01_estilos.css). */
+function radioBottom() { document.documentElement.style.setProperty('--radio-b', (radioEl.offsetTop + radioEl.offsetHeight) + 'px'); }
