@@ -395,9 +395,10 @@ function updateTowerAI(dt) {
 const SFX_FILES = {                                        // [id del recurso incrustado, archivo]
   wings: ['aleteo-mp3', '../audio/dragon-studio-dragon-wings-flapping-478385.mp3'],
   roar: ['rugido-mp3', '../audio/dragon-studio-epic-dragon-roar-364481.mp3'],
-  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3']
+  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3'],
+  growl: ['grunido-mp3', '../audio/dragon-studio-dragon-growl-364483.mp3']   // v44: al aterrizar y al despegar (15b)
 };
-const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1 };        // volumen de cada uno (antes del de «Opciones»)
+const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1, growl: 1 };        // volumen de cada uno (antes del de «Opciones»)
 const FIRE_LOOP = [0.33, 1.5, 5.5], ROAR_GAP = 2;          // llamarada: empieza en (s; antes hay silencio) y bucle de… a… (s); rugido: como mucho uno cada ROAR_GAP s
 /* Trozos de un sonido separados por silencios: [{ s, len, pk (s del inicio al pico), k (ganancia: iguala un poco los flojos) }]. Envolvente
    RMS en ventanas de 10 ms; umbral: el 4 % del pico; silencios de menos de 120 ms no cortan; los trozos de menos de 80 ms se descartan. */
@@ -514,6 +515,8 @@ const sfx = (() => {
       const o = segs[i], lead = Math.max(0, inSec - o.pk), skip = Math.max(0, o.pk - inSec);   // (si ya no da tiempo, empieza más adentro)
       this.play(smp.wings, ctx.currentTime + lead, o.s + skip, o.len - skip, SFX_VOL.wings * a * o.k);
     },
+    /* v44: gruñido al aterrizar y al despegar (sin el archivo, un rugido corto procedural) */
+    growl() { if (!ctx) return; if (smp.growl) this.play(smp.growl, ctx.currentTime, 0, smp.growl.duration, SFX_VOL.growl); else this.roar(0.6); },
     /* v32: esquiva: un soplo que barre de grave a agudo y un aletazo fuerte */
     dodge() { this.noise(0.55, 'bandpass', 380, 2600, 0.5, 0.8); this.wingBeat(1, 1, 0.12); },
     /* v32: llamarada grabada: al empezar, el rugido (como mucho uno cada ROAR_GAP s) y la llamarada, que sigue en bucle hasta soltar */

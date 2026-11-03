@@ -147,6 +147,7 @@
     F.third = !!o.third; F.health = o.health != null ? o.health : heroHpMax(); F.lastHit = -99; F.fireFlash = 0;   // (v24: vida del dragón; v39: sin armadura)
     F.lookVY = F.lookVP = 0; F.tgtCam = F.tgtBack = F.straight = false; F.effort = F.diveT = F.spreadT = 0;   // (v26-v32: vuelo recto, cámara al blanco, aleteo)
     F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null; dodgeReset();
+    if (typeof groundReset === 'function') { groundReset(); bumpReset(); }   // (v44: fuera del modo tierra y del rebote)
     F.aimPt.copy(dir).multiplyScalar(1400).add(dragon.position); cineEnd(true);
     resetWeapons(true);
     if (o.ult != null) { W.ult = o.ult; W.ultFull = o.ult >= 1; }
@@ -183,7 +184,7 @@
     towerState.destroyed.clear(); towerState.kills = 0; towerState.score = 0;
     for (const t of [...towers.values()]) dropTower(t);
     threat.lock = 0; threat.lastLaunch = -99; threat.incoming.length = 0;
-    vigAlpha = 0; camShake = 0; boltWarn = 0;
+    vigAlpha = 0; camShake = 0;                 // (v44: sin boltWarn, que se fue en la v41)
     for (const k in keys) keys[k] = false;
     W.lmb = W.rmb = false;
     for (const k in stats) stats[k] = 0;
@@ -558,6 +559,12 @@
     hover: {
       place: { x: 0, z: 0, heading: 3.9, agl: 160, speed: 320, throttle: 0.6, third: true, path: 1500 }, dur: 9.5, show: ['ControlLeft', 'KeyW', 'KeyS'],
       keys: [['ControlLeft', 0.8, 0.95], ['KeyW', 3.4, 5.0], ['KeyS', 5.6, 6.9], ['ControlLeft', 7.8, 7.95]]
+    },
+    tierra: {                                                // v44: en hover sobre el llano de la artillería (sin árboles): baja y aterriza, anda, gira, llamarada y despega
+      place: { x: -378, z: -458, heading: 3.8, agl: 9, speed: 0, hover: true, third: true }, dur: 14, show: ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'Space', 'mouse'],
+      keys: [['KeyS', 0.5, 2.0], ['KeyW', 3.6, 6.4], ['KeyA', 6.6, 7.8], ['Space', 11.6, 11.75]],
+      clicks: [[2, 8.4, 10.8]],
+      each(t, S) { if (t > 8.2 && t < 11) { const p = dragon.position; aimAt(_v.set(p.x, p.y, p.z).addScaledVector(_w.set(0, 0, -1).applyQuaternion(dragon.quaternion), 60).setY(groundAt(p.x, p.z)), 0.3); } }
     },
     camara: {
       place: { x: 0, z: 0, heading: 0.6, agl: 350, speed: 380, throttle: 0.6, path: 4000 }, dur: 12, show: ['KeyC', 'KeyZ', 'KeyF', 'mouse'], seed: 2,

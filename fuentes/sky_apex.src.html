@@ -422,6 +422,7 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
       <dt><kbd>Shift</kbd></dt><dd>Boost (se gasta y se recarga)</dd>
       <dt><kbd>Espacio</kbd></dt><dd>Mantener: vuelo recto y nivelado, con la cámara de apuntado (la mira sigue al ratón: para quemar el suelo en pasadas rasantes)</dd>
       <dt><kbd>Ctrl izq.</kbd></dt><dd>Hover: quedarse quieto en el aire / volver a volar</dd>
+      <dt>En tierra</dt><dd>Llegar al suelo despacio (o bajar en hover con <kbd>S</kbd>) aterriza · <kbd>W</kbd><kbd>S</kbd> andar · <kbd>A</kbd><kbd>D</kbd> girar · <kbd>Espacio</kbd> despegar · solo llamarada y escudo</dd>
       <dt><kbd>Q</kbd><kbd>E</kbd></dt><dd>Alabeo a izquierda / derecha</dd>
       <dt><kbd>A</kbd><kbd>D</kbd></dt><dd>Esquiva a izquierda / derecha (con un tonel)</dd>
       <dt><kbd>X</kbd></dt><dd>Mantener: nivelar el horizonte</dd>
@@ -573,6 +574,7 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
 <script id="aleteo-mp3" type="application/octet-stream"></script>
 <script id="rugido-mp3" type="application/octet-stream"></script>
 <script id="llamarada-mp3" type="application/octet-stream"></script>
+<script id="grunido-mp3" type="application/octet-stream"></script>
 <!-- v34: voces del Capítulo 1 (../audio): Seraphin y Volger -->
 <script id="voz-seraphin-01" type="application/octet-stream"></script>
 <script id="voz-volger-01" type="application/octet-stream"></script>
@@ -2058,7 +2060,7 @@ const HERO_URL = '../modelos/tyrant_web.glb';             // solo si el HTML no 
 const HERO_SPAN = 34;                                     // envergadura con las alas abiertas (m): fija la escala del modelo
 const HERO_FP = [2.3, 0.5, -0.12], HERO_FP_BONE = 'spine_02'; // 1ª persona (jinete): altura sobre el hueso del lomo (= los ojos del caballero sentado, que mide 1,9 m), retroceso (positivo = atrás: entre las alas, para verlas mejor) y cabeceo
 let heroFP = HERO_FP;                                     // v16: la del dragón elegido (los otros dos la calculan al cargar: 5g)
-const HERO_CAM = [5, 15, -0.07], HERO_CAM_HOVER = 3;      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m (v32: 5 y 15 m, antes 8 y 22)
+const HERO_CAM = [5, 15, -0.07], HERO_CAM_HOVER = 3, HERO_CAM_GROUND = [8, 20, -0.22];   // (v44: en tierra, más alta, más lejos y mirando algo abajo: el dragón entero)      // 3ª persona (tecla C): altura, distancia detrás, cabeceo (el dragón queda bajo la retícula); en hover baja HERO_CAM_HOVER m (v32: 5 y 15 m, antes 8 y 22)
 const HERO_FLAP = [0.75, 1.3], HERO_FLAP_BOOST = 2.6;     // velocidad del clip de vuelo: acelerador 0 → 1, y con boost (el doble que a todo gas: esfuerzo)
 const HERO_FLAP_EFFORT = 0.6;                             // v32: con W mantenida (intentando ganar velocidad), el aleteo va hasta un 60 % más rápido
 const HERO_TUCK = 0.45;                                   // recogida de las alas en boost (rad)
@@ -2188,6 +2190,10 @@ function setupHero(gltf) {
   hero.glow.renderOrder = 7; hero.glow.visible = false; scene.add(hero.glow);
   hero.light = new THREE.PointLight(ATTACK.getHex(), 0, 80, 2); scene.add(hero.light);
   hero.clips = Object.fromEntries(gltf.animations.map(c => [c.name, c]));
+  groundSetup(gltf);                                       // v44: clips de tierra (andar, aterrizar, despegar) y sus medidas (15b)
+  for (const a of Object.values(hero.act)) { a.play(); a.setEffectiveWeight(0); }
+  hero.act.glide.time = hero.glideT; hero.act.glide.timeScale = 0; hero.act.fly.setEffectiveWeight(1);
+  for (const a of [hero.act.gIdle, hero.act.gWalk, hero.act.gLand, hero.act.gTake]) if (a) a.stop();
   model.traverse(o => { if (o.isMesh && o.material.map) tintSkinMaterial(o.material, SKIN_TINT); });   // la piel admite el color elegido
   loadColors();
   hero.ready = true;
@@ -2236,16 +2242,16 @@ function animateTyrant(R, A, dt, st) {
   A.tailYaw += (clamp(-st.yawRate * 0.5, -0.8, 0.8) - A.tailYaw) * (1 - Math.exp(-dt * 2.2));
   A.tuck += (bs * (1 - hv) - A.tuck) * (1 - Math.exp(-dt * 3));                                       // boost: alas recogidas
   A.fold = (A.fold || 0) + ((st.dive || 0) * (1 - hv) * (1 - bs) - (A.fold || 0)) * (1 - Math.exp(-dt * 3));   // v32: picado: alas plegadas hacia atrás
-  A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));
+  A.turnTuck = (A.turnTuck || 0) + (clamp(st.yawRate * HERO_TURN_TUCK[0], -HERO_TURN_TUCK[1], HERO_TURN_TUCK[1]) * (1 - hv) * (1 - (st.ground || 0)) - (A.turnTuck || 0)) * (1 - Math.exp(-dt * 3));   // (v44: en tierra las alas son patas)
   A.glide = (A.glide || 0) + (clamp((0.42 - A.flap) / 0.3, 0, 1) * (1 - hv) * (1 - bs) - (A.glide || 0)) * (1 - Math.exp(-dt * 2.5));
   A.fire += (st.fire - A.fire) * (1 - Math.exp(-dt * 14));
 
-  const B = R.B, act = R.act;
+  const B = R.B, act = R.act, G = st.ground || 0, air = 1 - G;   // (v44: G = peso de los clips de tierra, 15b; los enemigos no tienen)
   // 1. clips: pesos (vuelo / planeo / hover) y velocidad del aleteo (los enemigos no tienen hover)
-  act.fly.setEffectiveWeight((1 - hv) * (1 - A.glide));
-  act.glide.setEffectiveWeight((1 - hv) * A.glide);
+  act.fly.setEffectiveWeight((1 - hv) * (1 - A.glide) * air);
+  act.glide.setEffectiveWeight((1 - hv) * A.glide * air);
   act.fly.timeScale = lerp(lerp(HERO_FLAP[0], HERO_FLAP[1], st.throttle) * (1 + HERO_FLAP_EFFORT * (st.effort || 0)), HERO_FLAP_BOOST, bs);   // (v32: más rápido con W, st.effort)
-  if (act.hover) { act.hover.setEffectiveWeight(hv); act.hover.timeScale = 1 + 0.25 * (st.climb || 0); }
+  if (act.hover) { act.hover.setEffectiveWeight(hv * air); act.hover.timeScale = 1 + 0.25 * (st.climb || 0); }
   R.mixer.update(dt);
   // fase para el sonido del aleteo (sfx.flap cuando el seno pasa por cero bajando)
   A.phase = hv > 0.5 ? act.hover.time / hero.hoverDur * Math.PI * 2 : act.fly.time / hero.flyDur * Math.PI * 2 + Math.PI;
@@ -2257,7 +2263,7 @@ function animateTyrant(R, A, dt, st) {
   _hUp.set(0, 1, 0).applyQuaternion(_hWQi); _hRt.set(1, 0, 0).applyQuaternion(_hWQi);       // ejes del dragón vistos desde el modelo
   for (let i = 0; i < HERO_NECK.length; i++) {
     const b = B[HERO_NECK[i]], w = HERO_NECK_W[i];
-    const up = HERO_NECK_UP * (1 - hv) * (i < 3 ? 1 : -0.6) / 3;          // la base sube y la cabeza se nivela
+    const up = HERO_NECK_UP * (1 - hv) * air * (i < 3 ? 1 : -0.6) / 3;    // la base sube y la cabeza se nivela (en tierra, no)
     rotAxis(b, _hRt, A.headPitch * w * 1.15 + up - A.fire * 0.06); rotAxis(b, _hUp, A.headYaw * w * 1.15);
   }
   rotAxis(B.Jaw0, _hRt, -A.fire * HERO_JAW);
@@ -2279,8 +2285,10 @@ function animateHero(dt, st) {
   // cámara: 1ª persona sobre el lomo (por defecto) ↔ 3ª persona detrás del dragón (C); la colocación va al final
   A.cam += ((st.third ? 1 : 0) - A.cam) * (1 - Math.exp(-dt * 4));
   if (!hero.ready) { camera.position.set(0, HERO_CAM[0], HERO_CAM[1]); camera.rotation.set(HERO_CAM[2], 0, 0); return; }
+  // v44: en tierra (15b), los clips de tierra (G) por encima del vuelo; ni muelles del cuerpo, ni vaivén, ni golpes de ala
+  const G = st.menu ? 0 : groundAnim(dt); st.ground = G;
   // v13: el cuerpo, con muelles encima del rumbo de vuelo (en el menú, quieto)
-  const live = st.menu ? 0 : 1 - (st.hover || 0), w = BODY_SPRING[0], zt = BODY_SPRING[1];
+  const live = st.menu ? 0 : (1 - (st.hover || 0)) * (1 - G), w = BODY_SPRING[0], zt = BODY_SPRING[1];
   const spring = (k, target) => { const v = k + 'V', x = A[k] || 0, vel = A[v] || 0; A[v] = vel + ((target - x) * w * w - 2 * zt * w * vel) * dt; A[k] = x + A[v] * dt; };
   spring('bRoll', clamp(st.yawRate * BODY_ROLL[0], -BODY_ROLL[1], BODY_ROLL[1]) * live);
   spring('bPitch', (clamp((st.pitchRate || 0) * BODY_PITCH[0], -BODY_PITCH[1], BODY_PITCH[1]) - 0.06 * (st.boost || 0)) * live);
@@ -2298,7 +2306,7 @@ function animateHero(dt, st) {
   // v32: golpe de ala con el clip que manda (vuelo u hover): A.beatIn = s que faltan cuando pasa BEAT_LEAD s antes (se programa el sonido)
   // y A.beat = 1 en el golpe (temblor de cámara). Los dos, solo en ese fotograma (updateWorld)
   A.beat = A.beatIn = 0;
-  if (!st.menu) {
+  if (!st.menu && G < 0.5) {
     const ho = (st.hover || 0) > 0.5, ac = ho ? hero.act.hover : hero.act.fly, dur = ho ? hero.hoverDur : hero.flyDur, tb = ho ? hero.beat.hover : hero.beat.fly;
     const ts = Math.max(0.05, ac.timeScale), t1 = ac.time, t0 = A.beatAct === ac ? A.beatT : t1;
     const passed = x => { x = ((x % dur) + dur) % dur; return t1 >= t0 ? x > t0 && x <= t1 : x > t0 || x <= t1; };
@@ -2347,9 +2355,9 @@ function animateHero(dt, st) {
   const rel = _kRel.copy(qd).invert().multiply(A.camQ);
   const push = clamp(F.accS * lerp(CAM_PUSH[0], CAM_PUSH[1], c), -lerp(0.08, 2, c), lerp(CAM_PUSH[2], CAM_PUSH[3], c));   // al acelerar, atrás
   _hT.set(0, heroFP[0] + (heroFP[3] || 0), heroFP[1] + push).applyQuaternion(hero.bodyQ).add(A.fp);   // ojos del jinete, sobre el lomo (que se inclina); v20: + elevación propia de la cámara
-  _hC.set(0, HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM[1] + push).applyQuaternion(L).applyQuaternion(rel);
+  _hC.set(0, lerp(HERO_CAM[0] - HERO_CAM_HOVER * hv, HERO_CAM_GROUND[0], G), lerp(HERO_CAM[1], HERO_CAM_GROUND[1], G) + push).applyQuaternion(L).applyQuaternion(rel);
   camera.position.lerpVectors(_hT, _hC, c);
-  camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], HERO_CAM[2] - 0.10 * hv, c)));
+  camera.quaternion.copy(rel).multiply(L).multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), lerp(heroFP[2], lerp(HERO_CAM[2] - 0.10 * hv, HERO_CAM_GROUND[2], G), c)));
   if (dodgeRoll) camera.quaternion.multiply(_hR.setFromAxisAngle(_kZ, dodgeRoll * (1 - c)));   // v32: en 1ª persona, la vista da la vuelta con el tonel
   // v27: cámara de apuntado (AIM_CAM), mezclada encima (A.aim). st.aimPt = punto de la mira en ejes del dragón; todo en el marco con retraso (rel)
   A.aim = (A.aim || 0) + ((st.aimCam ? 1 : 0) - (A.aim || 0)) * (1 - Math.exp(-dt * AIM_CAM.blend));
@@ -2366,6 +2374,15 @@ function animateHero(dt, st) {
   } else A.aimT = null;
   // v32: esquiva en 3ª persona: la cámara se queda atrás lo que el dragón se ha desplazado de lado (st.dodgeOff, en el mundo; ya con DODGE_CAM)
   if (st.dodgeOff && c > 0.001) camera.position.sub(_kA.copy(st.dodgeOff).applyQuaternion(_kRi.copy(qd).invert()).multiplyScalar(c));
+  // v44: en tierra, la cámara nunca por debajo del suelo (detrás del dragón, en una ladera) ni dentro de la copa de un árbol (15b): sube y se
+  // inclina hacia el dragón lo que ha subido
+  if (G > 0.01) {
+    camera.getWorldPosition(_hP); const hy = Math.max(Math.max(heightAt(_hP.x, _hP.z), WL) + 1.5, canopyTop(_hP.x, _hP.z, 6) + 2);
+    if (_hP.y < hy) {
+      const up = (hy - _hP.y) * G; _hP.y += up; camera.position.copy(dragon.worldToLocal(_hP));
+      camera.quaternion.multiply(_hR.setFromAxisAngle(_hRt.set(1, 0, 0), -Math.atan2(up, HERO_CAM_GROUND[1]) * c));
+    }
+  }
   cineCamApply(dt);                                        // v34: planos de cámara de las entradas de cine (19e), mezclados encima
 }
 const _kEu = new THREE.Euler(), _kQy = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI), _kQr = new THREE.Quaternion(), _kRel = new THREE.Quaternion(), _kT = new THREE.Quaternion();
@@ -3909,9 +3926,10 @@ function updateTowerAI(dt) {
 const SFX_FILES = {                                        // [id del recurso incrustado, archivo]
   wings: ['aleteo-mp3', '../audio/dragon-studio-dragon-wings-flapping-478385.mp3'],
   roar: ['rugido-mp3', '../audio/dragon-studio-epic-dragon-roar-364481.mp3'],
-  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3']
+  fire: ['llamarada-mp3', '../audio/dragon-studio-dragon-breathing-fire-364475.mp3'],
+  growl: ['grunido-mp3', '../audio/dragon-studio-dragon-growl-364483.mp3']   // v44: al aterrizar y al despegar (15b)
 };
-const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1 };        // volumen de cada uno (antes del de «Opciones»)
+const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1, growl: 1 };        // volumen de cada uno (antes del de «Opciones»)
 const FIRE_LOOP = [0.33, 1.5, 5.5], ROAR_GAP = 2;          // llamarada: empieza en (s; antes hay silencio) y bucle de… a… (s); rugido: como mucho uno cada ROAR_GAP s
 /* Trozos de un sonido separados por silencios: [{ s, len, pk (s del inicio al pico), k (ganancia: iguala un poco los flojos) }]. Envolvente
    RMS en ventanas de 10 ms; umbral: el 4 % del pico; silencios de menos de 120 ms no cortan; los trozos de menos de 80 ms se descartan. */
@@ -4028,6 +4046,8 @@ const sfx = (() => {
       const o = segs[i], lead = Math.max(0, inSec - o.pk), skip = Math.max(0, o.pk - inSec);   // (si ya no da tiempo, empieza más adentro)
       this.play(smp.wings, ctx.currentTime + lead, o.s + skip, o.len - skip, SFX_VOL.wings * a * o.k);
     },
+    /* v44: gruñido al aterrizar y al despegar (sin el archivo, un rugido corto procedural) */
+    growl() { if (!ctx) return; if (smp.growl) this.play(smp.growl, ctx.currentTime, 0, smp.growl.duration, SFX_VOL.growl); else this.roar(0.6); },
     /* v32: esquiva: un soplo que barre de grave a agudo y un aletazo fuerte */
     dodge() { this.noise(0.55, 'bandpass', 380, 2600, 0.5, 0.8); this.wingBeat(1, 1, 0.12); },
     /* v32: llamarada grabada: al empezar, el rugido (como mucho uno cada ROAR_GAP s) y la llamarada, que sigue en bucle hasta soltar */
@@ -7151,6 +7171,7 @@ function beamSegDist(a, b, p) { return Math.sqrt(segPointDist2(a, b, p)); }
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
    · Q/E alabeo · A/D esquiva (v32) · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
+   v44: en tierra (15b), W/S andar · A/D girar · Espacio despegar · solo la llamarada y el escudo.
    v26: Espacio mantenido = vuelo recto (la mira sigue libre y el cuello la sigue) · F mantenida = cámara hacia el blanco fijado · R escudo.
    Armas (ver «Armas del jugador»): clic izq. = fuego rápido; mantenido sobre el círculo rojo = bola guiada; clic dcho. = llamarada;
    izq. + dcho. a la vez = rayo de fuego; clic central = fijar objetivo.
@@ -7213,6 +7234,7 @@ window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'ControlLeft') { if (state === 'playing' && !cine.on) toggleHover(); }   // v26: el hover pasa de Espacio a Ctrl izquierdo
   else if (e.code === 'KeyA' || e.code === 'KeyD') startDodge(e.code === 'KeyD' ? 1 : -1);   // v32: esquiva
+  else if (e.code === 'Space') { if (state === 'playing' && GR.mode === 'walk' && !cine.on) takeoffStart(); }   // v44: en tierra, despegar (15b)
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyR') { if (!cine.on) activateShield(); }   // v26: el escudo pasa de F a R (F = cámara al objetivo; nivelar, a la X)
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
@@ -7241,6 +7263,7 @@ canvasGL.addEventListener('mousedown', e => {
   if (DEV.open) { devPanel(false); return; }               // v27: con el panel de pruebas abierto, un clic en el juego lo cierra
   if (e.button === 1) { e.preventDefault(); cycleTarget(); return; }   // clic central: fijar el siguiente dragón enemigo a la vista
   const t = performance.now() / 1000;
+  if (e.button === 0 && GR.mode) return;                   // v44: en tierra, solo la llamarada (clic dcho.) y el escudo
   if (e.button === 0) {
     W.lmb = true; W.lmbT = t;
     if (!(W.rmb && t - W.rmbT < COMBO_WIN && tryLaser())) pressLeft();
@@ -7354,7 +7377,7 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
-  dodgeReset(); bumpReset();                               // (v32; v43: rebote)
+  dodgeReset(); bumpReset(); groundReset();                // (v32; v43: rebote; v44: tierra)
   if (cpResume()) checkpointPlace();                       // v43: desde un punto de control, donde estaba (19)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
@@ -7450,7 +7473,7 @@ function devHoverStart() {
 }
 /* Hover: se frena del todo y se queda aleteando; al salir se reanuda el vuelo con un impulso de alas. */
 function toggleHover() {
-  if (state !== 'playing') return;
+  if (state !== 'playing' || GR.mode) return;              // (v44: en tierra, no)
   F.hover = !F.hover;
   if (F.hover) { F.hvy = 0; sfx.hoverOn(); toast('HOVER  ·  W/S suben y bajan'); }
   else { F.speed = Math.max(F.speed, HOVER_EXIT_SPEED); F.sink = 0; F.hvy = 0; sfx.hoverOff(); toast('Vuelo normal'); }
@@ -7472,7 +7495,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-  dodgeReset(); bumpReset(); devHoverStart();              // (v32: en los modos de prueba, también al reaparecer; v43: rebote)
+  dodgeReset(); bumpReset(); groundReset(); devHoverStart();   // (v32: en los modos de prueba, también al reaparecer; v43: rebote; v44: tierra)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -7719,7 +7742,7 @@ function updateWeapons(dt) {
   // (pitidos cada vez más rápidos y un tono al fijarse); fijada, mantener el clic izquierdo MSL_HOLD s la lanza. El fijado sigue tras lanzar
   // (otro clic mantenido, otra guiada); si el blanco sale del cono, se pierde poco a poco
   if (enemyLock.e !== W.lockT) { W.lockT = enemyLock.e; W.lock = 0; W.locked = false; }
-  W.lockWhy = W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';
+  W.lockWhy = GR.mode ? 'tierra' : W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';   // (v44: en tierra, sin guiadas)
   if (W.lmb) W.holdT += dt;
   if (W.lockWhy === '') {
     if (!W.locked) {
@@ -8016,7 +8039,8 @@ function updateAim(dt, auto) {
     yaw += F.pdx * k; pit -= F.pdy * k; F.pdx = F.pdy = 0;
     // en hover el cuerpo no cabecea: el marcador sí puede subir/bajar (cabeza y bolas de fuego lo siguen) dentro de un rango.
     // v26: en vuelo recto (Espacio), algo más hacia abajo, para barrer el suelo en vuelo rasante
-    yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
+    // v44: en tierra, hasta donde gira el cuello (el cuerpo solo gira con A/D)
+    yaw = clamp(yaw, GR.mode ? -1.2 : -1.0, GR.mode ? 1.2 : 1.0); pit = GR.mode ? clamp(pit, -0.9, 0.5) : F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
     _l.set(Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit));
     F.aimWorld.copy(_l).applyQuaternion(q);
   } else if (!F.lookHeld && !F.tgtCam && !DEV.open) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
@@ -8040,7 +8064,7 @@ let DODGE_DIST = 30, DODGE_T = 1.5, DODGE_COOL = 1, DODGE_MSL = 400;
 const DG = { on: false, t: 0, s: 0, dir: 0, cool: 0, back: -1, side: new THREE.Vector3(), off: new THREE.Vector3() };   // back: s desde que acabó (la cámara vuelve); -1 = nada
 function dodgeReset() { DG.on = false; DG.cool = 0; DG.back = -1; DG.off.set(0, 0, 0); F.roll = 0; F.dodgeCam.set(0, 0, 0); }
 function startDodge(dir) {
-  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open) return;
+  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open || GR.mode) return;   // (v44: en tierra, A/D giran)
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
   camera.getWorldQuaternion(_iq); DG.side.set(1, 0, 0).applyQuaternion(_iq);       // la derecha de la pantalla, en perpendicular al rumbo
   DG.side.addScaledVector(_f, -DG.side.dot(_f));
@@ -8088,6 +8112,7 @@ function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
 /* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida; dmg: el daño (por defecto, CRASH_DMG). */
 function crashBump(n, why, dmg) {
   if (state !== 'playing' || devCheat('noCrash')) return;   // (v27: Dev Test, «sin choques»)
+  if (GR.mode) { if (gameTime - BUMP.t >= CRASH_GRACE) { BUMP.t = gameTime; hurtDragon(dmg != null ? dmg : CRASH_DMG, why); } return; }   // (v44: en tierra, un dragón que choca contigo: solo el daño)
   const q = dragon.quaternion;
   _bn.copy(n).normalize();
   _bf.set(0, 0, -1).applyQuaternion(q);
@@ -8148,6 +8173,7 @@ function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
   if (!auto && cine.on) cineUpdate(dt);                    // v26: entrada de cine (sin control hasta que acaba)
   if (!auto && mission.dev) devUpdate(dt);                 // v27: trucos del modo Dev Test
+  if (!auto && GR.mode) { updateGround(dt); flightEnd(dt, auto); return; }   // v44: en tierra (15b)
   const ctl = !auto && !cine.on;                           // las teclas de vuelo cuentan
   const hov = !auto && F.hover;
   F.hoverK += ((hov ? 1 : 0) - F.hoverK) * (1 - Math.exp(-dt * 3));
@@ -8160,6 +8186,7 @@ function updateFlight(dt, auto) {
     let vt = ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)) * HOVER_VSPEED;
     F.hvy += (vt - F.hvy) * (1 - Math.exp(-dt * 3.5));
     const gnd = Math.max(heightAt(pos.x, pos.z), WL);
+    if (keys.KeyS && pos.y - gnd < 7.5 && canLand(pos, q)) { landStart(); flightEnd(dt, auto); return; }   // v44: hover y S hasta el suelo: aterriza (15b)
     if (F.hvy < 0 && (pos.y - gnd < 6 || islandAt(pos.x, pos.y - 8, pos.z, 0))) F.hvy = 0;
     if (F.hvy > 0 && islandAt(pos.x, pos.y + 9, pos.z, 0)) F.hvy = 0;
   } else F.hvy = 0;
@@ -8277,8 +8304,10 @@ function updateFlight(dt, auto) {
     if (hT < WL) {
       if (canSkim(q)) skimWater(pos, q);
       else { pos.y = WL + 2.2; if (gameTime - BUMP.t >= CRASH_GRACE) splash(pos.x, pos.z, 2.0); crashBump(UP, 'Te sumergiste en el agua'); }
-    } else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
+    } else if (canLand(pos, q)) landStart();               // v44: despacio, aterriza en vez de rebotar (15b)
+    else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
   } else if (auto && pos.y < g + 60) pos.y = g + 60;
+  else if (!auto && hT >= WL && pos.y - hT < LAND_AGL && dragonVel.y < -0.5 && pos.y - hT - 2.2 < -dragonVel.y && canLand(pos, q, true)) landStart();   // (bajando hacia el suelo: en menos de 1 s llegaría)
   if (BUMP.skim && pos.y > WL + 4) BUMP.skim = false;
   if (!auto && state === 'playing') { const s = islandAt(pos.x, pos.y, pos.z, 2.6); if (s) crashBump(pos.y > s.yMax - 15 ? UP : _bt.set(pos.x - s.x, 0, pos.z - s.z), 'Te estrellaste contra una isla flotante'); }
   if (!auto && state === 'playing') for (const t of towers.values()) {   // torres en pie (desde la v7 miden ~110 m: ya no se pueden atravesar)
@@ -8310,10 +8339,246 @@ function updateFlight(dt, auto) {
       emit(fxSmoke, pos.x + Math.cos(an) * rnd(1, 6), g + 0.6, pos.z + Math.sin(an) * rnd(1, 6), Math.cos(an) * sp, rnd(1, 5), Math.sin(an) * sp, rnd(1.0, 1.8), 2.5, rnd(9, 15), water ? 0.85 : 0.52, water ? 0.92 : 0.46, water ? 0.95 : 0.38, 0.32 * (0.4 + st), 1.6, 0);
     }
   }
+  flightEnd(dt, auto);
+}
+/* Fin del fotograma, en el aire o en tierra (v44): armas, estadísticas, misión y regeneración de la vida. */
+function flightEnd(dt, auto) {
   F.fireFlash = Math.max(0, F.fireFlash - dt * 3.2);
   if (!auto && state === 'playing') { updateWeapons(dt); stats.time += dt; stats.dist += F.speed * dt; stats.vmax = Math.max(stats.vmax, F.speed); missionUpdate(dt); }   // v15: objetivos, eventos, área y final
   // v39: la vida se regenera tras HP_REGEN_WAIT s sin recibir daño (v24-v38: no se regeneraba y la que se regeneraba era la armadura)
   if (state === 'playing' && F.health > 0 && F.health < heroHpMax() && gameTime - F.lastHit > HP_REGEN_WAIT) F.health = Math.min(heroHpMax(), F.health + HP_REGEN * dt);
+}
+/* ============================================================
+   7e. MODO TIERRA (v44): aterrizar, andar y despegar con el Tyrant
+   Petición de Jorge: si el dragón llega al suelo despacio (a LAND_SPEED o menos), en vez de chocar y rebotar aterriza solo (clip
+   «aterrizar») y pasa a un modo distinto del vuelo y del hover, en el suelo:
+   · W/S andan hacia delante y hacia atrás (clip «andar», hacia atrás al revés y más despacio: GROUND_BACK) y A/D giran el dragón
+     (GROUND_TURN); quieto, el clip «reposo». Una sola velocidad (GROUND_SPEED): el andar se acelera en proporción a su ritmo natural
+     (GR.walkV, medido en el clip: las patas no patinan).
+   · El ratón mueve la mira y la cabeza la sigue (hasta donde llega el cuello: updateAim); el cuerpo solo gira con A/D.
+   · Solo la llamarada (clic dcho.) y el escudo (R): ni fuego rápido, ni guiadas, ni rayo, ni hover, ni boost, ni esquiva.
+   · Espacio: clip «despegar» (se agacha, abre las alas y salta con el primer aletazo) y vuelve al vuelo normal a GROUND_TAKEOFF, con el
+     morro algo arriba y un empujón hacia arriba (BUMP.v).
+   · Al aterrizar la cámara pasa a 3ª persona y se queda así al despegar (la 1ª, con la C). Al aterrizar y al despegar, el gruñido grabado.
+   Cuándo aterriza (canLand): solo con el Tyrant; a LAND_SPEED o menos, sin ir boca abajo ni muy de lado (alabeo < 45°), sin picar (> −25°),
+   en suelo seco con menos de LAND_SLOPE° de pendiente. Lo dispara updateFlight: al tocar el suelo (en vez del rebote), un poco antes si va
+   bajando hacia él (llegaría en menos de 1 s desde menos de LAND_AGL m) o, en hover, al bajar con S hasta el suelo. Tras despegar, GR.cool s
+   sin volver a aterrizar. En esa aproximación final se admite LAND_MARGIN más de velocidad: con el acelerador a 0 y nivelado el dragón va a
+   ~190 km/h y, al bajar, acelera solo (probado: a −11° llegaba al suelo a más de 200 km/h y rebotaba).
+   Por dentro: updateFlight cede el fotograma a updateGround mientras GR.mode ('land' | 'walk' | 'takeoff'). La altura del dragón en el
+   suelo (su origen es el pecho, spine_02) es la del terreno + GR.lift (lo más bajo de las patas en el reposo, medido al cargar); al aterrizar
+   y al despegar, nunca por debajo de lo que piden las patas en ese instante del clip (GR.footLand / GR.footTake, tablas medidas al cargar).
+   La animación (groundAnim, desde animateHero): GR.G = peso de los clips de tierra (el vuelo, el planeo y el hover se multiplican por
+   1 − G en animateTyrant) y, dentro, reposo / andar / aterrizar / despegar.
+   ============================================================ */
+let GROUND_SPEED = 15 / 3.6, GROUND_BACK = 0.6, GROUND_TURN = 60 * Math.PI / 180, GROUND_TAKEOFF = 150 / 3.6, LAND_SLOPE = 30, LAND_MARGIN = 0.2;   // (Excel, «Tierra»: applyHeroStats)
+const LAND_AGL = 14, LAND_RATE = 1.25, LAND_SETTLE = 0.55, TAKE_RATE = 1, GROUND_STEEP = 38, GROUND_BLEND = 6;
+const GR = { mode: null, t: 0, yaw: 0, v: 0, turn: 0, G: 0, cool: 0, beat: false,
+  p0: new THREE.Vector3(), v0: new THREE.Vector3(), y0: 0, q0: new THREE.Quaternion(), n: new THREE.Vector3(0, 1, 0),
+  lift: 3.36, walkV: 2.5, touch: 1.45, landEnd: 2.0, footLand: [], footTake: [], rate: 30,
+  w: { idle: 0, walk: 0, land: 0, take: 0 } };               // pesos actuales de los clips de tierra (dentro de G)
+const _gF = new THREE.Vector3(), _gR = new THREE.Vector3(), _gN = new THREE.Vector3(), _gQ = new THREE.Quaternion(), _gP = new THREE.Vector3();
+
+/* ---------- Al cargar el Tyrant (setupHero) ----------
+   Acciones de los clips de tierra y medidas: altura del pecho sobre el suelo de pie (GR.lift), velocidad natural del andar (GR.walkV: lo que
+   retroceden las patas apoyadas por segundo), instante en que toca el suelo al aterrizar (GR.touch) y lo más bajo de las patas a lo largo de
+   «aterrizar» y «despegar» (GR.footLand, GR.footTake: cada 1/GR.rate s). Deja todos los huesos en su pose de reposo. */
+function groundSetup(gltf) {
+  const clip = n => gltf.animations.find(c => c.name === n);
+  const cI = clip('reposo'), cW = clip('andar'), cL = clip('aterrizar'), cT = clip('despegar');
+  if (!cI || !cW || !cL || !cT) { console.warn('El modelo no trae los clips de tierra: el dragón no podrá aterrizar'); return; }
+  const M = hero.mixer, A = hero.act;
+  A.gIdle = M.clipAction(cI); A.gWalk = M.clipAction(cW); A.gLand = M.clipAction(cL); A.gTake = M.clipAction(cT);
+  [cW, cL, cT].forEach(c => c.tracks.forEach(t => hero.animated.add(t.name.split('.')[0])));
+  dragon.updateMatrixWorld(true);
+  const feetMin = () => {                                  // lo más bajo de las patas, en ejes del dragón (m)
+    hero.model.updateMatrixWorld(true); let m = Infinity;
+    hero.model.traverse(o => { if (o.isBone && /^(foot|ball|toe)/.test(o.name)) { o.getWorldPosition(_gP); dragon.worldToLocal(_gP); m = Math.min(m, _gP.y); } });
+    return m;
+  };
+  const pose = (a, t) => { for (const x of Object.values(A)) x.setEffectiveWeight(0); a.play(); a.setEffectiveWeight(1); a.time = t; M.update(0); };
+  pose(A.gIdle, 0); GR.lift = -feetMin() + 0.1;
+  // andar: lo que retroceden las patas mientras están apoyadas (a menos de 0,15 m de lo más bajo que llegan)
+  const N = 96, tr = ['ball_l', 'ball_r', 'hand_l', 'hand_r'].filter(b => hero.B[b]).map(b => ({ b: hero.B[b], y: [], z: [] }));
+  for (let k = 0; k <= N; k++) { pose(A.gWalk, cW.duration * k / N); hero.model.updateMatrixWorld(true); for (const c of tr) { c.b.getWorldPosition(_gP); dragon.worldToLocal(_gP); c.y.push(_gP.y); c.z.push(_gP.z); } }
+  let dist = 0, tt = 0;
+  for (const c of tr) { const mn = Math.min(...c.y); for (let k = 1; k <= N; k++) if (c.y[k] < mn + 0.15 && c.y[k - 1] < mn + 0.15) { dist += c.z[k] - c.z[k - 1]; tt += cW.duration / N; } }
+  if (tt > 0 && dist > 0) GR.walkV = dist / tt;
+  // aterrizar y despegar: lo más bajo de las patas en cada instante; toca el suelo cuando llega a la altura de estar de pie
+  GR.footLand = []; GR.footTake = []; GR.touch = 0;
+  for (let k = 0; k <= Math.ceil(cL.duration * GR.rate); k++) { pose(A.gLand, Math.min(cL.duration, k / GR.rate)); const m = feetMin(); GR.footLand.push(m); if (!GR.touch && m <= -GR.lift + 0.2) GR.touch = k / GR.rate; }
+  if (!GR.touch) GR.touch = cL.duration * 0.45;
+  GR.landEnd = Math.min(cL.duration, GR.touch + LAND_SETTLE);
+  for (let k = 0; k <= Math.ceil(cT.duration * GR.rate); k++) { pose(A.gTake, Math.min(cT.duration, k / GR.rate)); GR.footTake.push(feetMin()); }
+  for (const a of [A.gIdle, A.gWalk, A.gLand, A.gTake]) { a.setEffectiveWeight(0); a.stop(); }
+  restorePose0();
+}
+/* Lo más bajo de las patas en el instante t de una tabla (interpolado). */
+function footAt(tab, t) {
+  if (!tab.length) return -GR.lift;
+  const x = clamp(t * GR.rate, 0, tab.length - 1), i = Math.floor(x), f = x - i;
+  return i + 1 < tab.length ? lerp(tab[i], tab[i + 1], f) : tab[i];
+}
+
+/* ---------- Cuándo aterriza ---------- */
+const groundReady = () => !!(hero.ready && hero.act.gLand && !alt.D);   // (solo el Tyrant)
+function canLand(pos, q, approach) {
+  if (!groundReady() || GR.mode || GR.cool > 0 || cine.on || state !== 'playing' || F.speed > LAND_SPEED * (approach ? 1 + LAND_MARGIN : 1)) return false;
+  _gF.set(0, 0, -1).applyQuaternion(q); _gR.set(1, 0, 0).applyQuaternion(q); _gN.set(0, 1, 0).applyQuaternion(q);
+  if (_gF.y < -0.42 || _gN.y <= 0 || Math.abs(Math.atan2(_gR.y, _gN.y)) > Math.PI / 4) return false;   // picando, boca abajo o muy de lado
+  // dónde se posa: un poco más adelante (lo que avanza mientras frena)
+  _gP.copy(dragonVel).setY(0).multiplyScalar(GR.touch / LAND_RATE / 2).add(pos);
+  for (const p of [pos, _gP]) if (heightAt(p.x, p.z) < WL + 0.3 || terrainNormal(p.x, p.z, _gN).y < Math.cos(LAND_SLOPE * Math.PI / 180)) return false;
+  return true;
+}
+
+/* ---------- Aterrizar ---------- */
+function landStart() {
+  const p = dragon.position, q = dragon.quaternion;
+  GR.mode = 'land'; GR.t = 0; GR.beat = false;
+  GR.p0.copy(p); GR.y0 = p.y; GR.q0.copy(q);
+  GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED) GR.v0.setLength(LAND_SPEED);
+  _gF.set(0, 0, -1).applyQuaternion(q); _gF.y = 0; if (_gF.lengthSq() < 1e-4) _gF.set(0, 1, 0).applyQuaternion(q).setY(0);
+  GR.yaw = Math.atan2(-_gF.x, -_gF.z); GR.v = 0; GR.turn = 0;
+  terrainNormal(p.x, p.z, GR.n);
+  F.third = true;                                          // (Jorge: al aterrizar, 3ª persona; se queda al despegar)
+  F.hover = false; F.hvy = 0; F.sink = 0; F.boosting = false; F.straight = false; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
+  W.lmb = false; W.lockArmed = false; dodgeReset(); bumpReset();
+  const a = hero.act.gLand; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = LAND_RATE; a.setEffectiveWeight(0); a.play();
+  for (const b of [hero.act.gIdle, hero.act.gWalk]) { b.reset(); b.setLoop(THREE.LoopRepeat, Infinity); b.clampWhenFinished = false; b.timeScale = 1; b.setEffectiveWeight(0); b.play(); }
+  hero.act.gTake.stop();
+  GR.w.idle = GR.w.walk = GR.w.take = 0; GR.w.land = 0;
+  sfx.growl();
+}
+/* Cuaternión del dragón en el suelo: rumbo GR.yaw, apoyado en el plano de normal n. */
+function groundQuat(n, out) {
+  _gF.set(-Math.sin(GR.yaw), 0, -Math.cos(GR.yaw));
+  _gF.addScaledVector(n, -_gF.dot(n)).normalize();
+  return out.setFromRotationMatrix(_m4.lookAt(ZERO, _gF, n));
+}
+/* Normal del suelo bajo el cuerpo: plano por cuatro puntos (5 m por delante y por detrás, 3 a los lados), no la del punto. */
+function bodyNormal(x, z, out) {
+  const fx = -Math.sin(GR.yaw), fz = -Math.cos(GR.yaw), a = 5, b = 3;
+  const hF = heightAt(x + fx * a, z + fz * a), hB = heightAt(x - fx * a, z - fz * a), hL = heightAt(x + fz * b, z - fx * b), hR = heightAt(x - fz * b, z + fx * b);
+  _gF.set(fx * 2 * a, hF - hB, fz * 2 * a); _gR.set(-fz * 2 * b, hR - hL, fx * 2 * b);   // (delante y derecha a lo largo del suelo)
+  return out.crossVectors(_gR, _gF).normalize();
+}
+/* ¿Se puede pisar (x, z)? Ni agua, ni pendientes de más de GROUND_STEEP°, ni torres, ni unidades con colisión. */
+function groundBlocked(x, z) {
+  const h = heightAt(x, z);
+  if (h < WL + 0.3 || terrainNormal(x, z, _gN).y < Math.cos(GROUND_STEEP * Math.PI / 180)) return true;
+  for (const t of towers.values()) if (!t.dead && (x - t.x) ** 2 + (z - t.z) ** 2 < (TOWER_R + 7) ** 2) return true;
+  return !!unitPointHit(_gP.set(x, h + GR.lift * 0.7, z), 1.1);
+}
+
+/* ---------- Cada fotograma en tierra (lo llama updateFlight) ---------- */
+function updateGround(dt) {
+  const p = dragon.position, q = dragon.quaternion;
+  GR.t += dt;
+  F.hoverK = Math.max(0, F.hoverK - dt * 3);
+  if (GR.mode === 'land') {
+    // frena hasta pararse justo al tocar el suelo, baja hasta él (nunca con las patas por debajo) y se endereza sobre el terreno
+    const T = GR.touch / LAND_RATE, t = Math.min(GR.t, T), u = t / T;
+    const s = t - t * t / (2 * T);
+    p.x = GR.p0.x + GR.v0.x * s; p.z = GR.p0.z + GR.v0.z * s;
+    const h = heightAt(p.x, p.z), ct = GR.t * LAND_RATE;
+    p.y = Math.max(lerp(GR.y0, h + GR.lift, u * u * (3 - 2 * u)), h - footAt(GR.footLand, ct) + 0.1);
+    GR.n.lerp(bodyNormal(p.x, p.z, _gN), 1 - Math.exp(-dt * 6)).normalize();
+    q.copy(GR.q0).slerp(groundQuat(GR.n, _gQ), smooth(0, 0.7, u));
+    dragonVel.copy(GR.v0).multiplyScalar(1 - u);
+    F.speed = GR.v0.length() * (1 - u);
+    if (ct >= GR.landEnd) { GR.mode = 'walk'; GR.t = 0; toast('EN TIERRA  ·  W/S andar  ·  A/D girar  ·  Espacio despegar'); }
+  } else if (GR.mode === 'walk') {
+    if (cine.on) { takeoffStart(); return; }               // (una entrada de cine en pleno capítulo: al aire)
+    const fw = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0), tn = (keys.KeyA ? 1 : 0) - (keys.KeyD ? 1 : 0);
+    const vt = fw > 0 ? GROUND_SPEED : fw < 0 ? -GROUND_SPEED * GROUND_BACK : 0;
+    GR.v += (vt - GR.v) * (1 - Math.exp(-dt * 3));
+    GR.turn += (tn * GROUND_TURN - GR.turn) * (1 - Math.exp(-dt * 5));
+    GR.yaw += GR.turn * dt;
+    const fx = -Math.sin(GR.yaw), fz = -Math.cos(GR.yaw), nx = p.x + fx * GR.v * dt, nz = p.z + fz * GR.v * dt;
+    if (Math.abs(GR.v) > 0.01 && groundBlocked(nx + fx * 6 * Math.sign(GR.v), nz + fz * 6 * Math.sign(GR.v))) GR.v = 0;   // (6 m por delante: el morro, o la cola al ir hacia atrás)
+    else { p.x = nx; p.z = nz; }
+    const h = heightAt(p.x, p.z);
+    p.y += (h + GR.lift - p.y) * (1 - Math.exp(-dt * 14));
+    GR.n.lerp(bodyNormal(p.x, p.z, _gN), 1 - Math.exp(-dt * 6)).normalize();
+    groundQuat(GR.n, q);
+    dragonVel.set(fx * GR.v, 0, fz * GR.v);
+    F.speed = Math.abs(GR.v); F.rate.y = GR.turn;
+  } else if (GR.mode === 'takeoff') {
+    // se agacha y salta: sube lo que piden las patas del clip (para no hundirlas) y, desde el salto, un poco más deprisa cada vez
+    const ct = GR.t * TAKE_RATE, dur = hero.act.gTake.getClip().duration, h = heightAt(p.x, p.z);
+    p.y = Math.max(h + GR.lift, h - footAt(GR.footTake, ct) + 0.1) + 3.5 * smooth(dur * 0.6, dur, ct) ** 2;
+    groundQuat(GR.n, q); dragonVel.set(0, 0, 0); F.speed = 0;
+    if (!GR.beat && ct > dur * 0.7) { GR.beat = true; sfx.wingBeat(1, lerp(1, 0.7, dragonAnim.cam), 0.02); camShake = Math.max(camShake, 0.25); }   // (el primer aletazo)
+    if (ct >= dur) takeoffEnd();
+  }
+}
+
+/* ---------- Despegar (Espacio) ---------- */
+function takeoffStart() {
+  if (GR.mode !== 'walk') return;
+  GR.mode = 'takeoff'; GR.t = 0; GR.beat = false; GR.v = 0; GR.turn = 0;
+  const a = hero.act.gTake; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = TAKE_RATE; a.setEffectiveWeight(GR.w.take); a.play();
+  sfx.growl();
+}
+function takeoffEnd() {
+  const q = dragon.quaternion;
+  GR.mode = null; GR.cool = 1.5;
+  _gF.set(-Math.sin(GR.yaw), Math.tan(12 * Math.PI / 180), -Math.cos(GR.yaw)).normalize();   // morro 12° arriba
+  q.setFromRotationMatrix(_m4.lookAt(ZERO, _gF, UP));
+  F.aimWorld.copy(_gF); F.steer.set(0, 0, -1); F.pdx = F.pdy = 0; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
+  F.speed = GROUND_TAKEOFF; F.prevSpeed = F.speed; F.sink = 0; F.throttle = Math.max(F.throttle, 0.6); F.hover = false; F.hoverK = 0;
+  BUMP.v.set(0, 9, 0);                                     // (el empujón del salto, que se apaga en ~1 s)
+}
+/* Fuera del modo tierra al instante (reaparecer, reintentar, menú). */
+function groundReset() {
+  GR.mode = null; GR.G = 0; GR.cool = 0; GR.v = GR.turn = 0;
+  for (const k in GR.w) GR.w[k] = 0;
+  for (const a of [hero.act.gIdle, hero.act.gWalk, hero.act.gLand, hero.act.gTake]) if (a) { a.setEffectiveWeight(0); a.stop(); }
+}
+
+/* Lo más alto de las copas de los árboles a menos de r m de (x, z) (−Infinity si no hay): los árboles salen de una rejilla fija (makeTrees, 06),
+   así que se rehacen aquí las mismas cuentas (posición, si hay árbol, escala y alto: el pino mide ~9,1 m y el frondoso ~7,3 m antes de escalar). */
+function canopyTop(x, z, r) {
+  let top = -Infinity; const gi0 = Math.round(x / TREE_CELL), gj0 = Math.round(z / TREE_CELL);
+  for (let gj = gj0 - 1; gj <= gj0 + 1; gj++) for (let gi = gi0 - 1; gi <= gi0 + 1; gi++) {
+    const tx = (gi + hash2(gi, gj, 1)) * TREE_CELL, tz = (gj + hash2(gi, gj, 2)) * TREE_CELL, sc = 0.8 + hash2(gi, gj, 5) * 0.95;
+    if ((tx - x) ** 2 + (tz - z) ** 2 > (r + 3 * sc) ** 2) continue;
+    terrain(tx, tz, _o, true);
+    if (_o.forest < 0.05 || hash2(gi, gj, 3) > _o.forest * 0.78) continue;
+    const y = heightAt(tx, tz); if (y < 3) continue;
+    const conif = hash2(gi, gj, 4) < 0.22 + smooth(60, 280, y) * 0.7;
+    top = Math.max(top, y + (conif ? 9.1 : 7.3) * sc * (0.9 + hash2(gi, gj, 6) * 0.35));
+  }
+  return top;
+}
+
+/* ---------- Animación (animateHero, antes de animateTyrant) ----------
+   G sube a 1 al empezar a aterrizar y baja a 0 al acabar el despegue (en GROUND_BLEND⁻¹ s); dentro, aterrizar al principio, despegar al final
+   y, en medio, reposo y andar según lo que anda o gira (el andar va a su ritmo: GR.v / GR.walkV; hacia atrás, al revés; girando en el sitio,
+   a medio ritmo). Devuelve G. */
+function groundAnim(dt) {
+  if (!hero.act.gLand) return 0;
+  GR.cool = Math.max(0, GR.cool - dt);
+  const k = 1 - Math.exp(-dt * GROUND_BLEND), A = hero.act;
+  GR.G += ((GR.mode ? 1 : 0) - GR.G) * (GR.mode === 'land' && GR.t < 0.4 ? 1 - Math.exp(-dt * 9) : k);
+  if (GR.G < 0.002 && !GR.mode) {                          // (despegue acabado: fuera los clips de tierra)
+    if (GR.w.take + GR.w.idle + GR.w.walk + GR.w.land > 0) { GR.G = 0; for (const k in GR.w) GR.w[k] = 0; for (const a of [A.gIdle, A.gWalk, A.gLand, A.gTake]) { a.setEffectiveWeight(0); a.stop(); } }
+    return 0;
+  }
+  let tl = 0, tt = 0, ti = 0, tw = 0;
+  const move = Math.abs(GR.v) / GROUND_SPEED, turn = Math.abs(GR.turn) / GROUND_TURN;
+  if (GR.mode === 'land') { const ct = GR.t * LAND_RATE; tl = 1 - smooth(GR.landEnd - 0.25, GR.landEnd + 0.15, ct); ti = 1 - tl; }
+  else if (GR.mode === 'takeoff' || !GR.mode) tt = 1;
+  else { tw = clamp(Math.max(move, turn * 0.8), 0, 1); ti = 1 - tw; }
+  const w = GR.w;
+  w.land += (tl - w.land) * k; w.take += (tt - w.take) * (GR.mode === 'takeoff' ? 1 - Math.exp(-dt * 10) : k);
+  w.idle += (ti - w.idle) * k; w.walk += (tw - w.walk) * k;
+  const sum = w.land + w.take + w.idle + w.walk || 1, G = GR.G;
+  A.gLand.setEffectiveWeight(G * w.land / sum); A.gTake.setEffectiveWeight(G * w.take / sum);
+  A.gIdle.setEffectiveWeight(G * w.idle / sum); A.gWalk.setEffectiveWeight(G * w.walk / sum);
+  A.gWalk.timeScale = Math.abs(GR.v) > 0.05 ? GR.v / GR.walkV : 0.5 * turn * GROUND_SPEED / GR.walkV;
+  return G;
 }
 /* ============================================================
    8. HUD (canvas 2D), BUCLE PRINCIPAL Y ARRANQUE
@@ -8912,20 +9177,20 @@ function drawFlightBoxes() {
   drawThrottle(sx - 32 * k, by, 12 * k, bb + bh - by, by - 5 * k, lb);
   hudHeader('ALT', ax, w, by - 5 * k, 15.5 * k, PAL_G);
   hudValueBox(ax, by, w, h, String(Math.round(dragon.position.y - WL)), 19 * k, PAL_G, -1);
-  if (F.hover) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow('HOVER', ax + w / 2, lb, 15.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k); hctx.restore(); }
+  if (F.hover || GR.mode) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow(GR.mode ? 'TIERRA' : 'HOVER', ax + w / 2, lb, 15.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k); hctx.restore(); }   // (v44: en tierra, «TIERRA»)
 }
 /* v40: acelerador (W/S), barra vertical a la izquierda de SPEED que se llena de abajo arriba, con marcas al 25, 50 y 75 %, una flecha en su
    nivel y el porcentaje debajo. En hover (W/S suben y bajan) se apaga. ly: línea base de «THR»; vy: la del porcentaje. */
 function drawThrottle(x, y, w, h, ly, vy) {
   const k = HUD_K, P = PAL_G, t = clamp(F.throttle, 0, 1);
-  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hctx.save(); if (F.hover || GR.mode) hctx.globalAlpha = 0.35;
   hudGlow('THR', x + w / 2, ly, 15.5 * k, P.line, P.glow, 'center', 1.4 * k);
   hudBar(x, y, w, h, t, '', 0, P, 4, true);
   const ay = y + 2 * k + (h - 4 * k) * (1 - t), ax = x + w + 3 * k;
   hctx.fillStyle = P.ink; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
   hctx.beginPath(); hctx.moveTo(ax, ay); hctx.lineTo(ax + 6 * k, ay - 4 * k); hctx.lineTo(ax + 6 * k, ay + 4 * k); hctx.closePath(); hctx.fill();
   hctx.restore();
-  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hctx.save(); if (F.hover || GR.mode) hctx.globalAlpha = 0.35;
   hudGlow(Math.round(t * 100) + '%', x + w / 2, vy, 13 * k, P.ink, P.glow, 'center', 0.4 * k);
   hctx.restore();
 }
@@ -8936,20 +9201,20 @@ function drawWeapons() {
   const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
-  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9);
+  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;   // (v44: en tierra, solo FLM)
   hctx.save();
   hctx.globalAlpha = 0.55; hudPanel(lx - 12 * k, y0 - 9 * k, bx + w + 9 * k - (lx - 12 * k), y3 + h + 7 * k - (y0 - 9 * k), { line: PAL_G.faint, glow: 'rgba(0,0,0,0)' }, 10 * k, 0.6);
   const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; hudGlow(name, lx, y + h / 2 + 17 * k * G_CAP / 2, 17 * k, PAL_G.line, PAL_G.glow, 'left', 1.5 * k); return y; };
-  let y = row(0, 'GUN', oh || las);
+  let y = row(0, 'GUN', oh || las || gnd);
   hudBar(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, PAL_G, Math.min(GUN_AMMO, 20));
-  y = row(1, 'MSL', oh || las);
+  y = row(1, 'MSL', oh || las || gnd);
   hudBar(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, W.msl > 0 ? PAL_G : PAL_R, 10);
   y = row(2, 'FLM', las);
   const heat = clamp(W.heat, 0, 1);
   if (oh) hctx.globalAlpha = 0.55 + 0.45 * blink;
   else if (heat > 0.02) hctx.globalAlpha *= 1 - 0.55 * heat * heat * (0.5 + 0.5 * Math.sin(gameTime * (4 + 10 * heat)));
   hudBar(bx, y, w, h, heat, Math.round(heat * 100) + '%', size, palHeat(oh ? 1 : heat), 10);
-  y = row(3, 'LSR', oh);
+  y = row(3, 'LSR', oh || gnd);
   const full = W.ult >= 1 && !las;
   if (full && !oh) hctx.globalAlpha = 0.65 + 0.35 * blink;
   if (las || (full && !oh)) {                              // lleno o disparando: halo alrededor de la barra
@@ -9092,7 +9357,8 @@ function updateWorld(dt) {
   const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
   let headAim = F.aimLocal, aimPt = null;
   if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam || CC.k > 0.02, menu: state === 'menu',   // (v34: con un plano de cine, el jinete entero) hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam || CC.k > 0.02, menu: state === 'menu',   // (v34: con un plano de cine, el jinete entero)
+    hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,   // (v44: desde la v34 el comentario de arriba se comía esta línea: sin hover, boost, picado ni cámara de apuntado)
     effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {
@@ -9280,6 +9546,12 @@ const TUTORIAL = [
       'Pulsa ' + K('Ctrl izq.') + ' y el dragón frena hasta quedarse quieto en el aire, aleteando. En pantalla aparece <b>HOVER</b> bajo la altitud (<b>ALT</b>).',
       'En hover, ' + K('W') + ' sube y ' + K('S') + ' baja. El dragón sigue girando hacia la mira, así que puedes apuntar con calma, por ejemplo a una torre. El boost y el alabeo no funcionan.',
       'Pulsa ' + K('Ctrl izq.') + ' otra vez para volver a volar: el dragón arranca con un impulso de alas.'] },
+    { id: 'tierra', title: 'Aterrizar y andar', sum: 'Posa al dragón despacio y camina por el suelo.', keys: [[['W', 'S'], 'En tierra: andar hacia delante / atrás'], [['A', 'D'], 'En tierra: girar'], [['Clic dcho.'], 'Llamarada'], [['Espacio'], 'Despegar']], text: [   // v44
+      'Si llegas al suelo despacio, a {aterrizaje_vel} km/h o menos, el dragón <b>aterriza</b> solo en vez de rebotar: frena con las alas y se posa. Lo más fácil es desde el hover, bajando con ' + K('S') + ' hasta el suelo. En vuelo, ve con el acelerador al mínimo y baja poco a poco (bajando hacia el suelo se admite un {aterrizaje_margen} % más, porque al bajar el dragón acelera solo).',
+      'Solo aterriza en suelo seco y no muy empinado (menos de {aterrizaje_pendiente}°), sin picar ni ir muy de lado. De momento, solo el Tyrant (Alientormenta): los demás dragones rebotan.',
+      'En tierra, ' + K('W') + ' y ' + K('S') + ' andan hacia delante y hacia atrás ({tierra_vel} km/h) y ' + K('A') + ' y ' + K('D') + ' giran el cuerpo. El ratón mueve la mira y la cabeza la sigue, hasta donde llega el cuello. No se puede entrar en el agua ni subir laderas muy empinadas. La cámara pasa a 3ª persona (' + K('C') + ' vuelve a la del jinete). Bajo la altitud aparece <b>TIERRA</b>.',
+      'En el suelo solo funcionan la <b>llamarada</b> (clic dcho.) y el escudo (' + K('R') + '), y eres un blanco lento y fácil: los enemigos te siguen atacando.',
+      'Pulsa ' + K('Espacio') + ' para despegar: el dragón se agacha, salta batiendo las alas y vuelve a volar a {despegue_vel} km/h.'] },
     { id: 'camara', title: 'Cámara y mirar alrededor', sum: 'Vista del jinete o exterior, y mirar sin cambiar el rumbo.', keys: [[['C'], 'Vista del jinete (1ª persona) / exterior (3ª)'], [['Z'], 'Mantener + ratón: mirar alrededor'], [['F'], 'Mantener: mirar al blanco fijado']], text: [
       K('C') + ' cambia entre la vista del jinete, sobre el lomo del dragón, y la cámara exterior, detrás de él.',
       'Mantén ' + K('Z') + ' y mueve el ratón para mirar alrededor: en 1ª persona el jinete gira la cabeza hasta 170° a cada lado; en 3ª, la cámara da la vuelta completa al dragón. Mientras miras, la mira no se mueve y el dragón mantiene el rumbo. Al soltar ' + K('Z') + ', la vista vuelve al frente.',
@@ -9338,7 +9610,7 @@ const TUTORIAL = [
       'Abajo, en el centro, tienes la barra de vida ({vida}), con lo que te queda escrito dentro; por debajo del 35 % se pone roja.',
       'Se regenera: tras {vida_espera} s sin recibir daño se rellena a {vida_regen} por segundo (mientras tanto, la barra late). Si te están acribillando, apártate un momento.',
       'Hacen daño las bolas de fuego ({enemigo.bola_dano}) y las bolas guiadas ({enemigo.guiada_dano}) de los dragones, el fuego antiaéreo de las torres ({torre.aa_dano} por impacto), los cañones de dirigibles ({dirigible.dano}) y barcos ({barco_naval.dano}), chocar con un dragón ({enemigo.choque_dano}) y el resto de enemigos (cada uno, en su sección).',
-      'Chocar contra el terreno, el agua, una montaña, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe ya no te derriba: te quita {choque_dano} de vida y rebotas hacia fuera y algo hacia arriba, con el morro desviado para que te alejes. Durante {choque_pausa} s, otro choque te hace rebotar pero no te quita vida. Despacio (a {aterrizaje_vel} km/h o menos), sin picar ni ir muy de lado, rozas el agua sin daño y no te hundes.',
+      'Chocar contra el terreno, el agua, una montaña, una isla flotante, una torre, un dirigible, un barco, el superdirigible o la sierpe ya no te derriba: te quita {choque_dano} de vida y rebotas hacia fuera y algo hacia arriba, con el morro desviado para que te alejes. Si llegas al suelo despacio, aterrizas (ver «Aterrizar y andar»). Durante {choque_pausa} s, otro choque te hace rebotar pero no te quita vida. Despacio (a {aterrizaje_vel} km/h o menos), sin picar ni ir muy de lado, rozas el agua sin daño y no te hundes.',
       'Solo caes al quedarte sin vida. En una misión o un capítulo, caer es MISIÓN FALLIDA (en los capítulos, puedes reintentar desde el último punto de control); en el combate libre, a los pocos segundos reapareces en el aire con la vida llena (pero no recuperas bolas guiadas, y los escudos siguen con su recarga).',
       'La altitud (<b>ALT</b>) es sobre el nivel del mar, no sobre el suelo: entre montañas, vuela con margen.'] }
   ] },
@@ -10777,7 +11049,14 @@ const STATS_SCHEMA = {
     ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
     ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
     ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
-    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43). Será también la de aterrizar.']
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
+    { sec: 'Tierra (solo el Tyrant)' },                    // v44
+    ['aterrizaje_pendiente', 'Pendiente máxima para aterrizar', '°', 30, 'En suelo más empinado no aterriza: rebota.', 1],
+    ['aterrizaje_margen', 'Margen de velocidad al aterrizar', '%', 20, 'Bajando hacia el suelo (a menos de 1 s), aterriza aunque vaya hasta este tanto por encima de la velocidad para posarse: al bajar el dragón acelera solo (con 0, solo a esa velocidad o menos).', 1],
+    ['tierra_vel', 'Velocidad andando', 'km/h', 15, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
+    ['tierra_atras', 'Velocidad hacia atrás', '%', 60, 'S en tierra: este tanto de la velocidad andando.', 1],
+    ['tierra_giro', 'Giro en tierra', '°/s', 60, 'A/D en tierra.'],
+    ['despegue_vel', 'Velocidad al despegar', 'km/h', 150, 'Con la que vuelve al vuelo tras el despegue (Espacio en tierra), con el morro 12° arriba.']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -11076,7 +11355,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let HP_REGEN_WAIT = 5, HP_REGEN = 10, SHIELD_CD = 15, SHIELD_KILL_CUT = 3;   // (v39) jugador: regeneración de la vida y recarga de los slots de escudo
@@ -11113,6 +11392,8 @@ function applyHeroStats() {
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
   DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
   CRASH_DMG = Math.max(0, S.choque_dano); CRASH_PUSH = Math.max(0, S.choque_rebote); CRASH_GRACE = Math.max(0, S.choque_pausa); LAND_SPEED = Math.max(0, S.aterrizaje_vel) / 3.6;   // (v43)
+  LAND_SLOPE = clamp(S.aterrizaje_pendiente, 1, 60); LAND_MARGIN = Math.max(0, S.aterrizaje_margen) / 100; GROUND_SPEED = Math.max(0.5, S.tierra_vel) / 3.6; GROUND_BACK = clamp(S.tierra_atras / 100, 0.1, 1);   // (v44)
+  GROUND_TURN = Math.max(1, S.tierra_giro) * Math.PI / 180; GROUND_TAKEOFF = Math.max(VMIN * 3.6, S.despegue_vel) / 3.6;
   heroPools ={ hp: S.vida, ammo: GUN_AMMO, msl: MSL_AMMO };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);

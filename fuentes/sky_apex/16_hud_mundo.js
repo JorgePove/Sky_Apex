@@ -595,20 +595,20 @@ function drawFlightBoxes() {
   drawThrottle(sx - 32 * k, by, 12 * k, bb + bh - by, by - 5 * k, lb);
   hudHeader('ALT', ax, w, by - 5 * k, 15.5 * k, PAL_G);
   hudValueBox(ax, by, w, h, String(Math.round(dragon.position.y - WL)), 19 * k, PAL_G, -1);
-  if (F.hover) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow('HOVER', ax + w / 2, lb, 15.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k); hctx.restore(); }
+  if (F.hover || GR.mode) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow(GR.mode ? 'TIERRA' : 'HOVER', ax + w / 2, lb, 15.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.6 * k); hctx.restore(); }   // (v44: en tierra, «TIERRA»)
 }
 /* v40: acelerador (W/S), barra vertical a la izquierda de SPEED que se llena de abajo arriba, con marcas al 25, 50 y 75 %, una flecha en su
    nivel y el porcentaje debajo. En hover (W/S suben y bajan) se apaga. ly: línea base de «THR»; vy: la del porcentaje. */
 function drawThrottle(x, y, w, h, ly, vy) {
   const k = HUD_K, P = PAL_G, t = clamp(F.throttle, 0, 1);
-  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hctx.save(); if (F.hover || GR.mode) hctx.globalAlpha = 0.35;
   hudGlow('THR', x + w / 2, ly, 15.5 * k, P.line, P.glow, 'center', 1.4 * k);
   hudBar(x, y, w, h, t, '', 0, P, 4, true);
   const ay = y + 2 * k + (h - 4 * k) * (1 - t), ax = x + w + 3 * k;
   hctx.fillStyle = P.ink; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
   hctx.beginPath(); hctx.moveTo(ax, ay); hctx.lineTo(ax + 6 * k, ay - 4 * k); hctx.lineTo(ax + 6 * k, ay + 4 * k); hctx.closePath(); hctx.fill();
   hctx.restore();
-  hctx.save(); if (F.hover) hctx.globalAlpha = 0.35;
+  hctx.save(); if (F.hover || GR.mode) hctx.globalAlpha = 0.35;
   hudGlow(Math.round(t * 100) + '%', x + w / 2, vy, 13 * k, P.ink, P.glow, 'center', 0.4 * k);
   hctx.restore();
 }
@@ -619,20 +619,20 @@ function drawWeapons() {
   const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
-  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9);
+  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;   // (v44: en tierra, solo FLM)
   hctx.save();
   hctx.globalAlpha = 0.55; hudPanel(lx - 12 * k, y0 - 9 * k, bx + w + 9 * k - (lx - 12 * k), y3 + h + 7 * k - (y0 - 9 * k), { line: PAL_G.faint, glow: 'rgba(0,0,0,0)' }, 10 * k, 0.6);
   const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; hudGlow(name, lx, y + h / 2 + 17 * k * G_CAP / 2, 17 * k, PAL_G.line, PAL_G.glow, 'left', 1.5 * k); return y; };
-  let y = row(0, 'GUN', oh || las);
+  let y = row(0, 'GUN', oh || las || gnd);
   hudBar(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, PAL_G, Math.min(GUN_AMMO, 20));
-  y = row(1, 'MSL', oh || las);
+  y = row(1, 'MSL', oh || las || gnd);
   hudBar(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, W.msl > 0 ? PAL_G : PAL_R, 10);
   y = row(2, 'FLM', las);
   const heat = clamp(W.heat, 0, 1);
   if (oh) hctx.globalAlpha = 0.55 + 0.45 * blink;
   else if (heat > 0.02) hctx.globalAlpha *= 1 - 0.55 * heat * heat * (0.5 + 0.5 * Math.sin(gameTime * (4 + 10 * heat)));
   hudBar(bx, y, w, h, heat, Math.round(heat * 100) + '%', size, palHeat(oh ? 1 : heat), 10);
-  y = row(3, 'LSR', oh);
+  y = row(3, 'LSR', oh || gnd);
   const full = W.ult >= 1 && !las;
   if (full && !oh) hctx.globalAlpha = 0.65 + 0.35 * blink;
   if (las || (full && !oh)) {                              // lleno o disparando: halo alrededor de la barra
@@ -775,7 +775,8 @@ function updateWorld(dt) {
   const play = state === 'playing', aimCam = play && F.straight && F.locked && !F.lookHeld && !F.tgtCam && !cine.on;
   let headAim = F.aimLocal, aimPt = null;
   if (play) { aimPt = _cpA.copy(F.aimPt).sub(p).applyQuaternion(_cpQ.copy(dragon.quaternion).invert()); headAim = _cpH.copy(aimPt).sub(HEAD_BASE).normalize(); }
-  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam || CC.k > 0.02, menu: state === 'menu',   // (v34: con un plano de cine, el jinete entero) hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,
+  animateHero(dt, { throttle: F.throttle, flapTarget: F.flapTarget, aimLocal: headAim, yawRate: F.rate.y, pitchRate: F.rate.p, fire: F.fireFlash, third: F.third || aimCam || CC.k > 0.02, menu: state === 'menu',   // (v34: con un plano de cine, el jinete entero)
+    hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,   // (v44: desde la v34 el comentario de arriba se comía esta línea: sin hover, boost, picado ni cámara de apuntado)
     effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
   if (camShake > 0.002) {

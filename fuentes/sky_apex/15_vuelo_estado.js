@@ -2,6 +2,7 @@
    7. ENTRADA, MODELO DE VUELO Y ESTADO DE JUEGO
    Controles: W/S aceleración · ratón = dirección (marcador al estilo War Thunder, con banking)
    · Q/E alabeo · A/D esquiva (v32) · Shift boost · Ctrl izq. hover · X nivelar · C cámara · M sonido.
+   v44: en tierra (15b), W/S andar · A/D girar · Espacio despegar · solo la llamarada y el escudo.
    v26: Espacio mantenido = vuelo recto (la mira sigue libre y el cuello la sigue) · F mantenida = cámara hacia el blanco fijado · R escudo.
    Armas (ver «Armas del jugador»): clic izq. = fuego rápido; mantenido sobre el círculo rojo = bola guiada; clic dcho. = llamarada;
    izq. + dcho. a la vez = rayo de fuego; clic central = fijar objetivo.
@@ -64,6 +65,7 @@ window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'ControlLeft') { if (state === 'playing' && !cine.on) toggleHover(); }   // v26: el hover pasa de Espacio a Ctrl izquierdo
   else if (e.code === 'KeyA' || e.code === 'KeyD') startDodge(e.code === 'KeyD' ? 1 : -1);   // v32: esquiva
+  else if (e.code === 'Space') { if (state === 'playing' && GR.mode === 'walk' && !cine.on) takeoffStart(); }   // v44: en tierra, despegar (15b)
   else if (e.code === 'KeyC') F.third = !F.third;
   else if (e.code === 'KeyR') { if (!cine.on) activateShield(); }   // v26: el escudo pasa de F a R (F = cámara al objetivo; nivelar, a la X)
   else if (e.code === 'KeyM') { sfx.init(); const m = sfx.toggleMute(); music.setMuted(m); toast(m ? 'Sonido desactivado' : 'Sonido activado'); }   // efectos y música
@@ -92,6 +94,7 @@ canvasGL.addEventListener('mousedown', e => {
   if (DEV.open) { devPanel(false); return; }               // v27: con el panel de pruebas abierto, un clic en el juego lo cierra
   if (e.button === 1) { e.preventDefault(); cycleTarget(); return; }   // clic central: fijar el siguiente dragón enemigo a la vista
   const t = performance.now() / 1000;
+  if (e.button === 0 && GR.mode) return;                   // v44: en tierra, solo la llamarada (clic dcho.) y el escudo
   if (e.button === 0) {
     W.lmb = true; W.lmbT = t;
     if (!(W.rmb && t - W.rmbT < COMBO_WIN && tryLaser())) pressLeft();
@@ -205,7 +208,7 @@ function resetRun(pump) {
   F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false;   // (v26)
   F.aimPt.copy(START.dir).multiplyScalar(1400).add(START.pos); scorchClear();   // (v27: punto de la mira y quemaduras)
   F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
-  dodgeReset(); bumpReset();                               // (v32; v43: rebote)
+  dodgeReset(); bumpReset(); groundReset();                // (v32; v43: rebote; v44: tierra)
   if (cpResume()) checkpointPlace();                       // v43: desde un punto de control, donde estaba (19)
   const P = dragon.position;
   refreshTerrainSelection(P.x, P.y, P.z, true);
@@ -301,7 +304,7 @@ function devHoverStart() {
 }
 /* Hover: se frena del todo y se queda aleteando; al salir se reanuda el vuelo con un impulso de alas. */
 function toggleHover() {
-  if (state !== 'playing') return;
+  if (state !== 'playing' || GR.mode) return;              // (v44: en tierra, no)
   F.hover = !F.hover;
   if (F.hover) { F.hvy = 0; sfx.hoverOn(); toast('HOVER  ·  W/S suben y bajan'); }
   else { F.speed = Math.max(F.speed, HOVER_EXIT_SPEED); F.sink = 0; F.hvy = 0; sfx.hoverOff(); toast('Vuelo normal'); }
@@ -323,7 +326,7 @@ function respawn() {
   dragon.quaternion.setFromRotationMatrix(_m4.lookAt(ZERO, _f, UP));
   F.speed = 80; F.throttle = 0.5; F.rate.p = F.rate.y = F.rate.r = 0; F.health = heroHpMax(); F.aimWorld.copy(_f); F.aimPt.copy(_f).multiplyScalar(1400).add(p); F.steer.set(0, 0, -1); F.prevSpeed = F.speed; F.accS = 0; dragonAnim.camQ = null;
   F.hover = false; F.hoverK = 0; F.hvy = 0; F.bank = 0; F.sink = 0; F.lookYaw = F.lookPit = F.lookVY = F.lookVP = 0; F.tgtBack = F.straight = false; F.boost = 1; F.boostDelay = 0; F.boostExhausted = false; F.boostFx = 0; F.boostKick = F.kickFx = 0; F.boosting = false;
-  dodgeReset(); bumpReset(); devHoverStart();              // (v32: en los modos de prueba, también al reaparecer; v43: rebote)
+  dodgeReset(); bumpReset(); groundReset(); devHoverStart();   // (v32: en los modos de prueba, también al reaparecer; v43: rebote; v44: tierra)
   deadEl.hidden = true; state = 'playing';
   boltsClear(); enemiesCalm(); resetWeapons(false);
 }
@@ -570,7 +573,7 @@ function updateWeapons(dt) {
   // (pitidos cada vez más rápidos y un tono al fijarse); fijada, mantener el clic izquierdo MSL_HOLD s la lanza. El fijado sigue tras lanzar
   // (otro clic mantenido, otra guiada); si el blanco sale del cono, se pierde poco a poco
   if (enemyLock.e !== W.lockT) { W.lockT = enemyLock.e; W.lock = 0; W.locked = false; }
-  W.lockWhy = W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';
+  W.lockWhy = GR.mode ? 'tierra' : W.msl > 0 && weaponsReady() ? mslSeek() : 'municion';   // (v44: en tierra, sin guiadas)
   if (W.lmb) W.holdT += dt;
   if (W.lockWhy === '') {
     if (!W.locked) {
@@ -867,7 +870,8 @@ function updateAim(dt, auto) {
     yaw += F.pdx * k; pit -= F.pdy * k; F.pdx = F.pdy = 0;
     // en hover el cuerpo no cabecea: el marcador sí puede subir/bajar (cabeza y bolas de fuego lo siguen) dentro de un rango.
     // v26: en vuelo recto (Espacio), algo más hacia abajo, para barrer el suelo en vuelo rasante
-    yaw = clamp(yaw, -1.0, 1.0); pit = F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
+    // v44: en tierra, hasta donde gira el cuello (el cuerpo solo gira con A/D)
+    yaw = clamp(yaw, GR.mode ? -1.2 : -1.0, GR.mode ? 1.2 : 1.0); pit = GR.mode ? clamp(pit, -0.9, 0.5) : F.hover ? clamp(pit, -0.85, 0.55) : F.straight ? clamp(pit, -0.95, 0.78) : clamp(pit, -0.78, 0.78);
     _l.set(Math.sin(yaw) * Math.cos(pit), Math.sin(pit), -Math.cos(yaw) * Math.cos(pit));
     F.aimWorld.copy(_l).applyQuaternion(q);
   } else if (!F.lookHeld && !F.tgtCam && !DEV.open) {                   // (sin puntero bloqueado y mirando alrededor o al blanco, la mira se queda donde estaba)
@@ -891,7 +895,7 @@ let DODGE_DIST = 30, DODGE_T = 1.5, DODGE_COOL = 1, DODGE_MSL = 400;
 const DG = { on: false, t: 0, s: 0, dir: 0, cool: 0, back: -1, side: new THREE.Vector3(), off: new THREE.Vector3() };   // back: s desde que acabó (la cámara vuelve); -1 = nada
 function dodgeReset() { DG.on = false; DG.cool = 0; DG.back = -1; DG.off.set(0, 0, 0); F.roll = 0; F.dodgeCam.set(0, 0, 0); }
 function startDodge(dir) {
-  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open) return;
+  if (state !== 'playing' || cine.on || DG.on || DG.cool > 0 || DEV.open || GR.mode) return;   // (v44: en tierra, A/D giran)
   _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
   camera.getWorldQuaternion(_iq); DG.side.set(1, 0, 0).applyQuaternion(_iq);       // la derecha de la pantalla, en perpendicular al rumbo
   DG.side.addScaledVector(_f, -DG.side.dot(_f));
@@ -939,6 +943,7 @@ function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
 /* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida; dmg: el daño (por defecto, CRASH_DMG). */
 function crashBump(n, why, dmg) {
   if (state !== 'playing' || devCheat('noCrash')) return;   // (v27: Dev Test, «sin choques»)
+  if (GR.mode) { if (gameTime - BUMP.t >= CRASH_GRACE) { BUMP.t = gameTime; hurtDragon(dmg != null ? dmg : CRASH_DMG, why); } return; }   // (v44: en tierra, un dragón que choca contigo: solo el daño)
   const q = dragon.quaternion;
   _bn.copy(n).normalize();
   _bf.set(0, 0, -1).applyQuaternion(q);
@@ -999,6 +1004,7 @@ function updateFlight(dt, auto) {
   const q = dragon.quaternion, pos = dragon.position;
   if (!auto && cine.on) cineUpdate(dt);                    // v26: entrada de cine (sin control hasta que acaba)
   if (!auto && mission.dev) devUpdate(dt);                 // v27: trucos del modo Dev Test
+  if (!auto && GR.mode) { updateGround(dt); flightEnd(dt, auto); return; }   // v44: en tierra (15b)
   const ctl = !auto && !cine.on;                           // las teclas de vuelo cuentan
   const hov = !auto && F.hover;
   F.hoverK += ((hov ? 1 : 0) - F.hoverK) * (1 - Math.exp(-dt * 3));
@@ -1011,6 +1017,7 @@ function updateFlight(dt, auto) {
     let vt = ((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0)) * HOVER_VSPEED;
     F.hvy += (vt - F.hvy) * (1 - Math.exp(-dt * 3.5));
     const gnd = Math.max(heightAt(pos.x, pos.z), WL);
+    if (keys.KeyS && pos.y - gnd < 7.5 && canLand(pos, q)) { landStart(); flightEnd(dt, auto); return; }   // v44: hover y S hasta el suelo: aterriza (15b)
     if (F.hvy < 0 && (pos.y - gnd < 6 || islandAt(pos.x, pos.y - 8, pos.z, 0))) F.hvy = 0;
     if (F.hvy > 0 && islandAt(pos.x, pos.y + 9, pos.z, 0)) F.hvy = 0;
   } else F.hvy = 0;
@@ -1128,8 +1135,10 @@ function updateFlight(dt, auto) {
     if (hT < WL) {
       if (canSkim(q)) skimWater(pos, q);
       else { pos.y = WL + 2.2; if (gameTime - BUMP.t >= CRASH_GRACE) splash(pos.x, pos.z, 2.0); crashBump(UP, 'Te sumergiste en el agua'); }
-    } else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
+    } else if (canLand(pos, q)) landStart();               // v44: despacio, aterriza en vez de rebotar (15b)
+    else { pos.y = hT + 2.2; crashBump(terrainNormal(pos.x, pos.z, _bt), 'Te estrellaste contra el terreno'); }
   } else if (auto && pos.y < g + 60) pos.y = g + 60;
+  else if (!auto && hT >= WL && pos.y - hT < LAND_AGL && dragonVel.y < -0.5 && pos.y - hT - 2.2 < -dragonVel.y && canLand(pos, q, true)) landStart();   // (bajando hacia el suelo: en menos de 1 s llegaría)
   if (BUMP.skim && pos.y > WL + 4) BUMP.skim = false;
   if (!auto && state === 'playing') { const s = islandAt(pos.x, pos.y, pos.z, 2.6); if (s) crashBump(pos.y > s.yMax - 15 ? UP : _bt.set(pos.x - s.x, 0, pos.z - s.z), 'Te estrellaste contra una isla flotante'); }
   if (!auto && state === 'playing') for (const t of towers.values()) {   // torres en pie (desde la v7 miden ~110 m: ya no se pueden atravesar)
@@ -1161,6 +1170,10 @@ function updateFlight(dt, auto) {
       emit(fxSmoke, pos.x + Math.cos(an) * rnd(1, 6), g + 0.6, pos.z + Math.sin(an) * rnd(1, 6), Math.cos(an) * sp, rnd(1, 5), Math.sin(an) * sp, rnd(1.0, 1.8), 2.5, rnd(9, 15), water ? 0.85 : 0.52, water ? 0.92 : 0.46, water ? 0.95 : 0.38, 0.32 * (0.4 + st), 1.6, 0);
     }
   }
+  flightEnd(dt, auto);
+}
+/* Fin del fotograma, en el aire o en tierra (v44): armas, estadísticas, misión y regeneración de la vida. */
+function flightEnd(dt, auto) {
   F.fireFlash = Math.max(0, F.fireFlash - dt * 3.2);
   if (!auto && state === 'playing') { updateWeapons(dt); stats.time += dt; stats.dist += F.speed * dt; stats.vmax = Math.max(stats.vmax, F.speed); missionUpdate(dt); }   // v15: objetivos, eventos, área y final
   // v39: la vida se regenera tras HP_REGEN_WAIT s sin recibir daño (v24-v38: no se regeneraba y la que se regeneraba era la armadura)

@@ -67,7 +67,14 @@ const STATS_SCHEMA = {
     ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
     ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
     ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
-    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43). Será también la de aterrizar.']
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
+    { sec: 'Tierra (solo el Tyrant)' },                    // v44
+    ['aterrizaje_pendiente', 'Pendiente máxima para aterrizar', '°', 30, 'En suelo más empinado no aterriza: rebota.', 1],
+    ['aterrizaje_margen', 'Margen de velocidad al aterrizar', '%', 20, 'Bajando hacia el suelo (a menos de 1 s), aterriza aunque vaya hasta este tanto por encima de la velocidad para posarse: al bajar el dragón acelera solo (con 0, solo a esa velocidad o menos).', 1],
+    ['tierra_vel', 'Velocidad andando', 'km/h', 15, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
+    ['tierra_atras', 'Velocidad hacia atrás', '%', 60, 'S en tierra: este tanto de la velocidad andando.', 1],
+    ['tierra_giro', 'Giro en tierra', '°/s', 60, 'A/D en tierra.'],
+    ['despegue_vel', 'Velocidad al despegar', 'km/h', 150, 'Con la que vuelve al vuelo tras el despegue (Espacio en tierra), con el morro 12° arriba.']
   ],
   enemigo: [
     { sec: 'Vida y vuelo' },
@@ -403,6 +410,8 @@ function applyHeroStats() {
   ULT_TIME = 100 / Math.max(0.001, S.rayo_recarga); ULT_PER_KILL = S.rayo_por_derribo / 100;
   DODGE_DIST = S.esquiva_distancia; DODGE_T = Math.max(0.1, S.esquiva_duracion); DODGE_COOL = Math.max(0, S.esquiva_recarga); DODGE_MSL = S.esquiva_guiadas;   // (v32)
   CRASH_DMG = Math.max(0, S.choque_dano); CRASH_PUSH = Math.max(0, S.choque_rebote); CRASH_GRACE = Math.max(0, S.choque_pausa); LAND_SPEED = Math.max(0, S.aterrizaje_vel) / 3.6;   // (v43)
+  LAND_SLOPE = clamp(S.aterrizaje_pendiente, 1, 60); LAND_MARGIN = Math.max(0, S.aterrizaje_margen) / 100; GROUND_SPEED = Math.max(0.5, S.tierra_vel) / 3.6; GROUND_BACK = clamp(S.tierra_atras / 100, 0.1, 1);   // (v44)
+  GROUND_TURN = Math.max(1, S.tierra_giro) * Math.PI / 180; GROUND_TAKEOFF = Math.max(VMIN * 3.6, S.despegue_vel) / 3.6;
   heroPools ={ hp: S.vida, ammo: GUN_AMMO, msl: MSL_AMMO };
   if (old && state !== 'menu' && state !== 'loading' && state !== 'select' && state !== 'worldgen') {
     const fit = (cur, k, max) => clamp(cur + Math.max(0, heroPools[k] - old[k]), 0, max);
