@@ -57,6 +57,8 @@ function buildChunk(L, ix, iz) {
   terrainGroup.add(mesh);
   const ch = { key: chunkKey(L, ix, iz), L, ix, iz, x0, z0, size: S, mesh, trees: null, hs, G, s };
   chunks.set(ch.key, ch);
+  setUnder(ch);
+  for (const c of chunks.values()) if (c.L > L && chunksOverlap(c, ch)) c.mesh.material = terrainMaterial(c.L, true);
   if (chunkHooks.onCreate) chunkHooks.onCreate(ch);
   return ch;
 }
@@ -64,6 +66,15 @@ function removeChunk(ch) {
   if (chunkHooks.onRemove) chunkHooks.onRemove(ch);
   terrainGroup.remove(ch.mesh); ch.mesh.geometry.dispose();
   chunks.delete(ch.key);
+  for (const c of chunks.values()) if (c.L > ch.L && chunksOverlap(c, ch)) setUnder(c);
+}
+/* v47: mientras un trozo se solapa con otro más fino (el cambio de LOD dura hasta que pruneTerrain quita el viejo), va desplazado hacia
+   atrás para que gane el fino; el resto de los trozos, sin desplazamiento (04, terrainMaterial). */
+const chunksOverlap = (a, b) => a.x0 < b.x0 + b.size && b.x0 < a.x0 + a.size && a.z0 < b.z0 + b.size && b.z0 < a.z0 + a.size;
+function setUnder(ch) {
+  let under = false;
+  for (const c of chunks.values()) if (c.L < ch.L && chunksOverlap(c, ch)) { under = true; break; }
+  ch.mesh.material = terrainMaterial(ch.L, under);
 }
 
 function selectLeaves(px, pz, dy) {

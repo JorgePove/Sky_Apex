@@ -277,15 +277,18 @@ void main(){
   vec3 fd = normalize(vec3(vd.x, max(vd.y, 0.0) * 0.4, vd.z));
   gl_FragColor = vec4(mix(lit, skyColor(fd), fogF), 1.0);
 }`;
-const terrainMats = [];
-function terrainMaterial(level) {
-  if (!terrainMats[level]) {
-    terrainMats[level] = new THREE.ShaderMaterial({
+/* v47: sin desplazamiento de profundidad, salvo el trozo que aún se solapa con otro más fino durante el cambio de LOD («under», 05): antes
+   lo llevaban todos los niveles y, a varios km, empujaba la tierra lejana decenas o cientos de metros hacia atrás: el agua se veía encima. */
+const terrainMats = [], terrainMatsUnder = [];
+function terrainMaterial(level, under) {
+  const list = under ? terrainMatsUnder : terrainMats;
+  if (!list[level]) {
+    list[level] = new THREE.ShaderMaterial({
       uniforms: terrainUniforms, vertexShader: terrainVS, fragmentShader: terrainFS, side: THREE.DoubleSide, extensions: { derivatives: true },
-      polygonOffset: true, polygonOffsetFactor: level * 0.6, polygonOffsetUnits: level * 3
+      polygonOffset: !!under, polygonOffsetFactor: under ? level * 0.6 : 0, polygonOffsetUnits: under ? level * 3 : 0
     });
   }
-  return terrainMats[level];
+  return list[level];
 }
 
 function onResize() {
