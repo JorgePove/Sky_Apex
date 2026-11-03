@@ -4,7 +4,7 @@ Documento de contexto para empezar un chat nuevo en Claude. Resume todo lo hecho
 
 Fecha de este resumen: 3 de noviembre de 2026, v46 (la primera versión es del 16 de octubre).
 
-> **v46 (3-nov): reestructuración del proyecto** (sección 7c, «v46»): carpetas por categorías y todos los nombres en inglés (ver «Nombres nuevos (v46)», justo debajo); `index.html` es el HTML maestro (946 kB) con los recursos aparte (archivos tal cual con servidor; copias `assets/packed/*.js` con doble clic); y cada modo carga solo lo suyo (al arrancar, 8 MB en vez de 50). Jorge ya renombró la carpeta a «Sky Apex» (3-nov; comprobado: memoria de Claude, herramientas, servidor de pruebas y web). Entregada, sin jugar aún.
+> **v46 (3-nov): reestructuración del proyecto** (sección 7c, «v46»): carpetas por categorías y todos los nombres en inglés (ver «Nombres nuevos (v46)», justo debajo); `index.html` es el HTML maestro (946 kB) con los recursos aparte (archivos tal cual con servidor; copias `assets/packed/*.js` con doble clic); y cada modo carga solo lo suyo (al arrancar, 8 MB en vez de 50). Jorge ya renombró la carpeta a «Sky Apex» (3-nov; comprobado: memoria de Claude, herramientas, servidor de pruebas y web). **Probada por Jorge en la web** (3-nov): «todo parece seguir funcionando correctamente».
 
 ## Nombres nuevos (v46)
 Desde la v46 todo va en inglés, minúsculas y `snake_case`. El historial de abajo se escribió con los nombres antiguos; las rutas ya se pusieron al día solas, pero algunos nombres sueltos siguen en castellano. Equivalencias:
