@@ -266,6 +266,8 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
 .sel-dragons button:hover:not(:disabled){color:var(--bone);border-color:var(--ember)}
 .sel-dragons button.on{color:var(--bone);border-color:var(--ember);background:linear-gradient(180deg,rgba(255,122,46,.32),rgba(255,122,46,.1));box-shadow:0 0 18px rgba(255,122,46,.25)}
 .sel-dragons button:disabled{opacity:.4;cursor:progress}
+.sel-dragons button.loading{opacity:.55;cursor:progress;animation:selLoading 1s ease-in-out infinite alternate}   /* v46: se está cargando su modelo */
+@keyframes selLoading{to{opacity:.85}}
 .sel-dragons button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .sel-top .sel-credit{font-size:11px;opacity:.75}
 /* v17: nombres largos (Alientormenta…) y stats con barras */

@@ -77,6 +77,8 @@ function saveColors() {
 /* v16: cambiar de dragón (botones de «Elige tu dragón» o, al cargar, el que estaba elegido): sus colores, su nombre y, en la plataforma, su pose. */
 function chooseDragon(id) {
   if (id === alt.id) return;
+  const W = DRAGONS[id];                                   // v46: si aún no está cargado, se pide; al llegar, setupDragon lo elige (alt.want)
+  if (id !== 'tyrant' && W && !W.ready) { alt.want = id; loadDragon(id); refreshDragonButtons(); return; }
   dragonColors[alt.id] = { skin: colors.skin, fire: colors.fire };
   if (!setDragon(id)) return;
   colors.skin = dragonColors[id].skin; colors.fire = dragonColors[id].fire;
@@ -99,9 +101,9 @@ function refreshDragonButtons() {
     return `<dt>${n}</dt><dd class="${d > 1e-6 ? 'up' : d < -1e-6 ? 'down' : ''}">${txt(v)}</dd><i><b style="width:${(100 * v / best).toFixed(0)}%"></b></i>`;
   }).join('');
   for (const b of document.querySelectorAll('#selDragons button')) {
-    const E = DRAGONS[b.dataset.id], ok = b.dataset.id === 'tyrant' || E.ready;
-    b.disabled = !ok; b.classList.toggle('on', b.dataset.id === alt.id);
-    b.title = ok ? '' : E.error ? 'No se pudo cargar el modelo' : 'Cargando…';
+    const E = DRAGONS[b.dataset.id], ok = b.dataset.id === 'tyrant' || E.ready, busy = !ok && E.loading;   // (v46: los no cargados se pueden pulsar: se cargan)
+    b.disabled = !ok && !!E.error; b.classList.toggle('on', b.dataset.id === alt.id); b.classList.toggle('loading', busy);
+    b.title = ok ? '' : E.error ? 'No se pudo cargar el modelo' : busy ? 'Cargando…' : '';
   }
 }
 

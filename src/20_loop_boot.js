@@ -46,7 +46,8 @@ function frame(now) {
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objectives_test'));          // v21
   document.getElementById('mDev').addEventListener('click', () => chooseMission('dev_test'));           // v27: modo Dev Test (19d)
   document.getElementById('mGal').addEventListener('click', () => chooseMission('enemy_gallery'));           // v29: galería de enemigos
-  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); loadUnits(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible; v29: las unidades nuevas
+  loadHero().then(loadDragons); loadRider(); loadKnight(); introBoot();   // v16: los otros dragones, en cuanto está el Tyrant (v46: solo el elegido; los demás, al elegirlos)
+  // (v46: el dirigible y las unidades nuevas ya no se cargan al arrancar: los pide cada misión, missionAssets en 19)
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)

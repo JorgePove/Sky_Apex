@@ -243,13 +243,17 @@ function tyrantRef() {
 }
 
 /* ---------- Cargar y preparar un dragón ---------- */
+/* v46 (fase 3): al arrancar solo se carga el dragón que estaba elegido (si no es el Tyrant); los demás, al elegirlos en «Elige tu dragón»
+   (chooseDragon), con su botón en «Cargando…» mientras llega. Al terminar, setupDragon lo pone si sigue siendo el que se quiere (alt.want). */
 function loadDragons() {
-  if (!hero.ready) return;
-  for (const id of DRAGON_IDS) {
-    const D = DRAGONS[id]; if (!D.url) continue;
-    loadGLB(D.url).then(g => setupDragon(D, id, g))
-      .catch(err => { D.error = err; console.error('No se pudo cargar ' + D.name + ':', err); refreshDragonButtons(); });
-  }
+  if (hero.ready && alt.want !== 'tyrant') loadDragon(alt.want);
+}
+function loadDragon(id) {
+  const D = DRAGONS[id]; if (!D || !D.url || D.loading || D.ready) return;
+  D.loading = true; D.error = null;
+  loadGLB(D.url).then(g => setupDragon(D, id, g))
+    .catch(err => { D.error = err; console.error('No se pudo cargar ' + D.name + ':', err); refreshDragonButtons(); })
+    .finally(() => { D.loading = false; });
 }
 function setupDragon(D, id, gltf) {
   tyrantRef();

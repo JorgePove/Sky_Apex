@@ -42,8 +42,9 @@ function srgbColors(geo) {                                  // color por vértic
   for (let i = 0; i < col.count; i++) { out[i * 3] = Math.pow(col.getX(i) / max, 1 / 2.2); out[i * 3 + 1] = Math.pow(col.getY(i) / max, 1 / 2.2); out[i * 3 + 2] = Math.pow(col.getZ(i) / max, 1 / 2.2); }
   geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
 }
+let unitsLoad = null;                       // v46: la carga en curso o hecha (solo una vez; la pide la misión que trae unidades: missionAssets, 19)
 function loadUnits() {
-  return Promise.all(Object.entries(UNIT_GLB).map(([key, url]) => loadGLB(url).then(g => {
+  return unitsLoad || (unitsLoad = Promise.all(Object.entries(UNIT_GLB).map(([key, url]) => loadGLB(url).then(g => {
     g.scene.updateMatrixWorld(true);
     g.scene.traverse(o => {
       if (!o.isMesh) return;
@@ -57,7 +58,7 @@ function loadUnits() {
       (unitRes[n] = unitRes[n] || []).push({ geo, mat });
     });
     if (key === 'sierpe' && typeof serpentPrepare === 'function') serpentPrepare();
-  }).catch(err => console.error('No se pudo cargar el modelo «' + key + '»:', err))));
+  }).catch(err => console.error('No se pudo cargar el modelo «' + key + '»:', err)))));
 }
 /* Copia del modelo para una unidad: comparte la geometría; materiales propios (el destello de los impactos y los restos quemados). */
 function unitModel(key) {

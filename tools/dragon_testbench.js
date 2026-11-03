@@ -8,6 +8,7 @@ window.BD = {
   FRENTE: [0, 12, 40, 0, 5, 0], LADO: [0, 10, 34, 0, 5, 0], CERCA: [6, 9, 22, 0, 5, 0],
   async listo() {
     let n = 0; while (pumpTerrain(24) > 0 && n < 400) n++;
+    for (const k of ['rojo', 'drogon', 'fulgor']) if (typeof loadDragon === 'function') loadDragon(k);   // (v46: el juego solo carga el elegido)
     await new Promise(r => { const t0 = performance.now(); (function w() { if ((hero.ready && DRAGONS.rojo.ready && DRAGONS.drogon.ready) || performance.now() - t0 > 60000) r(); else setTimeout(w, 300); })(); });
     for (let i = 0; i < 5 && state === 'loading'; i++) frame(performance.now());
     window.dispatchEvent(new Event('resize'));

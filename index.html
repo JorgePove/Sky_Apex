@@ -284,6 +284,8 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
 .sel-dragons button:hover:not(:disabled){color:var(--bone);border-color:var(--ember)}
 .sel-dragons button.on{color:var(--bone);border-color:var(--ember);background:linear-gradient(180deg,rgba(255,122,46,.32),rgba(255,122,46,.1));box-shadow:0 0 18px rgba(255,122,46,.25)}
 .sel-dragons button:disabled{opacity:.4;cursor:progress}
+.sel-dragons button.loading{opacity:.55;cursor:progress;animation:selLoading 1s ease-in-out infinite alternate}   /* v46: se está cargando su modelo */
+@keyframes selLoading{to{opacity:.85}}
 .sel-dragons button:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .sel-top .sel-credit{font-size:11px;opacity:.75}
 /* v17: nombres largos (Alientormenta…) y stats con barras */
@@ -2622,13 +2624,17 @@ function tyrantRef() {
 }
 
 /* ---------- Cargar y preparar un dragón ---------- */
+/* v46 (fase 3): al arrancar solo se carga el dragón que estaba elegido (si no es el Tyrant); los demás, al elegirlos en «Elige tu dragón»
+   (chooseDragon), con su botón en «Cargando…» mientras llega. Al terminar, setupDragon lo pone si sigue siendo el que se quiere (alt.want). */
 function loadDragons() {
-  if (!hero.ready) return;
-  for (const id of DRAGON_IDS) {
-    const D = DRAGONS[id]; if (!D.url) continue;
-    loadGLB(D.url).then(g => setupDragon(D, id, g))
-      .catch(err => { D.error = err; console.error('No se pudo cargar ' + D.name + ':', err); refreshDragonButtons(); });
-  }
+  if (hero.ready && alt.want !== 'tyrant') loadDragon(alt.want);
+}
+function loadDragon(id) {
+  const D = DRAGONS[id]; if (!D || !D.url || D.loading || D.ready) return;
+  D.loading = true; D.error = null;
+  loadGLB(D.url).then(g => setupDragon(D, id, g))
+    .catch(err => { D.error = err; console.error('No se pudo cargar ' + D.name + ':', err); refreshDragonButtons(); })
+    .finally(() => { D.loading = false; });
 }
 function setupDragon(D, id, gltf) {
   tyrantRef();
@@ -3276,6 +3282,8 @@ function saveColors() {
 /* v16: cambiar de dragón (botones de «Elige tu dragón» o, al cargar, el que estaba elegido): sus colores, su nombre y, en la plataforma, su pose. */
 function chooseDragon(id) {
   if (id === alt.id) return;
+  const W = DRAGONS[id];                                   // v46: si aún no está cargado, se pide; al llegar, setupDragon lo elige (alt.want)
+  if (id !== 'tyrant' && W && !W.ready) { alt.want = id; loadDragon(id); refreshDragonButtons(); return; }
   dragonColors[alt.id] = { skin: colors.skin, fire: colors.fire };
   if (!setDragon(id)) return;
   colors.skin = dragonColors[id].skin; colors.fire = dragonColors[id].fire;
@@ -3298,9 +3306,9 @@ function refreshDragonButtons() {
     return `<dt>${n}</dt><dd class="${d > 1e-6 ? 'up' : d < -1e-6 ? 'down' : ''}">${txt(v)}</dd><i><b style="width:${(100 * v / best).toFixed(0)}%"></b></i>`;
   }).join('');
   for (const b of document.querySelectorAll('#selDragons button')) {
-    const E = DRAGONS[b.dataset.id], ok = b.dataset.id === 'tyrant' || E.ready;
-    b.disabled = !ok; b.classList.toggle('on', b.dataset.id === alt.id);
-    b.title = ok ? '' : E.error ? 'No se pudo cargar el modelo' : 'Cargando…';
+    const E = DRAGONS[b.dataset.id], ok = b.dataset.id === 'tyrant' || E.ready, busy = !ok && E.loading;   // (v46: los no cargados se pueden pulsar: se cargan)
+    b.disabled = !ok && !!E.error; b.classList.toggle('on', b.dataset.id === alt.id); b.classList.toggle('loading', busy);
+    b.title = ok ? '' : E.error ? 'No se pudo cargar el modelo' : busy ? 'Cargando…' : '';
   }
 }
 
@@ -5081,8 +5089,9 @@ const _Ap = new THREE.Vector3(), _Ai = new THREE.Vector3(), _Ah = new THREE.Vect
 
 /* Modelo: el color por vértice del glTF es lineal (Blender lo guarda en enteros de 16 bits normalizados) y el juego pinta sin corrección
    de gamma (como las torres): se pasa a sRGB, en coma flotante, al cargar. */
+let airshipsLoad = null;                 // v46: la carga en curso o hecha (solo una vez; la pide la misión que trae dirigibles: missionAssets, 19)
 function loadAirships() {
-  return loadGLB('assets/models/airship.glb').then(g => {
+  return airshipsLoad || (airshipsLoad = loadGLB('assets/models/airship.glb').then(g => {
     let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
     const geo = src.geometry, col = geo.attributes.color;
     if (col) {
@@ -5092,7 +5101,7 @@ function loadAirships() {
     }
     airshipRes = { geo, mat: new THREE.MeshLambertMaterial({ vertexColors: !!col, side: THREE.DoubleSide, emissive: 0x000000 }) };
     for (const a of airships) if (!a.gone && !a.mesh) airshipMesh(a);
-  }).catch(err => console.error('No se pudo cargar el dirigible:', err));
+  }).catch(err => console.error('No se pudo cargar el dirigible:', err)));
 }
 function airshipMesh(a) {
   a.mat = airshipRes.mat.clone();
@@ -5723,8 +5732,9 @@ function srgbColors(geo) {                                  // color por vértic
   for (let i = 0; i < col.count; i++) { out[i * 3] = Math.pow(col.getX(i) / max, 1 / 2.2); out[i * 3 + 1] = Math.pow(col.getY(i) / max, 1 / 2.2); out[i * 3 + 2] = Math.pow(col.getZ(i) / max, 1 / 2.2); }
   geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
 }
+let unitsLoad = null;                       // v46: la carga en curso o hecha (solo una vez; la pide la misión que trae unidades: missionAssets, 19)
 function loadUnits() {
-  return Promise.all(Object.entries(UNIT_GLB).map(([key, url]) => loadGLB(url).then(g => {
+  return unitsLoad || (unitsLoad = Promise.all(Object.entries(UNIT_GLB).map(([key, url]) => loadGLB(url).then(g => {
     g.scene.updateMatrixWorld(true);
     g.scene.traverse(o => {
       if (!o.isMesh) return;
@@ -5738,7 +5748,7 @@ function loadUnits() {
       (unitRes[n] = unitRes[n] || []).push({ geo, mat });
     });
     if (key === 'sierpe' && typeof serpentPrepare === 'function') serpentPrepare();
-  }).catch(err => console.error('No se pudo cargar el modelo «' + key + '»:', err))));
+  }).catch(err => console.error('No se pudo cargar el modelo «' + key + '»:', err)))));
 }
 /* Copia del modelo para una unidad: comparte la geometría; materiales propios (el destello de los impactos y los restos quemados). */
 function unitModel(key) {
@@ -10483,8 +10493,18 @@ function chooseMission(id) {
   enterSelect();
 }
 const tagList = t => t ? [].concat(t) : [];
+/* v46 (fase 3): cada modo carga solo los modelos que usa: el dirigible, si la misión trae dirigibles (o unidades «dirigible»); las unidades
+   nuevas (artillería, barcos, superdirigible, sierpe y soldados), si trae unidades o el portal del superdirigible; los modos de prueba (dev),
+   todo. Se piden al elegir la misión, mientras se genera el mundo; las unidades y los dirigibles se visten solos cuando llega su modelo, y
+   los modelos se quedan para las siguientes partidas. */
+function missionAssets(m) {
+  const ev = (m.events || []).some(e => (e.do || []).some(a => a.portal)), groups = m.units || [];
+  if (m.dev || (m.airships && m.airships.total > 0) || groups.some(g => g.type === 'dirigible')) loadAirships();
+  if (m.dev || groups.length || ev) loadUnits();
+}
 function missionSetup(id) {
   missionId = MISSIONS[id] ? id : 'free_combat'; mission = MISSIONS[missionId];
+  missionAssets(mission);
   const T = mission.towers || {}, D = mission.dragons || {}, A = mission.airships || {};
   RUN.world = missionWorld(mission);                       // v19: semilla, bioma y punto de partida (M3)
   const center = [RUN.world.start.x, RUN.world.start.z];
@@ -12018,7 +12038,8 @@ function frame(now) {
   document.getElementById('mObj').addEventListener('click', () => chooseMission('objectives_test'));          // v21
   document.getElementById('mDev').addEventListener('click', () => chooseMission('dev_test'));           // v27: modo Dev Test (19d)
   document.getElementById('mGal').addEventListener('click', () => chooseMission('enemy_gallery'));           // v29: galería de enemigos
-  loadHero().then(loadDragons); loadRider(); loadKnight(); loadAirships(); loadUnits(); introBoot();   // v16: los otros dos dragones, en cuanto está el Tyrant; v21: el dirigible; v29: las unidades nuevas
+  loadHero().then(loadDragons); loadRider(); loadKnight(); introBoot();   // v16: los otros dragones, en cuanto está el Tyrant (v46: solo el elegido; los demás, al elegirlos)
+  // (v46: el dirigible y las unidades nuevas ya no se cargan al arrancar: los pide cada misión, missionAssets en 19)
   window.__game = { F, dragon, keys, towers, chunks, towerState, hero, dragonAnim, animateHero, heroMouth, get state() { return state; }, startGame, enterSelect, leaveSelect, show, colors, applyColors, setState(s) { state = s; }, get fps() { return fpsEMA; }, get SEED() { return SEED; }, WORLD, DESIGN, heightAt, fireballs, bolts, enemies, enemyState, enemyLock, cycleTarget, damageEnemy, W, islands: islActive, islLoaded, islandAt, updateIslandStreaming, pumpIslands, rider, music, intro, introStart, MISSIONS, MS, get mission() { return mission; }, chooseMission, missionSetup, RUN, DRAGONS, alt, chooseDragon,
     airships, airshipState, damageAirship, TOWER_SITES, isTgt, spawnSquad, groundSites, eachTarget, allies,   // (v21; v23: ally; v34: allies)
     UNITS, unitRes, unitState, damageUnit, planUnits, galleryRestore, DEV,   // (v29)

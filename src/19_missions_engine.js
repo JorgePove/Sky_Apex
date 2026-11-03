@@ -32,8 +32,18 @@ function chooseMission(id) {
   enterSelect();
 }
 const tagList = t => t ? [].concat(t) : [];
+/* v46 (fase 3): cada modo carga solo los modelos que usa: el dirigible, si la misión trae dirigibles (o unidades «dirigible»); las unidades
+   nuevas (artillería, barcos, superdirigible, sierpe y soldados), si trae unidades o el portal del superdirigible; los modos de prueba (dev),
+   todo. Se piden al elegir la misión, mientras se genera el mundo; las unidades y los dirigibles se visten solos cuando llega su modelo, y
+   los modelos se quedan para las siguientes partidas. */
+function missionAssets(m) {
+  const ev = (m.events || []).some(e => (e.do || []).some(a => a.portal)), groups = m.units || [];
+  if (m.dev || (m.airships && m.airships.total > 0) || groups.some(g => g.type === 'dirigible')) loadAirships();
+  if (m.dev || groups.length || ev) loadUnits();
+}
 function missionSetup(id) {
   missionId = MISSIONS[id] ? id : 'free_combat'; mission = MISSIONS[missionId];
+  missionAssets(mission);
   const T = mission.towers || {}, D = mission.dragons || {}, A = mission.airships || {};
   RUN.world = missionWorld(mission);                       // v19: semilla, bioma y punto de partida (M3)
   const center = [RUN.world.start.x, RUN.world.start.z];

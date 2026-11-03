@@ -36,6 +36,7 @@
   REC.prepare = async function () {
     for (let i = 0; i < 600 && !(hero.ready && rider.ready && knight.ready); i++) await new Promise(r => setTimeout(r, 50));
     if (!hero.ready) throw new Error('el dragón no ha cargado');
+    if (typeof loadUnits === 'function') await Promise.all([loadUnits(), loadAirships()]);   // (v46: el juego los carga por misión; las escenas los usan todos)
     await document.fonts.load("700 20px 'Cinzel'"); await document.fonts.load("13px 'Share Tech Mono'");
     if (!orig.frame) {
       orig.frame = frame; orig.toast = toast; orig.think = thinkEnemy; orig.steer = steerEnemy; orig.random = Math.random;

@@ -39,8 +39,9 @@ const _Ap = new THREE.Vector3(), _Ai = new THREE.Vector3(), _Ah = new THREE.Vect
 
 /* Modelo: el color por vértice del glTF es lineal (Blender lo guarda en enteros de 16 bits normalizados) y el juego pinta sin corrección
    de gamma (como las torres): se pasa a sRGB, en coma flotante, al cargar. */
+let airshipsLoad = null;                 // v46: la carga en curso o hecha (solo una vez; la pide la misión que trae dirigibles: missionAssets, 19)
 function loadAirships() {
-  return loadGLB('assets/models/airship.glb').then(g => {
+  return airshipsLoad || (airshipsLoad = loadGLB('assets/models/airship.glb').then(g => {
     let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
     const geo = src.geometry, col = geo.attributes.color;
     if (col) {
@@ -50,7 +51,7 @@ function loadAirships() {
     }
     airshipRes = { geo, mat: new THREE.MeshLambertMaterial({ vertexColors: !!col, side: THREE.DoubleSide, emissive: 0x000000 }) };
     for (const a of airships) if (!a.gone && !a.mesh) airshipMesh(a);
-  }).catch(err => console.error('No se pudo cargar el dirigible:', err));
+  }).catch(err => console.error('No se pudo cargar el dirigible:', err)));
 }
 function airshipMesh(a) {
   a.mat = airshipRes.mat.clone();
