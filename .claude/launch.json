@@ -2,22 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "alas-de-brasa",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--bind", "127.0.0.1"],
-      "port": 8765
-    },
-    {
-      "name": "sky-apex-2",
-      "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8767", "--bind", "127.0.0.1"],
+      "name": "sky-apex",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["tools/game_server.mjs", "8767", "--sin-navegador"],
       "port": 8767,
       "autoPort": false
     },
     {
-      "name": "grabador-tutorial",
+      "name": "tutorial-recorder",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["herramientas/servidor_tutorial.mjs"],
+      "runtimeArgs": ["tools/tutorial_server.mjs"],
       "port": 8766
     }
   ]

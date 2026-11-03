@@ -1,13 +1,8 @@
-# Sky Apex: lo que NO va al repositorio (ver CLAUDE.md, «Qué no está en el repo»).
-# Límite de GitHub: ningún archivo de más de 100 MB.
+# Sky Apex: what does NOT go into the repository (see CLAUDE.md, «Qué no está en el repo»).
+# GitHub limit: no file over 100 MB.
 
-# Originales pesados y material de referencia (si hacen falta en otro equipo: OneDrive o disco externo)
-/Drogon/
-/barcos/
-/dragones raw/
-/modelos/dragon_01.glb
-/modelos/* guay*.glb
-/red_dragon.glb
+# Heavy originals and reference material (to use them on another PC: OneDrive or an external disk)
+/source_assets/
 *.stl
 *.STL
 *.obj
@@ -20,23 +15,19 @@
 *.blend
 *.blend1
 /*.pdf
-
-# Vídeos y música originales de la raíz (los que usa el juego están en tutorial/ y musica/)
 /*.mp4
 /*.webm
 /*.mp3
 
-# Copias a mano de versiones: las sustituyen las etiquetas de git (v20, v21…)
-/versiones/
-
-# Generado o propio de cada equipo
+# Generated, or specific to each PC
+/dev.html
 node_modules/
 __pycache__/
-/herramientas/salida/
-/herramientas/blender/salida/
-/herramientas/blender/ruta_local.txt
+/tools/output/
+/tools/blender/output/
+/tools/blender/local_paths.txt
 /.claude/settings.local.json
 /.claude/worktrees/
 
-# Archivo de bloqueo que crea Excel mientras el libro está abierto
+# Lock file that Excel creates while the workbook is open
 ~$*
