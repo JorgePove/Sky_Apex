@@ -72,6 +72,26 @@ body:has(#cine.on) #radio{top:auto;bottom:calc(max(56px,12vh) + 14px)}
 body:has(#radio.on):not(:has(#cine.on)) #toast{top:calc(var(--radio-b,170px) + 12px)}
 body:has(#radio.on):not(:has(#cine.on)) #warn{top:max(22%,calc(var(--radio-b,170px) + 50px))}
 body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48px)}
+/* v48: estilo arcano del HUD (Opciones → Estilo del HUD; body.hud-arcane, 16b): sin el cristal verde. La radio, en una banda tenue que se
+   desvanece a los lados, entre dos rayas de oro viejo, con el sello redondo del color de quien habla, el nombre en Cinzel y el texto en EB
+   Garamond; «TE ESTÁN FIJANDO» y las pistas, igual; el toast y el aviso de área, en Cinzel con el pergamino y el oro del HUD. */
+body.hud-arcane #radio{background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.5) 14%,rgba(18,11,4,.5) 86%,rgba(18,11,4,0));
+  border-style:solid;border-width:1px 0;border-radius:0;border-image:linear-gradient(90deg,transparent,rgba(226,191,120,.85) 16%,rgba(226,191,120,.85) 84%,transparent) 1;
+  box-shadow:none;padding:11px 34px 12px;gap:14px}
+body.hud-arcane #radio .r-icon{width:36px;height:36px;margin-top:2px;border-radius:50%;font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:17px;color:#1d1206;
+  background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.45),rgba(255,255,255,0) 55%),var(--spk,#e2bf78)!important;
+  box-shadow:0 0 0 1.5px rgba(22,13,4,.85),0 0 0 3px #e2bf78,0 0 0 4.5px rgba(22,13,4,.55),0 2px 10px rgba(0,0,0,.6)}
+body.hud-arcane #radio .r-name{font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:12.5px;letter-spacing:.18em;margin:0 0 3px;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+body.hud-arcane #radio .r-text{font-family:'EB Garamond',Georgia,serif;font-weight:500;font-size:17.5px;line-height:1.36;color:#f6ecd6;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.5)}
+body.hud-arcane #warn{font-family:'Cinzel',Georgia,serif;font-weight:700;letter-spacing:.2em;padding:6px 34px 5px;border-radius:0;border-style:solid;border-width:1px 0;
+  border-image:linear-gradient(90deg,transparent,currentColor 20%,currentColor 80%,transparent) 1;background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.4) 20%,rgba(18,11,4,.4) 80%,rgba(18,11,4,0));
+  box-shadow:none;text-shadow:0 0 10px currentColor,0 2px 4px rgba(0,0,0,.9)}
+body.hud-arcane #toast{color:#f3dca4;letter-spacing:.16em;text-shadow:0 0 12px rgba(255,186,76,.35),0 2px 6px rgba(0,0,0,.95)}
+body.hud-arcane #hint{background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.5) 12%,rgba(18,11,4,.5) 88%,rgba(18,11,4,0));border-style:solid;border-width:1px 0;
+  border-image:linear-gradient(90deg,transparent,rgba(226,191,120,.8) 16%,rgba(226,191,120,.8) 84%,transparent) 1;padding:9px 30px;
+  font-family:'EB Garamond',Georgia,serif;font-size:16px;letter-spacing:.02em;color:#f6ecd6;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+body.hud-arcane #area{text-shadow:0 0 16px rgba(234,100,84,.55),0 2px 8px rgba(0,0,0,.9);color:#ea6454}
+body.hud-arcane #area .a-hint{font-family:'EB Garamond',Georgia,serif;font-size:16px;letter-spacing:.06em;color:#f6ecd6}
 #area{position:fixed;left:50%;top:29%;transform:translateX(-50%);z-index:4;display:none;text-align:center;pointer-events:none;white-space:nowrap;
   font-family:var(--f-display);font-weight:700;color:var(--danger);text-shadow:0 0 16px rgba(255,60,40,.6),0 2px 8px rgba(0,0,0,.85)}
 #area.on{display:block}

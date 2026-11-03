@@ -217,7 +217,7 @@ function drawDesign(heading) {
   const mine = DESIGN.marks.filter(m => m.seed === WORLD.seed);
   lines.push(['Intro: marcar punto' + (mine.length ? '  ·  ' + mine.length + (DESIGN.copied ? ', copiados' : ', sin copiar') : ''), C_DIM]);
   for (const m of mine.slice(-5)) lines.push(['#' + m.n + '  x ' + m.x + '  z ' + m.z + '  rumbo ' + m.heading + '°  altura ' + m.height + ' m', C_GOLD]);
-  const x0 = 24, y0 = 22, w = 360, lh = 18, h = 30 + lines.length * lh;
+  const w = 360, x0 = HW - 24 - w, y0 = mission.dev ? 44 : 22, lh = 18, h = 30 + lines.length * lh;   // (v48: arriba a la derecha: a la izquierda van los objetivos; en el Dev Test, bajo su rótulo)
   hctx.shadowBlur = 0;
   hctx.fillStyle = 'rgba(13,10,15,.74)'; hctx.fillRect(x0, y0, w, h);
   hctx.fillStyle = C_GOLD; hctx.fillRect(x0, y0, 2, h);

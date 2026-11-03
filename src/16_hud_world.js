@@ -20,6 +20,7 @@ const COMPASS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270
 
 /* Brújula (arriba, en el centro). v40: con el estilo del HUD (verde con halo, Graduate) y el rumbo en un panel bajo la flecha. */
 function drawCompass(heading) {
+  if (HUD_ARC) return arcCompass(heading);                  // v48: estilo arcano (16b)
   const k = HUD_K, P = PAL_G, cw = Math.min(520 * k, HW - 40), cx = HW / 2, cy = 34 * k, ppd = cw / 90;
   hctx.save(); hctx.beginPath(); hctx.rect(cx - cw / 2, cy - 24 * k, cw, 36 * k); hctx.clip();
   const bl = hctx.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0);   // línea base, que se desvanece en los extremos
@@ -43,8 +44,8 @@ function drawCompass(heading) {
 function drawLadder(fwd) {
   const hl = Math.hypot(fwd.x, fwd.z);
   let hx, hz; if (hl < 0.05) { hx = 0; hz = -1; } else { hx = fwd.x / hl; hz = fwd.z / hl; }
-  const rx = -hz, rz = hx, a = {}, b = {};
-  hctx.save(); hctx.lineWidth = 1.4; hctx.shadowColor = PAL_G.glow; hctx.shadowBlur = 4 * HUD_K;   // (v40: verde con halo, como el resto del HUD)
+  const rx = -hz, rz = hx, a = {}, b = {}, P = hpal(PAL_G);   // (v48: en el arcano, dorada con sombra parda)
+  hctx.save(); hctx.lineWidth = 1.4; hctx.shadowColor = HUD_ARC ? ARC_SHADE : P.glow; hctx.shadowBlur = (HUD_ARC ? 3 : 4) * HUD_K;   // (v40: verde con halo, como el resto del HUD)
   for (let d = -60; d <= 60; d += 10) {
     const th = d * Math.PI / 180, dx = hx * Math.cos(th) * 1000, dy = Math.sin(th) * 1000, dz = hz * Math.cos(th) * 1000;
     const wd = d === 0 ? 220 : 70;
@@ -55,7 +56,7 @@ function drawLadder(fwd) {
     const dist = Math.hypot(mx - HW / 2, my - HH / 2) / (HH * 0.5);
     const al = clamp(1.15 - dist, 0, 1) * (d === 0 ? 0.85 : 0.6);
     if (al <= 0.02) continue;
-    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? PAL_G.ink : PAL_G.line;
+    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? P.ink : P.line;
     const gap = d === 0 ? 0.18 : 0.30, ux = b.x - a.x, uy = b.y - a.y;
     hctx.beginPath();
     hctx.moveTo(a.x, a.y); hctx.lineTo(a.x + ux * (0.5 - gap), a.y + uy * (0.5 - gap));
@@ -64,7 +65,7 @@ function drawLadder(fwd) {
     if (d !== 0) {
       const tick = d > 0 ? 8 : -8;
       hctx.beginPath(); hctx.moveTo(a.x, a.y); hctx.lineTo(a.x, a.y + tick); hctx.moveTo(b.x, b.y); hctx.lineTo(b.x, b.y + tick); hctx.stroke();
-      hudGlow(String(Math.abs(d)), a.x - 8, a.y + 4, 10 * HUD_K, PAL_G.line, PAL_G.glow, 'right');
+      hudGlow(String(Math.abs(d)), a.x - 8, a.y + 4, 10 * HUD_K, P.line, P.glow, 'right');
     }
   }
   hctx.restore(); hctx.globalAlpha = 1;
@@ -76,13 +77,17 @@ function drawMarkers(fwd) {
   // Con él en el 0° de la escalera de cabeceo, vuela horizontal
   const v = F.speed > 20 && F.hoverK < 0.5 && state === 'playing' ? _pth.copy(dragonVel).normalize() : fwd;
   if (proj(_camP.x + v.x * 1000, _camP.y + v.y * 1000, _camP.z + v.z * 1000, p)) {
-    hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
-    hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
-    if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
+    if (HUD_ARC) arcPathMarker(p);                          // v48: estilo arcano (16b)
+    else {
+      hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
+      hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
+      if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
+    }
     _sp.x = p.x; _sp.y = p.y;
   } else { _sp.x = HW / 2; _sp.y = HH / 2; }
   const a = {};
   if (proj(_camP.x + F.aimWorld.x * 1000, _camP.y + F.aimWorld.y * 1000, _camP.z + F.aimWorld.z * 1000, a)) {
+    if (HUD_ARC) { arcReticle(a); hctx.globalAlpha = 1; return; }   // v48: mira, escudos y calor arcanos (16b)
     const hot = W.cool > 0, off = !weaponsReady(), col = off ? 'rgba(176,178,182,.85)' : hot ? C_GOLD : C_EMBER;
     if (Math.hypot(a.x - _sp.x, a.y - _sp.y) > 26) { hctx.globalAlpha = 0.35; hctx.strokeStyle = C_EMBER; hctx.lineWidth = 1; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(a.x, a.y); hctx.stroke(); }
     hctx.globalAlpha = 1; hctx.strokeStyle = col; hctx.lineWidth = 2;
@@ -155,17 +160,18 @@ function drawTargets() {
     else _fl[isTgt(t) ? 1 : 0].push(a.x, a.y, r, shape);
   };
   eachTarget(add);
+  const P = hpal(PAL_G), dk = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.5)';   // (v48: en el arcano, dorados con sombra parda)
   hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
   for (let g = 0; g < 2; g++) {                            // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
     const L = _fl[g]; if (!L.length) continue;
     hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
     hctx.globalAlpha = g ? 0.95 : 0.5;
-    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = 'rgba(0,18,8,.5)'; hctx.stroke();
-    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = PAL_G.line; hctx.stroke();
+    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = dk; hctx.stroke();
+    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = P.line; hctx.stroke();
   }
   const T = _fl[1];                                        // «TGT» junto a los que cuentan para la misión
   if (T.length) {
-    hctx.globalAlpha = 0.95; hctx.font = FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = 'rgba(0,16,7,.8)'; hctx.fillStyle = PAL_G.ink;
+    hctx.globalAlpha = 0.95; hctx.font = HUD_ARC ? FA(10 * k) : FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.8)'; hctx.fillStyle = P.ink;
     for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
   }
   hctx.restore();
@@ -176,16 +182,16 @@ function drawTargets() {
 /* El seleccionado: su marco parpadea (verde) o, fijado para la guiada, rojo fijo; mientras se fija, cuatro escuadras rojas se cierran sobre
    él. A la derecha: «LOCK» si está fijado, la distancia en metros, el nombre (con «TGT» si cuenta para la misión) y su vida si está herido. */
 function drawSelected(f) {
-  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = locked ? PAL_R : PAL_G, p = W.lock;
+  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = hpal(locked ? PAL_R : PAL_G), PR = hpal(PAL_R), p = W.lock;   // (v48: hpal, paletas arcanas)
   const blink = locked ? 1 : Math.sin(gameTime * 2 * Math.PI * 2.4) > -0.3 ? 1 : 0.3;
   hctx.save(); hctx.lineJoin = 'round';
   hctx.globalAlpha = blink; hctx.beginPath(); framePath(shape, x, y, r);
-  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = 'rgba(0,18,8,.55)'; hctx.stroke();
+  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.55)'; hctx.stroke();
   hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
   hctx.globalAlpha = 1;
   if (p > 0.01 && !locked) {                               // fijando: escuadras rojas que se cierran del doble de lejos hasta el marco
     const q = r * FRAME_EXT[shape] + 4 * k + (r + 26 * k) * (1 - p), l = 7 * k;
-    hctx.shadowColor = PAL_R.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PAL_R.line; hctx.lineWidth = 2 * k; hctx.beginPath();
+    hctx.shadowColor = PR.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PR.line; hctx.lineWidth = 2 * k; hctx.beginPath();
     for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const cx = x + sx * q, cy = y + sy * q; hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l); }
     hctx.stroke();
   }
@@ -198,7 +204,7 @@ function drawSelected(f) {
   const hm = t.hpMax || (t.kind === 'dragon' ? ENEMY_HP : t.kind === 'airship' ? AIRSHIP_HP : 0);
   if (hm > 0 && t.hp < hm) {                               // vida, si está herido
     const w = 52 * k, bx = al === 'left' ? lx : lx - w, by = y + 21 * k, fr = clamp(t.hp / hm, 0, 1);
-    hctx.save(); hctx.fillStyle = 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
+    hctx.save(); hctx.fillStyle = HUD_ARC ? 'rgba(24,14,4,.7)' : 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
     hctx.shadowColor = P.glow; hctx.shadowBlur = 5 * k; hctx.fillStyle = P.line; hctx.fillRect(bx, by, w * fr, 3 * k); hctx.restore();
   }
 }
@@ -207,9 +213,10 @@ function drawSelected(f) {
 function superBar(u, x, y, r) {
   const k = HUD_K, w = 220 * k, h = 11 * k, by = y + r * 1.05 + 14 * k;
   if (by > HH - 110 * k) return;
-  const left = u.kids.filter(c => !c.dead).length;
-  hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
-  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.2 * k);
+  const left = u.kids.filter(c => !c.dead).length, P = hpal(PAL_G);
+  if (HUD_ARC) arcBar(x - w / 2, by - k, w, h + 3 * k, u.hp / u.hpMax, '', 0, ARC_CRIM, 20);   // (v48: en el arcano, barra carmesí)
+  else hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
+  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, P.line, P.glow, 'center', 1.2 * k);
 }
 /* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. v41: el texto, en Graduate. */
 const C_ALLY = '#5ab4ff';
@@ -243,6 +250,7 @@ function drawLeadPipper(e) {
 }
 /* v41: flecha alargada de holograma (punta en x, y; apunta a ang), con degradado de la punta a la cola, contorno y halo. */
 function hudArrow(x, y, ang, P, len) {
+  if (HUD_ARC) return arcArrow(x, y, ang, hpal(P), len);     // v48: punta de lanza arcana (16b)
   const k = HUD_K, L = len * k, w = 10 * k, sw = w * 0.36;
   hctx.save(); hctx.translate(x, y); hctx.rotate(ang);
   hctx.beginPath(); hctx.moveTo(0, 0); hctx.lineTo(-L * 0.4, -w); hctx.lineTo(-L * 0.34, -sw); hctx.lineTo(-L, -sw); hctx.lineTo(-L, sw); hctx.lineTo(-L * 0.34, sw); hctx.lineTo(-L * 0.4, w); hctx.closePath();
@@ -266,7 +274,7 @@ function drawLockArrow(e) {
   const k = HUD_K, c = targetCenter(e), { x: dx, y: dy } = screenDir(c, _dr);
   const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * k;          // márgenes: brújula arriba, vida abajo
   const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
-  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = W.locked ? PAL_R : PAL_G;
+  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = hpal(W.locked ? PAL_R : PAL_G);
   hctx.save(); hctx.globalAlpha = 0.82 + 0.18 * Math.sin(gameTime * 6);
   hudArrow(x, y, Math.atan2(dy, dx), P, L);
   hctx.restore();
@@ -286,6 +294,8 @@ function minimapTerrain(px, pz) {
   if (!MM.cv) {
     MM.cv = document.createElement('canvas'); MM.cv.width = MM.cv.height = MM_N; MM.g = MM.cv.getContext('2d');
     MM.img = MM.g.createImageData(MM_N, MM_N); MM.h = new Float32Array(n * n);
+    MM.cvA = document.createElement('canvas'); MM.cvA.width = MM.cvA.height = MM_N; MM.gA = MM.cvA.getContext('2d');   // v48: la del estilo arcano (sepia)
+    MM.imgA = MM.gA.createImageData(MM_N, MM_N);
   }
   if (key !== MM.key) { MM.key = key; MM.ready = false; MM.b = null; }
   if (!MM.b && (!MM.ready || Math.hypot(px - MM.cx, pz - MM.cz) > MM_MOVE)) MM.b = { cx: px, cz: pz, row: 0 };
@@ -293,7 +303,7 @@ function minimapTerrain(px, pz) {
   const s = MM_SPAN / MM_N, x0 = b.cx - MM_SPAN / 2 - s, z0 = b.cz - MM_SPAN / 2 - s, H = MM.h;
   for (let r = 0; r < MM_ROWS && b.row < n; r++, b.row++) for (let i = 0; i < n; i++) H[b.row * n + i] = heightAt(x0 + (i + 0.5) * s, z0 + (b.row + 0.5) * s);
   if (b.row < n) return;
-  const d = MM.img.data, Hs = MM.hs || (MM.hs = new Float32Array(n * n));
+  const d = MM.img.data, dA = MM.imgA.data, Hs = MM.hs || (MM.hs = new Float32Array(n * n));
   const at = (i, j) => H[clamp(j, 0, n - 1) * n + clamp(i, 0, n - 1)];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++)  // suavizado 3 × 3: sin motas de ríos estrechos ni escalones entre texels
     Hs[j * n + i] = (4 * at(i, j) + 2 * (at(i - 1, j) + at(i + 1, j) + at(i, j - 1) + at(i, j + 1)) + at(i - 1, j - 1) + at(i + 1, j - 1) + at(i - 1, j + 1) + at(i + 1, j + 1)) / 16;
@@ -303,8 +313,9 @@ function minimapTerrain(px, pz) {
     const lam = clamp((0.5 * (gx + gz) + 0.707) / Math.sqrt(gx * gx + gz * gz + 1), 0, 1);   // luz del noroeste (plano: 0,71)
     const v = 60 + 150 * lam + 45 * clamp((hc - WL) / 1600, 0, 1), wt = clamp((WL + 1.5 - hc) / 3, 0, 1);   // wt: agua (hacia el fondo, más)
     d[o] = lerp(v * 0.38, 10, wt); d[o + 1] = lerp(v, 46, wt); d[o + 2] = lerp(v * 0.55, 44, wt); d[o + 3] = lerp(175, 215, wt);
+    dA[o] = lerp(v * 0.93, 20, wt); dA[o + 1] = lerp(v * 0.79, 44, wt); dA[o + 2] = lerp(v * 0.55, 72, wt); dA[o + 3] = lerp(175, 215, wt);   // (v48: sepia de pergamino y agua azul profundo)
   }
-  MM.g.putImageData(MM.img, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
+  MM.g.putImageData(MM.img, 0, 0); MM.gA.putImageData(MM.imgA, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
 }
 /* v45: rayas de peligro de la zona fuera del área en el minimapa: bandas rojas vivas a 45° sobre rojo oscuro translúcido (una baldosa que se
    repite sin cortes; se rehace si cambia la escala del HUD). */
@@ -320,6 +331,7 @@ function hazardPattern(k) {
   return hazardPat.pat;
 }
 function drawMinimap(heading, fwd) {
+  if (HUD_ARC) return arcMinimap(heading, fwd);             // v48: redondo, como un astrolabio (16b)
   const k = HUD_K, S = 242 * k, cxs = HW / 2;
   const xa = Math.max(16 * k, cxs - 711.5 * k), yb = HH - 47 * k, ya = yb - S, xb = xa + S;   // (a la izquierda del centro; en pantallas estrechas, pegado al borde)
   const cx = xa + S / 2, cy = ya + S * 0.667, kk = (S / 2) / MM_RANGE;                     // tú y px por m
@@ -376,6 +388,20 @@ function drawMinimap(heading, fwd) {
     const q = at(p.x + wx * 1e6, p.z + wz * 1e6), ix = clamp(q.x, xa + 9 * k, xb - 9 * k), iy = clamp(q.y, ya + 10 * k, yb - 8 * k);
     hudGlow(l, ix, iy + 5 * k, 13 * k, l === 'N' ? PAL_A.line : P.line, l === 'N' ? PAL_A.glow : P.glow, 'center');
   }
+  drawMinimapSymbols(at, rx, rz, fx, fz);
+  hctx.globalAlpha = 1;                                    // tú: flecha verde con halo
+  hctx.fillStyle = P.ink; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
+  hctx.beginPath(); hctx.moveTo(cx, cy - 8 * k); hctx.lineTo(cx - 5.5 * k, cy + 6 * k); hctx.lineTo(cx, cy + 3 * k); hctx.lineTo(cx + 5.5 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
+  hctx.restore();
+  hctx.save();                                             // marco: contorno con brillo y escuadras (sin cristal: el mapa ya lo lleva)
+  chamferPath(xa, ya, S, S, ch); hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 1.3 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  const LB = 16 * k; hctx.lineWidth = 2.6 * k; hctx.beginPath();
+  hctx.moveTo(xb - LB, ya); hctx.lineTo(xb, ya); hctx.lineTo(xb, ya + LB); hctx.moveTo(xa + LB, yb); hctx.lineTo(xa, yb); hctx.lineTo(xa, yb - LB); hctx.stroke();
+  hctx.restore();
+}
+/* Símbolos del minimapa (v48: aparte, para el cuadrado y el redondo del estilo arcano). at(x, z): punto del mundo → minimapa (en _rp, con
+   _rp.far si cae fuera y va al borde); rx, rz, fx, fz: tus ejes derecha y adelante en el suelo. */
+function drawMinimapSymbols(at, rx, rz, fx, fz) {
   // v21: los TGT, en rojo vivo; lo que no cuenta para la misión, apagado. El blanco fijado, con un círculo dorado.
   const col = (tgt, far, fill) => tgt ? (far ? (fill ? 'rgba(255,74,58,.45)' : 'rgba(255,74,58,.55)') : C_DANGER) : 'rgba(241,180,170,.35)';
   const ang = () => Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz);
@@ -431,15 +457,7 @@ function drawMinimap(heading, fwd) {
     hctx.globalAlpha = 0.5 + 0.5 * Math.sin(gameTime * 14); hctx.fillStyle = C_DANGER;
     hctx.beginPath(); hctx.arc(q.x, q.y, 3.2, 0, 6.283); hctx.fill();
   }
-  hctx.globalAlpha = 1;                                    // tú: flecha verde con halo
-  hctx.fillStyle = P.ink; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
-  hctx.beginPath(); hctx.moveTo(cx, cy - 8 * k); hctx.lineTo(cx - 5.5 * k, cy + 6 * k); hctx.lineTo(cx, cy + 3 * k); hctx.lineTo(cx + 5.5 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
-  hctx.restore();
-  hctx.save();                                             // marco: contorno con brillo y escuadras (sin cristal: el mapa ya lo lleva)
-  chamferPath(xa, ya, S, S, ch); hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 1.3 * k; hctx.strokeStyle = P.line; hctx.stroke();
-  const LB = 16 * k; hctx.lineWidth = 2.6 * k; hctx.beginPath();
-  hctx.moveTo(xb - LB, ya); hctx.lineTo(xb, ya); hctx.lineTo(xb, ya + LB); hctx.moveTo(xa + LB, yb); hctx.lineTo(xa, yb); hctx.lineTo(xa, yb - LB); hctx.stroke();
-  hctx.restore();
+  hctx.globalAlpha = 1;
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
 /* Bolas guiadas enemigas en camino. v41: solo una flecha roja de holograma en un anillo alrededor del centro, hacia de donde viene cada una
@@ -447,11 +465,11 @@ const _rp = { x: 0, y: 0, d: 0, far: false };
    en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
+  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14), P = hpal(PAL_R);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
   for (const f of threat.incoming) {
     const { x: dx, y: dy } = screenDir(f.pos, _dr), R = 1 / Math.hypot(dx / rx, dy / ry), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
     hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
-    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
+    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, P.ink, P.glow, 'center', k);
   }
 }
 /* v15: fuera del área de la misión, hacia su centro (a la altura del jugador): rombo dorado si se ve; si no, flecha dorada en un anillo
@@ -462,7 +480,8 @@ function drawAreaArrow() {
   if (proj(A.x, p.y, A.z, a) && a.x > 40 && a.x < HW - 40 && a.y > 40 && a.y < HH - 40) {
     hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2.5;
     hctx.beginPath(); hctx.moveTo(a.x, a.y - 14); hctx.lineTo(a.x + 14, a.y); hctx.lineTo(a.x, a.y + 14); hctx.lineTo(a.x - 14, a.y); hctx.closePath(); hctx.stroke();
-    hudText('ZONA DE LA MISIÓN', a.x, a.y - 22, FM(12), C_GOLD, 'center');
+    if (HUD_ARC) hudGlow('ZONA DE LA MISIÓN', a.x, a.y - 22, 12 * HUD_K, C_GOLD, ARC_GOLD.glow, 'center', 1.6 * HUD_K);   // (v48)
+    else hudText('ZONA DE LA MISIÓN', a.x, a.y - 22, FM(12), C_GOLD, 'center');
   } else {
     const pm = camera.projectionMatrix.elements;
     _pv.set(A.x, p.y, A.z).applyMatrix4(camera.matrixWorldInverse);
@@ -529,13 +548,13 @@ function hudPanel(x, y, w, h, P, c, a) {
   hctx.moveTo(x + L, y + h); hctx.lineTo(x, y + h); hctx.lineTo(x, y + h - L); hctx.stroke();
   hctx.restore();
 }
-/* Texto con contorno oscuro y halo (y: línea base). */
+/* Texto con contorno oscuro y halo (y: línea base). v48: en el estilo arcano (16b), en Cinzel con contorno pardo y halo más suave. */
 function hudGlow(txt, x, y, size, col, glow, align, spacing) {
   const k = HUD_K;
-  hctx.save(); hctx.font = FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
+  hctx.save(); hctx.font = HUD_ARC ? FA(size) : FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
   const sx = hctx.textAlign === 'center' ? x + (spacing || 0) / 2 : x;   // (el espaciado se añade también tras la última letra)
-  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
-  hctx.shadowColor = glow; hctx.shadowBlur = 7 * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
+  hctx.shadowColor = glow; hctx.shadowBlur = (HUD_ARC ? 5 : 7) * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
   hctx.restore();
 }
 /* Barra: panel, lo lleno (fracción f) con degradado, brillo arriba, segmentos (seg) y borde de avance luminoso; el texto, centrado.
@@ -600,6 +619,7 @@ function drawFlightBoxes() {
   const tx = clamp(_sp.x, HW / 2 - HW * 0.12, HW / 2 + HW * 0.12), ty = clamp(_sp.y, HH / 2 - HH * 0.15, HH / 2 + HH * 0.15);
   if (_anc.t < 0 || dt > 0.5) { _anc.x = tx; _anc.y = ty; } else { const a = 1 - Math.exp(-20 * dt); _anc.x += (tx - _anc.x) * a; _anc.y += (ty - _anc.y) * a; }
   _anc.t = now;
+  if (HUD_ARC) return arcFlightBoxes(_anc.x, _anc.y);       // v48: estilo arcano (16b)
   const w = 80 * k, h = 32 * k, by = _anc.y - h / 2, sx = _anc.x - 209 * k - w / 2, ax = _anc.x + 209 * k - w / 2;
   const bb = by + h + 4 * k, bh = 20 * k, lb = bb + bh + 19 * k;   // barra del boost y línea base de BOOST / HOVER
   hudHeader('SPEED', sx, w, by - 5 * k, 15.5 * k, PAL_G);
@@ -633,6 +653,7 @@ function drawThrottle(x, y, w, h, ly, vy) {
    con el calor de la llamarada (se llena mientras la usas y, según se llena, pasa de verde a ámbar y a rojo y parpadea) y LSR con la carga
    del rayo (llena, parpadea y brilla). Durante el sobrecalentamiento o el rayo, las que no se pueden usar se apagan. */
 function drawWeapons() {
+  if (HUD_ARC) return arcWeapons();                         // v48: estilo arcano (16b)
   const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
@@ -662,6 +683,7 @@ function drawWeapons() {
 /* Vida (abajo, en el centro): barra de 118 × 32 con «vida/máxima» que se vacía de derecha a izquierda; en rojo por debajo del 35 %. v39: sin
    armadura; tras HP_REGEN_WAIT s sin recibir daño se rellena a HP_REGEN por segundo (mientras tanto, late). */
 function drawHealth() {
+  if (HUD_ARC) return arcHealth();                          // v48: estilo arcano (16b)
   const k = HUD_K, w = 118 * k, h = 32 * k, x = HW / 2 - w / 2, y = HH - 47 * k - h, hpMax = heroHpMax(), f = clamp(F.health / hpMax, 0, 1);
   const regen = F.health < hpMax && F.health > 0 && gameTime - F.lastHit > HP_REGEN_WAIT && state === 'playing';
   hctx.save();
@@ -686,6 +708,7 @@ function drawKills() {
   for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
   const warn = state === 'playing' && threat.incoming.length > 0;
   if (!KILLS.length && !warn) return;
+  if (HUD_ARC) return arcKills(warn);                       // v48: estilo arcano (16b)
   const k = HUD_K, size = 16 * k, sp = 2.4 * k;
   let y = HH * 0.31;
   if (warn) {
@@ -751,21 +774,10 @@ function drawHUD() {
   drawFlightBoxes();
   drawKills();                                             // v41: «X DESTRUIDO»
   drawHealth();
-  // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
-  const k = HUD_K; let oy = 36 * k;
-  const oT = (t, P, al) => { hctx.save(); if (al != null) hctx.globalAlpha = al; hudGlow(t, HW - 28, oy, 13.5 * k, P.ink, P.glow, 'right', 1.1 * k); hctx.restore(); oy += 22 * k; };   // (v40: Graduate con halo)
-  if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); oT('TIEMPO  ' + fmtClock(left), left < 30 ? PAL_R : PAL_G); }
-  for (const o of MS.objs) {
-    if (!o.shown || (o.done && MS.t - o.doneT > 8)) continue;   // (v34: los cumplidos se van a los 8 s: en un capítulo se acumulan)
-    oT((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, o.done ? PAL_GOLD : PAL_G);
-  }
-  if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
-    const ed = airshipEdgeDist();
-    if (ed < Infinity) oT('BORDE  ' + fmtDist(Math.max(0, ed)), ed < 2000 ? PAL_R : PAL_G, ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1);
-  }
-  oT('PUNTOS  ' + towerState.score, PAL_GOLD);
+  drawObjectives();                                        // v48: arriba a la izquierda, en los dos estilos (16b; antes, arriba a la derecha y con los puntos)
+  const k = HUD_K, PG = hpal(PAL_G), PO = hpal(PAL_GOLD);
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
-  if (mission.dev) hudGlow('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, 11 * k, DEV.fps ? PAL_GOLD.ink : PAL_G.dim, DEV.fps ? PAL_GOLD.glow : 'rgba(0,0,0,0)', 'left', 0.6 * k);   // v27
+  if (mission.dev) hudGlow('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), HW - 28, 30, 11 * k, DEV.fps ? PO.ink : PG.dim, DEV.fps ? PO.glow : 'rgba(0,0,0,0)', 'right', 0.6 * k);   // v27 (v48: arriba a la derecha: a la izquierda van los objetivos)
   hctx.shadowBlur = 0;
 }
 

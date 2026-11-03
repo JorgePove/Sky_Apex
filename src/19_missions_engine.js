@@ -308,6 +308,7 @@ function updateRadio(dt) {
   MS.radio.shift();
   radioIconEl.textContent = m.c.icon || '?'; radioIconEl.style.background = m.c.color || '#f2b84b';
   radioNameEl.textContent = m.c.name + (m.c.tag ? '  ·  ' + m.c.tag : ''); radioNameEl.style.color = m.c.color || '#f2b84b'; radioEl.style.borderLeftColor = m.c.color || '#f2b84b';   // (v34: tag = su designación, «Paladin 1»)
+  radioEl.style.setProperty('--spk', m.c.color || '#f2b84b');   // (v48: el color de quien habla, para el sello del estilo arcano)
   const vd = m.voice ? voicePlay(m.voice) : 0;             // v34: la voz grabada (si está): el mensaje dura lo que ella
   if (vd > 0) m.dur = vd + 0.35;
   m.t0 = MS.t; m.chunks = subChunks(txt(m.text), vd > 0 ? vd : m.dur); m.ci = -1;

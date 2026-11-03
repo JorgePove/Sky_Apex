@@ -14,7 +14,7 @@
      tools/tutorial_server.mjs (ver sus cabeceras). ?semilla=N fija el mundo; ?packed=1 fuerza las copias .js de los recursos. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Graduate&family=Share+Tech+Mono&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=EB+Garamond:wght@500&family=Graduate&family=Share+Tech+Mono&display=swap">
 <style>
 /* Concepto: cabina de vuelo en primera persona. El mundo ocupa toda la pantalla;
    la interfaz es instrumental (tinta oscura, hueso, brasa) y se dibuja casi toda en canvas. */
@@ -90,6 +90,26 @@ body:has(#cine.on) #radio{top:auto;bottom:calc(max(56px,12vh) + 14px)}
 body:has(#radio.on):not(:has(#cine.on)) #toast{top:calc(var(--radio-b,170px) + 12px)}
 body:has(#radio.on):not(:has(#cine.on)) #warn{top:max(22%,calc(var(--radio-b,170px) + 50px))}
 body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48px)}
+/* v48: estilo arcano del HUD (Opciones → Estilo del HUD; body.hud-arcane, 16b): sin el cristal verde. La radio, en una banda tenue que se
+   desvanece a los lados, entre dos rayas de oro viejo, con el sello redondo del color de quien habla, el nombre en Cinzel y el texto en EB
+   Garamond; «TE ESTÁN FIJANDO» y las pistas, igual; el toast y el aviso de área, en Cinzel con el pergamino y el oro del HUD. */
+body.hud-arcane #radio{background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.5) 14%,rgba(18,11,4,.5) 86%,rgba(18,11,4,0));
+  border-style:solid;border-width:1px 0;border-radius:0;border-image:linear-gradient(90deg,transparent,rgba(226,191,120,.85) 16%,rgba(226,191,120,.85) 84%,transparent) 1;
+  box-shadow:none;padding:11px 34px 12px;gap:14px}
+body.hud-arcane #radio .r-icon{width:36px;height:36px;margin-top:2px;border-radius:50%;font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:17px;color:#1d1206;
+  background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.45),rgba(255,255,255,0) 55%),var(--spk,#e2bf78)!important;
+  box-shadow:0 0 0 1.5px rgba(22,13,4,.85),0 0 0 3px #e2bf78,0 0 0 4.5px rgba(22,13,4,.55),0 2px 10px rgba(0,0,0,.6)}
+body.hud-arcane #radio .r-name{font-family:'Cinzel',Georgia,serif;font-weight:700;font-size:12.5px;letter-spacing:.18em;margin:0 0 3px;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+body.hud-arcane #radio .r-text{font-family:'EB Garamond',Georgia,serif;font-weight:500;font-size:17.5px;line-height:1.36;color:#f6ecd6;text-shadow:0 1px 3px rgba(0,0,0,.95),0 0 8px rgba(0,0,0,.5)}
+body.hud-arcane #warn{font-family:'Cinzel',Georgia,serif;font-weight:700;letter-spacing:.2em;padding:6px 34px 5px;border-radius:0;border-style:solid;border-width:1px 0;
+  border-image:linear-gradient(90deg,transparent,currentColor 20%,currentColor 80%,transparent) 1;background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.4) 20%,rgba(18,11,4,.4) 80%,rgba(18,11,4,0));
+  box-shadow:none;text-shadow:0 0 10px currentColor,0 2px 4px rgba(0,0,0,.9)}
+body.hud-arcane #toast{color:#f3dca4;letter-spacing:.16em;text-shadow:0 0 12px rgba(255,186,76,.35),0 2px 6px rgba(0,0,0,.95)}
+body.hud-arcane #hint{background:linear-gradient(90deg,rgba(18,11,4,0),rgba(18,11,4,.5) 12%,rgba(18,11,4,.5) 88%,rgba(18,11,4,0));border-style:solid;border-width:1px 0;
+  border-image:linear-gradient(90deg,transparent,rgba(226,191,120,.8) 16%,rgba(226,191,120,.8) 84%,transparent) 1;padding:9px 30px;
+  font-family:'EB Garamond',Georgia,serif;font-size:16px;letter-spacing:.02em;color:#f6ecd6;text-shadow:0 1px 3px rgba(0,0,0,.9)}
+body.hud-arcane #area{text-shadow:0 0 16px rgba(234,100,84,.55),0 2px 8px rgba(0,0,0,.9);color:#ea6454}
+body.hud-arcane #area .a-hint{font-family:'EB Garamond',Georgia,serif;font-size:16px;letter-spacing:.06em;color:#f6ecd6}
 #area{position:fixed;left:50%;top:29%;transform:translateX(-50%);z-index:4;display:none;text-align:center;pointer-events:none;white-space:nowrap;
   font-family:var(--f-display);font-weight:700;color:var(--danger);text-shadow:0 0 16px rgba(255,60,40,.6),0 2px 8px rgba(0,0,0,.85)}
 #area.on{display:block}
@@ -463,6 +483,7 @@ body:has(#radio.on):not(:has(#cine.on)) #hint{top:calc(var(--radio-b,170px) + 48
     <div class="opt"><label for="subLang">Subtítulos</label><select id="subLang"><option value="es">Español</option><option value="en">English</option></select><span></span></div>   <!-- v34 -->
     <div class="opt"><label for="sens">Sensibilidad del ratón</label><input id="sens" type="range" min="30" max="200" value="100"><span class="vol-val" id="sensV">100</span></div>
     <div class="opt" title="Tras unos segundos sin tocar Q/E ni maniobrar, el dragón endereza las alas solo (como mantener la X)"><label for="autoLevel">Autonivelado</label><select id="autoLevel"><option value="1">Activado</option><option value="0">Desactivado</option></select><span></span></div>   <!-- v42 -->
+    <div class="opt" title="Arcano: oro viejo y gemas, como un manuscrito; Militar: el HUD verde de cabina"><label for="hudStyle">Estilo del HUD</label><select id="hudStyle"><option value="arcane">Arcano</option><option value="military">Militar</option></select><span></span></div>   <!-- v48 -->
     <div class="kicker">Stats de las unidades</div>
     <p class="lead stats-info" id="statsInfo"></p>
     <button class="ghost" data-close>← Volver</button>
@@ -8620,6 +8641,7 @@ const COMPASS = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270
 
 /* Brújula (arriba, en el centro). v40: con el estilo del HUD (verde con halo, Graduate) y el rumbo en un panel bajo la flecha. */
 function drawCompass(heading) {
+  if (HUD_ARC) return arcCompass(heading);                  // v48: estilo arcano (16b)
   const k = HUD_K, P = PAL_G, cw = Math.min(520 * k, HW - 40), cx = HW / 2, cy = 34 * k, ppd = cw / 90;
   hctx.save(); hctx.beginPath(); hctx.rect(cx - cw / 2, cy - 24 * k, cw, 36 * k); hctx.clip();
   const bl = hctx.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0);   // línea base, que se desvanece en los extremos
@@ -8643,8 +8665,8 @@ function drawCompass(heading) {
 function drawLadder(fwd) {
   const hl = Math.hypot(fwd.x, fwd.z);
   let hx, hz; if (hl < 0.05) { hx = 0; hz = -1; } else { hx = fwd.x / hl; hz = fwd.z / hl; }
-  const rx = -hz, rz = hx, a = {}, b = {};
-  hctx.save(); hctx.lineWidth = 1.4; hctx.shadowColor = PAL_G.glow; hctx.shadowBlur = 4 * HUD_K;   // (v40: verde con halo, como el resto del HUD)
+  const rx = -hz, rz = hx, a = {}, b = {}, P = hpal(PAL_G);   // (v48: en el arcano, dorada con sombra parda)
+  hctx.save(); hctx.lineWidth = 1.4; hctx.shadowColor = HUD_ARC ? ARC_SHADE : P.glow; hctx.shadowBlur = (HUD_ARC ? 3 : 4) * HUD_K;   // (v40: verde con halo, como el resto del HUD)
   for (let d = -60; d <= 60; d += 10) {
     const th = d * Math.PI / 180, dx = hx * Math.cos(th) * 1000, dy = Math.sin(th) * 1000, dz = hz * Math.cos(th) * 1000;
     const wd = d === 0 ? 220 : 70;
@@ -8655,7 +8677,7 @@ function drawLadder(fwd) {
     const dist = Math.hypot(mx - HW / 2, my - HH / 2) / (HH * 0.5);
     const al = clamp(1.15 - dist, 0, 1) * (d === 0 ? 0.85 : 0.6);
     if (al <= 0.02) continue;
-    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? PAL_G.ink : PAL_G.line;
+    hctx.globalAlpha = al; hctx.strokeStyle = d === 0 ? P.ink : P.line;
     const gap = d === 0 ? 0.18 : 0.30, ux = b.x - a.x, uy = b.y - a.y;
     hctx.beginPath();
     hctx.moveTo(a.x, a.y); hctx.lineTo(a.x + ux * (0.5 - gap), a.y + uy * (0.5 - gap));
@@ -8664,7 +8686,7 @@ function drawLadder(fwd) {
     if (d !== 0) {
       const tick = d > 0 ? 8 : -8;
       hctx.beginPath(); hctx.moveTo(a.x, a.y); hctx.lineTo(a.x, a.y + tick); hctx.moveTo(b.x, b.y); hctx.lineTo(b.x, b.y + tick); hctx.stroke();
-      hudGlow(String(Math.abs(d)), a.x - 8, a.y + 4, 10 * HUD_K, PAL_G.line, PAL_G.glow, 'right');
+      hudGlow(String(Math.abs(d)), a.x - 8, a.y + 4, 10 * HUD_K, P.line, P.glow, 'right');
     }
   }
   hctx.restore(); hctx.globalAlpha = 1;
@@ -8676,13 +8698,17 @@ function drawMarkers(fwd) {
   // Con él en el 0° de la escalera de cabeceo, vuela horizontal
   const v = F.speed > 20 && F.hoverK < 0.5 && state === 'playing' ? _pth.copy(dragonVel).normalize() : fwd;
   if (proj(_camP.x + v.x * 1000, _camP.y + v.y * 1000, _camP.z + v.z * 1000, p)) {
-    hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
-    hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
-    if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
+    if (HUD_ARC) arcPathMarker(p);                          // v48: estilo arcano (16b)
+    else {
+      hctx.strokeStyle = F.straight ? C_GOLD : C_BONE; hctx.lineWidth = 1.6; hctx.globalAlpha = 0.9;   // (v26: dorado en vuelo recto)
+      hctx.beginPath(); hctx.arc(p.x, p.y, 8, 0, 6.283); hctx.moveTo(p.x - 22, p.y); hctx.lineTo(p.x - 8, p.y); hctx.moveTo(p.x + 8, p.y); hctx.lineTo(p.x + 22, p.y); hctx.moveTo(p.x, p.y - 8); hctx.lineTo(p.x, p.y - 15); hctx.stroke();
+      if (F.straight) hudText('VUELO RECTO', p.x, p.y - 22, FM(11), C_GOLD, 'center');   // v26: Espacio mantenido (el morro marca la trayectoria fija)
+    }
     _sp.x = p.x; _sp.y = p.y;
   } else { _sp.x = HW / 2; _sp.y = HH / 2; }
   const a = {};
   if (proj(_camP.x + F.aimWorld.x * 1000, _camP.y + F.aimWorld.y * 1000, _camP.z + F.aimWorld.z * 1000, a)) {
+    if (HUD_ARC) { arcReticle(a); hctx.globalAlpha = 1; return; }   // v48: mira, escudos y calor arcanos (16b)
     const hot = W.cool > 0, off = !weaponsReady(), col = off ? 'rgba(176,178,182,.85)' : hot ? C_GOLD : C_EMBER;
     if (Math.hypot(a.x - _sp.x, a.y - _sp.y) > 26) { hctx.globalAlpha = 0.35; hctx.strokeStyle = C_EMBER; hctx.lineWidth = 1; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(a.x, a.y); hctx.stroke(); }
     hctx.globalAlpha = 1; hctx.strokeStyle = col; hctx.lineWidth = 2;
@@ -8755,17 +8781,18 @@ function drawTargets() {
     else _fl[isTgt(t) ? 1 : 0].push(a.x, a.y, r, shape);
   };
   eachTarget(add);
+  const P = hpal(PAL_G), dk = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.5)';   // (v48: en el arcano, dorados con sombra parda)
   hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
   for (let g = 0; g < 2; g++) {                            // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
     const L = _fl[g]; if (!L.length) continue;
     hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
     hctx.globalAlpha = g ? 0.95 : 0.5;
-    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = 'rgba(0,18,8,.5)'; hctx.stroke();
-    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = PAL_G.line; hctx.stroke();
+    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = dk; hctx.stroke();
+    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = P.line; hctx.stroke();
   }
   const T = _fl[1];                                        // «TGT» junto a los que cuentan para la misión
   if (T.length) {
-    hctx.globalAlpha = 0.95; hctx.font = FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = 'rgba(0,16,7,.8)'; hctx.fillStyle = PAL_G.ink;
+    hctx.globalAlpha = 0.95; hctx.font = HUD_ARC ? FA(10 * k) : FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.8)'; hctx.fillStyle = P.ink;
     for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
   }
   hctx.restore();
@@ -8776,16 +8803,16 @@ function drawTargets() {
 /* El seleccionado: su marco parpadea (verde) o, fijado para la guiada, rojo fijo; mientras se fija, cuatro escuadras rojas se cierran sobre
    él. A la derecha: «LOCK» si está fijado, la distancia en metros, el nombre (con «TGT» si cuenta para la misión) y su vida si está herido. */
 function drawSelected(f) {
-  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = locked ? PAL_R : PAL_G, p = W.lock;
+  const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = hpal(locked ? PAL_R : PAL_G), PR = hpal(PAL_R), p = W.lock;   // (v48: hpal, paletas arcanas)
   const blink = locked ? 1 : Math.sin(gameTime * 2 * Math.PI * 2.4) > -0.3 ? 1 : 0.3;
   hctx.save(); hctx.lineJoin = 'round';
   hctx.globalAlpha = blink; hctx.beginPath(); framePath(shape, x, y, r);
-  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = 'rgba(0,18,8,.55)'; hctx.stroke();
+  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.55)'; hctx.stroke();
   hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
   hctx.globalAlpha = 1;
   if (p > 0.01 && !locked) {                               // fijando: escuadras rojas que se cierran del doble de lejos hasta el marco
     const q = r * FRAME_EXT[shape] + 4 * k + (r + 26 * k) * (1 - p), l = 7 * k;
-    hctx.shadowColor = PAL_R.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PAL_R.line; hctx.lineWidth = 2 * k; hctx.beginPath();
+    hctx.shadowColor = PR.glow; hctx.shadowBlur = 6 * k; hctx.strokeStyle = PR.line; hctx.lineWidth = 2 * k; hctx.beginPath();
     for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { const cx = x + sx * q, cy = y + sy * q; hctx.moveTo(cx - sx * l, cy); hctx.lineTo(cx, cy); hctx.lineTo(cx, cy - sy * l); }
     hctx.stroke();
   }
@@ -8798,7 +8825,7 @@ function drawSelected(f) {
   const hm = t.hpMax || (t.kind === 'dragon' ? ENEMY_HP : t.kind === 'airship' ? AIRSHIP_HP : 0);
   if (hm > 0 && t.hp < hm) {                               // vida, si está herido
     const w = 52 * k, bx = al === 'left' ? lx : lx - w, by = y + 21 * k, fr = clamp(t.hp / hm, 0, 1);
-    hctx.save(); hctx.fillStyle = 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
+    hctx.save(); hctx.fillStyle = HUD_ARC ? 'rgba(24,14,4,.7)' : 'rgba(0,16,7,.7)'; hctx.fillRect(bx - k, by - k, w + 2 * k, 5 * k);
     hctx.shadowColor = P.glow; hctx.shadowBlur = 5 * k; hctx.fillStyle = P.line; hctx.fillRect(bx, by, w * fr, 3 * k); hctx.restore();
   }
 }
@@ -8807,9 +8834,10 @@ function drawSelected(f) {
 function superBar(u, x, y, r) {
   const k = HUD_K, w = 220 * k, h = 11 * k, by = y + r * 1.05 + 14 * k;
   if (by > HH - 110 * k) return;
-  const left = u.kids.filter(c => !c.dead).length;
-  hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
-  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, PAL_G.line, PAL_G.glow, 'center', 1.2 * k);
+  const left = u.kids.filter(c => !c.dead).length, P = hpal(PAL_G);
+  if (HUD_ARC) arcBar(x - w / 2, by - k, w, h + 3 * k, u.hp / u.hpMax, '', 0, ARC_CRIM, 20);   // (v48: en el arcano, barra carmesí)
+  else hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
+  hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, P.line, P.glow, 'center', 1.2 * k);
 }
 /* v23: el aliado: chevrón azul con su nombre y la distancia (hasta 9 km). v34: cada uno de los aliados. v41: el texto, en Graduate. */
 const C_ALLY = '#5ab4ff';
@@ -8843,6 +8871,7 @@ function drawLeadPipper(e) {
 }
 /* v41: flecha alargada de holograma (punta en x, y; apunta a ang), con degradado de la punta a la cola, contorno y halo. */
 function hudArrow(x, y, ang, P, len) {
+  if (HUD_ARC) return arcArrow(x, y, ang, hpal(P), len);     // v48: punta de lanza arcana (16b)
   const k = HUD_K, L = len * k, w = 10 * k, sw = w * 0.36;
   hctx.save(); hctx.translate(x, y); hctx.rotate(ang);
   hctx.beginPath(); hctx.moveTo(0, 0); hctx.lineTo(-L * 0.4, -w); hctx.lineTo(-L * 0.34, -sw); hctx.lineTo(-L, -sw); hctx.lineTo(-L, sw); hctx.lineTo(-L * 0.34, sw); hctx.lineTo(-L * 0.4, w); hctx.closePath();
@@ -8866,7 +8895,7 @@ function drawLockArrow(e) {
   const k = HUD_K, c = targetCenter(e), { x: dx, y: dy } = screenDir(c, _dr);
   const hx = HW / 2 - 190, hy = dy < 0 ? HH / 2 - 100 : HH / 2 - 130 * k;          // márgenes: brújula arriba, vida abajo
   const t = 1 / Math.hypot(dx / hx, dy / hy);                                       // (v39: en una elipse: en las esquinas no pisa el minimapa ni las armas)
-  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = W.locked ? PAL_R : PAL_G;
+  const x = HW / 2 + dx * t, y = HH / 2 + dy * t, L = 54, P = hpal(W.locked ? PAL_R : PAL_G);
   hctx.save(); hctx.globalAlpha = 0.82 + 0.18 * Math.sin(gameTime * 6);
   hudArrow(x, y, Math.atan2(dy, dx), P, L);
   hctx.restore();
@@ -8886,6 +8915,8 @@ function minimapTerrain(px, pz) {
   if (!MM.cv) {
     MM.cv = document.createElement('canvas'); MM.cv.width = MM.cv.height = MM_N; MM.g = MM.cv.getContext('2d');
     MM.img = MM.g.createImageData(MM_N, MM_N); MM.h = new Float32Array(n * n);
+    MM.cvA = document.createElement('canvas'); MM.cvA.width = MM.cvA.height = MM_N; MM.gA = MM.cvA.getContext('2d');   // v48: la del estilo arcano (sepia)
+    MM.imgA = MM.gA.createImageData(MM_N, MM_N);
   }
   if (key !== MM.key) { MM.key = key; MM.ready = false; MM.b = null; }
   if (!MM.b && (!MM.ready || Math.hypot(px - MM.cx, pz - MM.cz) > MM_MOVE)) MM.b = { cx: px, cz: pz, row: 0 };
@@ -8893,7 +8924,7 @@ function minimapTerrain(px, pz) {
   const s = MM_SPAN / MM_N, x0 = b.cx - MM_SPAN / 2 - s, z0 = b.cz - MM_SPAN / 2 - s, H = MM.h;
   for (let r = 0; r < MM_ROWS && b.row < n; r++, b.row++) for (let i = 0; i < n; i++) H[b.row * n + i] = heightAt(x0 + (i + 0.5) * s, z0 + (b.row + 0.5) * s);
   if (b.row < n) return;
-  const d = MM.img.data, Hs = MM.hs || (MM.hs = new Float32Array(n * n));
+  const d = MM.img.data, dA = MM.imgA.data, Hs = MM.hs || (MM.hs = new Float32Array(n * n));
   const at = (i, j) => H[clamp(j, 0, n - 1) * n + clamp(i, 0, n - 1)];
   for (let j = 0; j < n; j++) for (let i = 0; i < n; i++)  // suavizado 3 × 3: sin motas de ríos estrechos ni escalones entre texels
     Hs[j * n + i] = (4 * at(i, j) + 2 * (at(i - 1, j) + at(i + 1, j) + at(i, j - 1) + at(i, j + 1)) + at(i - 1, j - 1) + at(i + 1, j - 1) + at(i - 1, j + 1) + at(i + 1, j + 1)) / 16;
@@ -8903,8 +8934,9 @@ function minimapTerrain(px, pz) {
     const lam = clamp((0.5 * (gx + gz) + 0.707) / Math.sqrt(gx * gx + gz * gz + 1), 0, 1);   // luz del noroeste (plano: 0,71)
     const v = 60 + 150 * lam + 45 * clamp((hc - WL) / 1600, 0, 1), wt = clamp((WL + 1.5 - hc) / 3, 0, 1);   // wt: agua (hacia el fondo, más)
     d[o] = lerp(v * 0.38, 10, wt); d[o + 1] = lerp(v, 46, wt); d[o + 2] = lerp(v * 0.55, 44, wt); d[o + 3] = lerp(175, 215, wt);
+    dA[o] = lerp(v * 0.93, 20, wt); dA[o + 1] = lerp(v * 0.79, 44, wt); dA[o + 2] = lerp(v * 0.55, 72, wt); dA[o + 3] = lerp(175, 215, wt);   // (v48: sepia de pergamino y agua azul profundo)
   }
-  MM.g.putImageData(MM.img, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
+  MM.g.putImageData(MM.img, 0, 0); MM.gA.putImageData(MM.imgA, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
 }
 /* v45: rayas de peligro de la zona fuera del área en el minimapa: bandas rojas vivas a 45° sobre rojo oscuro translúcido (una baldosa que se
    repite sin cortes; se rehace si cambia la escala del HUD). */
@@ -8920,6 +8952,7 @@ function hazardPattern(k) {
   return hazardPat.pat;
 }
 function drawMinimap(heading, fwd) {
+  if (HUD_ARC) return arcMinimap(heading, fwd);             // v48: redondo, como un astrolabio (16b)
   const k = HUD_K, S = 242 * k, cxs = HW / 2;
   const xa = Math.max(16 * k, cxs - 711.5 * k), yb = HH - 47 * k, ya = yb - S, xb = xa + S;   // (a la izquierda del centro; en pantallas estrechas, pegado al borde)
   const cx = xa + S / 2, cy = ya + S * 0.667, kk = (S / 2) / MM_RANGE;                     // tú y px por m
@@ -8976,6 +9009,20 @@ function drawMinimap(heading, fwd) {
     const q = at(p.x + wx * 1e6, p.z + wz * 1e6), ix = clamp(q.x, xa + 9 * k, xb - 9 * k), iy = clamp(q.y, ya + 10 * k, yb - 8 * k);
     hudGlow(l, ix, iy + 5 * k, 13 * k, l === 'N' ? PAL_A.line : P.line, l === 'N' ? PAL_A.glow : P.glow, 'center');
   }
+  drawMinimapSymbols(at, rx, rz, fx, fz);
+  hctx.globalAlpha = 1;                                    // tú: flecha verde con halo
+  hctx.fillStyle = P.ink; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
+  hctx.beginPath(); hctx.moveTo(cx, cy - 8 * k); hctx.lineTo(cx - 5.5 * k, cy + 6 * k); hctx.lineTo(cx, cy + 3 * k); hctx.lineTo(cx + 5.5 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
+  hctx.restore();
+  hctx.save();                                             // marco: contorno con brillo y escuadras (sin cristal: el mapa ya lo lleva)
+  chamferPath(xa, ya, S, S, ch); hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 1.3 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  const LB = 16 * k; hctx.lineWidth = 2.6 * k; hctx.beginPath();
+  hctx.moveTo(xb - LB, ya); hctx.lineTo(xb, ya); hctx.lineTo(xb, ya + LB); hctx.moveTo(xa + LB, yb); hctx.lineTo(xa, yb); hctx.lineTo(xa, yb - LB); hctx.stroke();
+  hctx.restore();
+}
+/* Símbolos del minimapa (v48: aparte, para el cuadrado y el redondo del estilo arcano). at(x, z): punto del mundo → minimapa (en _rp, con
+   _rp.far si cae fuera y va al borde); rx, rz, fx, fz: tus ejes derecha y adelante en el suelo. */
+function drawMinimapSymbols(at, rx, rz, fx, fz) {
   // v21: los TGT, en rojo vivo; lo que no cuenta para la misión, apagado. El blanco fijado, con un círculo dorado.
   const col = (tgt, far, fill) => tgt ? (far ? (fill ? 'rgba(255,74,58,.45)' : 'rgba(255,74,58,.55)') : C_DANGER) : 'rgba(241,180,170,.35)';
   const ang = () => Math.atan2(_Eef.x * rx + _Eef.z * rz, _Eef.x * fx + _Eef.z * fz);
@@ -9031,15 +9078,7 @@ function drawMinimap(heading, fwd) {
     hctx.globalAlpha = 0.5 + 0.5 * Math.sin(gameTime * 14); hctx.fillStyle = C_DANGER;
     hctx.beginPath(); hctx.arc(q.x, q.y, 3.2, 0, 6.283); hctx.fill();
   }
-  hctx.globalAlpha = 1;                                    // tú: flecha verde con halo
-  hctx.fillStyle = P.ink; hctx.strokeStyle = 'rgba(4,30,12,.85)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
-  hctx.beginPath(); hctx.moveTo(cx, cy - 8 * k); hctx.lineTo(cx - 5.5 * k, cy + 6 * k); hctx.lineTo(cx, cy + 3 * k); hctx.lineTo(cx + 5.5 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
-  hctx.restore();
-  hctx.save();                                             // marco: contorno con brillo y escuadras (sin cristal: el mapa ya lo lleva)
-  chamferPath(xa, ya, S, S, ch); hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 1.3 * k; hctx.strokeStyle = P.line; hctx.stroke();
-  const LB = 16 * k; hctx.lineWidth = 2.6 * k; hctx.beginPath();
-  hctx.moveTo(xb - LB, ya); hctx.lineTo(xb, ya); hctx.lineTo(xb, ya + LB); hctx.moveTo(xa + LB, yb); hctx.lineTo(xa, yb); hctx.lineTo(xa, yb - LB); hctx.stroke();
-  hctx.restore();
+  hctx.globalAlpha = 1;
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
 /* Bolas guiadas enemigas en camino. v41: solo una flecha roja de holograma en un anillo alrededor del centro, hacia de donde viene cada una
@@ -9047,11 +9086,11 @@ const _rp = { x: 0, y: 0, d: 0, far: false };
    en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
 function drawMissileWarn() {
   if (!threat.incoming.length || state !== 'playing') return;
-  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
+  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14), P = hpal(PAL_R);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
   for (const f of threat.incoming) {
     const { x: dx, y: dy } = screenDir(f.pos, _dr), R = 1 / Math.hypot(dx / rx, dy / ry), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
     hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
-    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, PAL_R.ink, PAL_R.glow, 'center', k);
+    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, P.ink, P.glow, 'center', k);
   }
 }
 /* v15: fuera del área de la misión, hacia su centro (a la altura del jugador): rombo dorado si se ve; si no, flecha dorada en un anillo
@@ -9062,7 +9101,8 @@ function drawAreaArrow() {
   if (proj(A.x, p.y, A.z, a) && a.x > 40 && a.x < HW - 40 && a.y > 40 && a.y < HH - 40) {
     hctx.strokeStyle = C_GOLD; hctx.lineWidth = 2.5;
     hctx.beginPath(); hctx.moveTo(a.x, a.y - 14); hctx.lineTo(a.x + 14, a.y); hctx.lineTo(a.x, a.y + 14); hctx.lineTo(a.x - 14, a.y); hctx.closePath(); hctx.stroke();
-    hudText('ZONA DE LA MISIÓN', a.x, a.y - 22, FM(12), C_GOLD, 'center');
+    if (HUD_ARC) hudGlow('ZONA DE LA MISIÓN', a.x, a.y - 22, 12 * HUD_K, C_GOLD, ARC_GOLD.glow, 'center', 1.6 * HUD_K);   // (v48)
+    else hudText('ZONA DE LA MISIÓN', a.x, a.y - 22, FM(12), C_GOLD, 'center');
   } else {
     const pm = camera.projectionMatrix.elements;
     _pv.set(A.x, p.y, A.z).applyMatrix4(camera.matrixWorldInverse);
@@ -9129,13 +9169,13 @@ function hudPanel(x, y, w, h, P, c, a) {
   hctx.moveTo(x + L, y + h); hctx.lineTo(x, y + h); hctx.lineTo(x, y + h - L); hctx.stroke();
   hctx.restore();
 }
-/* Texto con contorno oscuro y halo (y: línea base). */
+/* Texto con contorno oscuro y halo (y: línea base). v48: en el estilo arcano (16b), en Cinzel con contorno pardo y halo más suave. */
 function hudGlow(txt, x, y, size, col, glow, align, spacing) {
   const k = HUD_K;
-  hctx.save(); hctx.font = FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
+  hctx.save(); hctx.font = HUD_ARC ? FA(size) : FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
   const sx = hctx.textAlign === 'center' ? x + (spacing || 0) / 2 : x;   // (el espaciado se añade también tras la última letra)
-  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
-  hctx.shadowColor = glow; hctx.shadowBlur = 7 * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
+  hctx.shadowColor = glow; hctx.shadowBlur = (HUD_ARC ? 5 : 7) * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
   hctx.restore();
 }
 /* Barra: panel, lo lleno (fracción f) con degradado, brillo arriba, segmentos (seg) y borde de avance luminoso; el texto, centrado.
@@ -9200,6 +9240,7 @@ function drawFlightBoxes() {
   const tx = clamp(_sp.x, HW / 2 - HW * 0.12, HW / 2 + HW * 0.12), ty = clamp(_sp.y, HH / 2 - HH * 0.15, HH / 2 + HH * 0.15);
   if (_anc.t < 0 || dt > 0.5) { _anc.x = tx; _anc.y = ty; } else { const a = 1 - Math.exp(-20 * dt); _anc.x += (tx - _anc.x) * a; _anc.y += (ty - _anc.y) * a; }
   _anc.t = now;
+  if (HUD_ARC) return arcFlightBoxes(_anc.x, _anc.y);       // v48: estilo arcano (16b)
   const w = 80 * k, h = 32 * k, by = _anc.y - h / 2, sx = _anc.x - 209 * k - w / 2, ax = _anc.x + 209 * k - w / 2;
   const bb = by + h + 4 * k, bh = 20 * k, lb = bb + bh + 19 * k;   // barra del boost y línea base de BOOST / HOVER
   hudHeader('SPEED', sx, w, by - 5 * k, 15.5 * k, PAL_G);
@@ -9233,6 +9274,7 @@ function drawThrottle(x, y, w, h, ly, vy) {
    con el calor de la llamarada (se llena mientras la usas y, según se llena, pasa de verde a ámbar y a rojo y parpadea) y LSR con la carga
    del rayo (llena, parpadea y brilla). Durante el sobrecalentamiento o el rayo, las que no se pueden usar se apagan. */
 function drawWeapons() {
+  if (HUD_ARC) return arcWeapons();                         // v48: estilo arcano (16b)
   const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
@@ -9262,6 +9304,7 @@ function drawWeapons() {
 /* Vida (abajo, en el centro): barra de 118 × 32 con «vida/máxima» que se vacía de derecha a izquierda; en rojo por debajo del 35 %. v39: sin
    armadura; tras HP_REGEN_WAIT s sin recibir daño se rellena a HP_REGEN por segundo (mientras tanto, late). */
 function drawHealth() {
+  if (HUD_ARC) return arcHealth();                          // v48: estilo arcano (16b)
   const k = HUD_K, w = 118 * k, h = 32 * k, x = HW / 2 - w / 2, y = HH - 47 * k - h, hpMax = heroHpMax(), f = clamp(F.health / hpMax, 0, 1);
   const regen = F.health < hpMax && F.health > 0 && gameTime - F.lastHit > HP_REGEN_WAIT && state === 'playing';
   hctx.save();
@@ -9286,6 +9329,7 @@ function drawKills() {
   for (let i = KILLS.length - 1; i >= 0; i--) if (gameTime - KILLS[i].t0 > KILL_T || gameTime < KILLS[i].t0) KILLS.splice(i, 1);
   const warn = state === 'playing' && threat.incoming.length > 0;
   if (!KILLS.length && !warn) return;
+  if (HUD_ARC) return arcKills(warn);                       // v48: estilo arcano (16b)
   const k = HUD_K, size = 16 * k, sp = 2.4 * k;
   let y = HH * 0.31;
   if (warn) {
@@ -9351,21 +9395,10 @@ function drawHUD() {
   drawFlightBoxes();
   drawKills();                                             // v41: «X DESTRUIDO»
   drawHealth();
-  // objetivos de la misión y puntuación (arriba, derecha). v15: los de la receta (MS.objs); los opcionales, con un rombo
-  const k = HUD_K; let oy = 36 * k;
-  const oT = (t, P, al) => { hctx.save(); if (al != null) hctx.globalAlpha = al; hudGlow(t, HW - 28, oy, 13.5 * k, P.ink, P.glow, 'right', 1.1 * k); hctx.restore(); oy += 22 * k; };   // (v40: Graduate con halo)
-  if (mission.timeLimit) { const left = Math.max(0, mission.timeLimit - MS.t); oT('TIEMPO  ' + fmtClock(left), left < 30 ? PAL_R : PAL_G); }
-  for (const o of MS.objs) {
-    if (!o.shown || (o.done && MS.t - o.doneT > 8)) continue;   // (v34: los cumplidos se van a los 8 s: en un capítulo se acumulan)
-    oT((o.optional ? '◇ ' : '') + o.hud + '  ' + Math.min(o.n, o.count) + ' / ' + o.count, o.done ? PAL_GOLD : PAL_G);
-  }
-  if (fleetEscapes() && !MS.ended) {                       // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
-    const ed = airshipEdgeDist();
-    if (ed < Infinity) oT('BORDE  ' + fmtDist(Math.max(0, ed)), ed < 2000 ? PAL_R : PAL_G, ed < 2000 ? 0.65 + 0.35 * Math.sin(gameTime * 8) : 1);
-  }
-  oT('PUNTOS  ' + towerState.score, PAL_GOLD);
+  drawObjectives();                                        // v48: arriba a la izquierda, en los dos estilos (16b; antes, arriba a la derecha y con los puntos)
+  const k = HUD_K, PG = hpal(PAL_G), PO = hpal(PAL_GOLD);
   if (DESIGN.on) drawDesign(heading);                      // v19: modo diseño (º): coordenadas, semilla y marcas
-  if (mission.dev) hudGlow('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), 28, 30, 11 * k, DEV.fps ? PAL_GOLD.ink : PAL_G.dim, DEV.fps ? PAL_GOLD.glow : 'rgba(0,0,0,0)', 'left', 0.6 * k);   // v27
+  if (mission.dev) hudGlow('DEV TEST  ·  Tab: panel de pruebas' + (DEV.fps ? '  ·  ' + Math.round(fpsEMA) + ' FPS  ·  ' + (1000 / Math.max(fpsEMA, 1)).toFixed(1) + ' ms' : ''), HW - 28, 30, 11 * k, DEV.fps ? PO.ink : PG.dim, DEV.fps ? PO.glow : 'rgba(0,0,0,0)', 'right', 0.6 * k);   // v27 (v48: arriba a la derecha: a la izquierda van los objetivos)
   hctx.shadowBlur = 0;
 }
 
@@ -9448,6 +9481,505 @@ function updateWorld(dt) {
   updateRider(dt);                                         // al final: la cámara ya está colocada (temblores y campo de visión incluidos)
 }
 
+/* ============================================================
+   8b. v48: HUD ARCANO (ALTA FANTASÍA) Y OBJETIVOS ARRIBA A LA IZQUIERDA
+   ============================================================
+   Jorge (3-nov): el HUD de la v39-v42 funciona, pero es demasiado militar moderno para un juego de alta fantasía medieval y arcana. Con su
+   imagen de referencia (fantasy_HUD.png) como guía de estilo, no como plantilla, un segundo estilo con los mismos elementos en los mismos
+   sitios: líneas finas de oro viejo con sombra parda, rombos (gemas) y volutas como remates, barras en hexágono alargado con doble filo,
+   rótulos y cifras en Cinzel y el texto de los objetivos en EB Garamond; pergamino para las cifras, carmesí para la vida y el peligro,
+   bronce para la munición, brasa para el boost y azul de cristal (lo arcano) para el rayo, los escudos y tu flecha del minimapa. Sin los
+   paneles de cristal oscuro ni el marco «WEAPONS» de la referencia. El minimapa, redondo como un astrolabio: tú en el centro y el bisel,
+   con la flor de lis del norte, gira con tu rumbo. Opciones → «Estilo del HUD»: Arcano (por defecto) o Militar (el de la v39-v42).
+   Las funciones del HUD militar (16) pasan aquí con HUD_ARC; las que comparten la forma (marcos de blancos, seleccionado, flechas) solo
+   cambian de paleta (hpal) y de fuente (hudGlow). En los dos estilos, los objetivos van arriba a la izquierda (drawObjectives) y ya no
+   salen los puntos. */
+const HUD_KEY = 'skyApex.hud';
+let HUD_ARC = true;                                        // estilo del HUD: arcano (por defecto) o militar
+try { const v = localStorage.getItem(HUD_KEY); if (v === 'arcane' || v === 'military') HUD_ARC = v === 'arcane'; } catch (err) { }
+function setHudStyle(arc) { HUD_ARC = arc; document.body.classList.toggle('hud-arcane', arc); }   // (la clase: radio y avisos del DOM, 01_styles.css)
+setHudStyle(HUD_ARC);
+{ const sel = document.getElementById('hudStyle'); sel.value = HUD_ARC ? 'arcane' : 'military';
+  sel.addEventListener('change', () => { setHudStyle(sel.value === 'arcane'); try { localStorage.setItem(HUD_KEY, sel.value); } catch (err) { } }); }
+
+const FA = n => `600 ${n.toFixed(1)}px 'Cinzel', Georgia, serif`, A_CAP = 0.7;   // Cinzel: rótulos y cifras (A_CAP: alto de mayúsculas, em)
+const FB = n => `500 ${n.toFixed(1)}px 'EB Garamond', Georgia, serif`;          // EB Garamond: el texto de los objetivos
+try { document.fonts.load("600 20px 'Cinzel'"); document.fonts.load("500 20px 'EB Garamond'"); } catch (e) { }   // (el lienzo no las pide solo)
+
+/* Paletas (las mismas claves que las del militar, hudPal) y el paso de una militar a su arcana (hpal). */
+function arcPal(c) { const P = hudPal(c); P.glow = rgbStr(c.glow, 0.42); return P; }   // (halo más suave que el militar)
+const ARC_GOLD = arcPal({ ink: [250, 240, 216], line: [226, 191, 120], glow: [255, 186, 76], f0: [250, 232, 182], f1: [212, 170, 96], f2: [116, 80, 32] });
+const ARC_SUN = arcPal({ ink: [255, 222, 146], line: [246, 204, 112], glow: [255, 180, 50], f0: [255, 238, 196], f1: [238, 188, 92], f2: [140, 90, 20] });   // cumplidos, punto de control
+const ARC_CRIM = arcPal({ ink: [255, 236, 226], line: [234, 100, 84], glow: [255, 54, 36], f0: [240, 120, 108], f1: [190, 36, 42], f2: [92, 8, 16] });
+const ARC_BRONZE = arcPal({ ink: [252, 242, 220], line: [226, 191, 120], glow: [255, 186, 76], f0: [238, 210, 146], f1: [178, 134, 64], f2: [90, 58, 20] });
+const ARC_EMBER = arcPal({ ink: [255, 240, 220], line: [244, 150, 70], glow: [255, 118, 30], f0: [255, 214, 150], f1: [238, 120, 42], f2: [138, 44, 10] });
+const ARC_FROST = arcPal({ ink: [236, 248, 255], line: [146, 204, 255], glow: [86, 166, 255], f0: [228, 245, 255], f1: [112, 182, 252], f2: [24, 70, 160] });
+const ARC_DARK = 'rgba(22,13,4,.85)', ARC_SHADE = 'rgba(22,13,4,.55)';   // contorno de los textos y sombra de las líneas (pardos, no verdes)
+const ARC_OF = new Map([[PAL_G, ARC_GOLD], [PAL_A, ARC_EMBER], [PAL_R, ARC_CRIM], [PAL_GOLD, ARC_SUN]]);
+const hpal = P => HUD_ARC ? ARC_OF.get(P) || P : P;
+function arcHeat(t) { t = clamp(t, 0, 1) * 2; return t < 1 ? palMix(ARC_BRONZE, ARC_EMBER, t) : palMix(ARC_EMBER, ARC_CRIM, t - 1); }   // bronce → brasa → carmesí
+
+/* ---------- Piezas ---------- */
+function diamondPath(x, y, rx, ry) { hctx.moveTo(x, y - ry); hctx.lineTo(x + rx, y); hctx.lineTo(x, y + ry); hctx.lineTo(x - rx, y); hctx.closePath(); }
+function hexPath(x, y, w, h, p) {                          // hexágono alargado: puntas a izquierda y derecha (p: largo de la punta)
+  hctx.moveTo(x, y + h / 2); hctx.lineTo(x + p, y); hctx.lineTo(x + w - p, y); hctx.lineTo(x + w, y + h / 2); hctx.lineTo(x + w - p, y + h); hctx.lineTo(x + p, y + h); hctx.closePath();
+}
+function capsulePath(x, y, w, h) {
+  const r = Math.min(w, h) / 2;
+  hctx.moveTo(x + r, y); hctx.arcTo(x + w, y, x + w, y + h, r); hctx.arcTo(x + w, y + h, x, y + h, r); hctx.arcTo(x, y + h, x, y, r); hctx.arcTo(x, y, x + w, y, r); hctx.closePath();
+}
+/* Trazo del camino actual: sombra parda debajo y la línea (col, ancho w) encima. */
+function arcStroke(col, w, shade) {
+  hctx.lineJoin = 'round'; hctx.lineCap = 'round'; hctx.shadowBlur = 0;
+  hctx.lineWidth = w + 2.2 * HUD_K; hctx.strokeStyle = shade || ARC_SHADE; hctx.stroke();
+  hctx.lineWidth = w; hctx.strokeStyle = col; hctx.stroke();
+}
+/* Gema: rombo con el degradado de la paleta P, filo dorado (edge) y la faceta de arriba iluminada; glow: halo. */
+function arcGem(x, y, rx, ry, P, glow, edge) {
+  const k = HUD_K;
+  hctx.save(); hctx.beginPath(); diamondPath(x, y, rx, ry);
+  hctx.lineJoin = 'round'; hctx.lineWidth = k + 2; hctx.strokeStyle = ARC_SHADE; hctx.stroke();
+  const g = hctx.createLinearGradient(x, y - ry, x, y + ry); g.addColorStop(0, P.f0); g.addColorStop(0.5, P.f1); g.addColorStop(1, P.f2);
+  if (glow) { hctx.shadowColor = P.glow; hctx.shadowBlur = glow * k; }
+  hctx.fillStyle = g; hctx.fill(); hctx.shadowBlur = 0;
+  hctx.lineWidth = k; hctx.strokeStyle = edge || ARC_GOLD.line; hctx.stroke();
+  hctx.beginPath(); hctx.moveTo(x - rx * 0.5, y - ry * 0.05); hctx.lineTo(x, y - ry * 0.55); hctx.lineTo(x + rx * 0.5, y - ry * 0.05);
+  hctx.lineWidth = 0.8 * k; hctx.strokeStyle = 'rgba(255,255,255,.55)'; hctx.stroke();
+  hctx.restore();
+}
+/* Voluta: remate en doble espiral, como en los manuscritos, que sale de (x, y) hacia dir (±1); s: tamaño. Solo añade el camino. */
+function volutePath(x, y, dir, s) {
+  const cx = x + dir * s * 1.2, R = s * 0.5, T = 1.7 * Math.PI;
+  hctx.moveTo(x, y); hctx.lineTo(cx, y);
+  for (const v of [-1, 1]) {                               // -1: la de arriba; 1: la de abajo (empiezan en la raya y se enroscan hacia fuera)
+    const ccy = y + v * R; hctx.moveTo(cx, y);
+    for (let i = 1; i <= 22; i++) {
+      const t = i / 22 * T, r = R * (1 - 0.6 * t / T), a = -v * Math.PI / 2 + v * dir * t;
+      hctx.lineTo(cx + r * Math.cos(a), ccy + r * Math.sin(a));
+    }
+  }
+}
+function arcVolute(x, y, dir, s, col) { hctx.save(); hctx.beginPath(); volutePath(x, y, dir, s); arcStroke(col || ARC_GOLD.line, 1.1 * HUD_K); hctx.restore(); }
+/* Barra arcana: hexágono alargado con doble filo (edge, oro por defecto); dentro, lo vacío algo oscuro y lo lleno (fracción f) con el
+   degradado de P, un brillo arriba, segmentos (seg) y el borde de avance (gem: una gema de cristal en lugar de la raya); el texto, centrado. */
+function arcBar(x, y, w, h, f, txt, size, P, seg, edge, gem) {
+  const k = HUD_K, p = h * 0.48, i = 3 * k, ix = x + i, iy = y + i, iw = w - 2 * i, ih = h - 2 * i, ip = p - i * 0.55, ff = clamp(f, 0, 1), fw = iw * ff, E = edge || ARC_GOLD.line;
+  hctx.save(); hctx.shadowBlur = 0;
+  hctx.beginPath(); hexPath(ix, iy, iw, ih, ip); hctx.fillStyle = 'rgba(26,15,5,.34)'; hctx.fill();
+  if (ff > 0.002) {
+    hctx.save(); hctx.clip();
+    const g = hctx.createLinearGradient(0, iy, 0, iy + ih); g.addColorStop(0, P.f0); g.addColorStop(0.45, P.f1); g.addColorStop(1, P.f2);
+    hctx.fillStyle = g; hctx.fillRect(ix, iy, fw, ih);
+    const s = hctx.createLinearGradient(0, iy, 0, iy + ih * 0.5); s.addColorStop(0, 'rgba(255,255,255,.32)'); s.addColorStop(1, 'rgba(255,255,255,0)');
+    hctx.fillStyle = s; hctx.fillRect(ix, iy, fw, ih * 0.5);
+    for (let j = 1; j < (seg || 0); j++) {                 // segmentos sobre lo lleno: raya oscura con un filo de luz
+      const sx = ix + iw * j / seg; if (sx > ix + fw) break;
+      hctx.fillStyle = 'rgba(40,20,4,.5)'; hctx.fillRect(sx - 0.5 * k, iy, k, ih);
+      hctx.fillStyle = 'rgba(255,240,200,.2)'; hctx.fillRect(sx + 0.5 * k, iy, 0.8 * k, ih);
+    }
+    if (!gem && ff < 0.998) { hctx.globalAlpha *= 0.9; hctx.fillStyle = P.ink; hctx.fillRect(ix + fw - 1.2 * k, iy, 1.2 * k, ih); }
+    hctx.restore();
+  }
+  hctx.beginPath(); hexPath(x, y, w, h, p); arcStroke(E, 1.3 * k);
+  hctx.beginPath(); hexPath(ix, iy, iw, ih, ip); hctx.globalAlpha *= 0.6; hctx.lineWidth = 0.8 * k; hctx.strokeStyle = E; hctx.stroke();
+  hctx.restore();
+  if (gem && ff > 0.02) arcGem(Math.min(ix + fw, ix + iw - ip * 0.6), y + h / 2, 4 * k, h * 0.36, P, 8);
+  if (txt) hudGlow(txt, x + w / 2, y + h / 2 + size * A_CAP / 2, size, P.ink, P.glow, 'center', 0.5 * k);
+}
+/* Barra de cápsula (boost y acelerador): fondo tenue, lo lleno con el degradado de P (vert: de abajo arriba) y filo dorado. */
+function arcCapsule(x, y, w, h, f, P, vert) {
+  const k = HUD_K, i = 1.6 * k, ff = clamp(f, 0, 1);
+  hctx.save(); hctx.shadowBlur = 0;
+  hctx.beginPath(); capsulePath(x, y, w, h); hctx.fillStyle = 'rgba(26,15,5,.34)'; hctx.fill();
+  if (ff > 0.002) {
+    hctx.save(); hctx.beginPath(); capsulePath(x + i, y + i, w - 2 * i, h - 2 * i); hctx.clip();
+    const g = vert ? hctx.createLinearGradient(x, 0, x + w, 0) : hctx.createLinearGradient(0, y, 0, y + h);
+    g.addColorStop(0, P.f0); g.addColorStop(0.45, P.f1); g.addColorStop(1, P.f2); hctx.fillStyle = g;
+    if (vert) hctx.fillRect(x, y + h * (1 - ff), w, h * ff); else hctx.fillRect(x, y, w * ff, h);
+    hctx.restore();
+  }
+  hctx.beginPath(); capsulePath(x, y, w, h); arcStroke(ARC_GOLD.line, 1.1 * k);
+  hctx.restore();
+}
+
+/* ---------- Brújula, escalera, marcas y mira ---------- */
+/* Brújula: raya dorada con gemas y volutas en los extremos, marcas cada 5° (las de 15°, más largas) y los puntos cardinales encima (el norte,
+   en brasa); en el centro, una gema sobre la raya y, debajo, el rumbo en una placa hexagonal (sin fondo). */
+function arcCompass(heading) {
+  const k = HUD_K, P = ARC_GOLD, cw = Math.min(520 * k, HW - 90 * k), cx = HW / 2, ly = 40 * k, ppd = cw / 90, x0 = cx - cw / 2, x1 = cx + cw / 2;
+  hctx.save();
+  hctx.beginPath(); hctx.moveTo(x0, ly); hctx.lineTo(x1, ly); arcStroke(P.line, 1.2 * k);
+  for (const d of [-1, 1]) { const ex = d < 0 ? x0 : x1; arcGem(ex + d * 4 * k, ly, 3 * k, 3.6 * k, P); arcVolute(ex + d * 7 * k, ly, d, 6 * k); }
+  hctx.lineCap = 'butt';
+  for (let d = Math.floor(heading - 46); d <= Math.ceil(heading + 46); d++) {
+    if (d % 5) continue;
+    const x = cx + (d - heading) * ppd; if (x < x0 + 2 * k || x > x1 - 2 * k) continue;
+    const n = ((d % 360) + 360) % 360, big = d % 15 === 0;
+    hctx.globalAlpha = clamp(1 - Math.pow(Math.abs(x - cx) / (cw / 2), 4), 0, 1);
+    hctx.beginPath(); hctx.moveTo(x, ly); hctx.lineTo(x, ly + (big ? 6 : 3) * k);
+    hctx.lineWidth = 3 * k; hctx.strokeStyle = ARC_SHADE; hctx.stroke(); hctx.lineWidth = 1.1 * k; hctx.strokeStyle = P.line; hctx.stroke();
+    if (COMPASS[n] !== undefined) { const N = n === 0; hudGlow(COMPASS[n], x, ly - 11 * k, (n % 90 === 0 ? 14 : 11) * k, N ? ARC_EMBER.line : P.line, N ? ARC_EMBER.glow : P.glow, 'center', 1.2 * k); }
+  }
+  hctx.globalAlpha = 1;
+  arcGem(cx, ly, 5.5 * k, 8 * k, P, 6);
+  const pw = 54 * k, ph = 18 * k, py = ly + 12 * k;
+  hctx.beginPath(); hctx.moveTo(cx, ly + 8 * k); hctx.lineTo(cx, py); hexPath(cx - pw / 2, py, pw, ph, 7 * k); arcStroke(P.line, 1.1 * k);
+  hudGlow(String(Math.round(heading) % 360).padStart(3, '0'), cx, py + ph / 2 + 13 * k * A_CAP / 2, 13 * k, P.ink, P.glow, 'center', k);
+  hctx.restore();
+}
+/* Marca de la trayectoria: círculo pequeño con alas y aleta en pergamino (en vuelo recto, dorada), con un rombo en la punta de cada ala. */
+function arcPathMarker(p) {
+  const col = F.straight ? ARC_SUN.line : ARC_GOLD.ink;
+  hctx.save(); hctx.globalAlpha = 0.92; hctx.beginPath();
+  hctx.arc(p.x, p.y, 7, 0, 6.283); hctx.moveTo(p.x - 19, p.y); hctx.lineTo(p.x - 7, p.y); hctx.moveTo(p.x + 7, p.y); hctx.lineTo(p.x + 19, p.y);
+  hctx.moveTo(p.x, p.y - 7); hctx.lineTo(p.x, p.y - 14); arcStroke(col, 1.5);
+  hctx.beginPath(); diamondPath(p.x - 22, p.y, 3, 2.4); diamondPath(p.x + 22, p.y, 3, 2.4); hctx.fillStyle = col; hctx.fill();
+  hctx.restore();
+  if (F.straight) hudGlow('VUELO RECTO', p.x, p.y - 22, 11 * HUD_K, ARC_SUN.ink, ARC_SUN.glow, 'center', 1.4 * HUD_K);
+}
+/* Mira: círculo dorado con cuatro brazos rematados en rombos y una estrella de cuatro puntas en el centro (más clara al disparar; gris sin
+   armas). Debajo, los slots del escudo como gemas de cristal (la que está en uso se vacía; las gastadas se rellenan, apagadas, durante su
+   recarga); a la derecha, el arco del calor de la llamarada (bronce → brasa → carmesí). */
+function arcReticle(a) {
+  const hot = W.cool > 0, off = !weaponsReady(), col = off ? 'rgba(186,180,170,.85)' : hot ? '#fff0c8' : ARC_GOLD.line, r = 15, x = a.x, y = a.y;
+  hctx.save();
+  if (Math.hypot(x - _sp.x, y - _sp.y) > 26) { hctx.globalAlpha = 0.35; hctx.strokeStyle = ARC_GOLD.line; hctx.lineWidth = 1; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(x, y); hctx.stroke(); hctx.globalAlpha = 1; }
+  hctx.beginPath(); hctx.arc(x, y, r, 0, 6.283);
+  hctx.moveTo(x - r, y); hctx.lineTo(x - r - 8, y); hctx.moveTo(x + r, y); hctx.lineTo(x + r + 8, y);
+  hctx.moveTo(x, y - r); hctx.lineTo(x, y - r - 5); hctx.moveTo(x, y + r); hctx.lineTo(x, y + r + 5);
+  arcStroke(col, 1.7);
+  hctx.beginPath(); diamondPath(x - r - 11, y, 3.4, 2.6); diamondPath(x + r + 11, y, 3.4, 2.6); diamondPath(x, y - r - 8, 2.4, 3.2); diamondPath(x, y + r + 8, 2.4, 3.2);
+  const s = 5.5, q = 1.25;                                 // estrella de cuatro puntas
+  hctx.moveTo(x, y - s); hctx.lineTo(x + q, y - q); hctx.lineTo(x + s, y); hctx.lineTo(x + q, y + q); hctx.lineTo(x, y + s); hctx.lineTo(x - q, y + q); hctx.lineTo(x - s, y); hctx.lineTo(x - q, y - q); hctx.closePath();
+  hctx.lineWidth = 2.2; hctx.strokeStyle = ARC_SHADE; hctx.stroke(); hctx.fillStyle = col; hctx.fill();
+  const n = W.shCd.length, gy = y + 37;                    // slots del escudo
+  for (let i = 0; i < n; i++) {
+    const gx = x - (n - 1) * 8 + i * 16, use = i === W.shUse && W.shieldT > 0, cd = W.shCd[i], rech = cd > 0 && !use;
+    const f = use ? W.shieldT / SHIELD_T : cd > 0 ? 1 - cd / Math.max(SHIELD_CD, 0.01) : 1;
+    hctx.beginPath(); diamondPath(gx, gy, 6, 3.6); hctx.lineWidth = 2.6; hctx.strokeStyle = ARC_SHADE; hctx.stroke(); hctx.fillStyle = 'rgba(14,22,40,.45)'; hctx.fill();
+    if (f > 0) {
+      hctx.save(); hctx.clip();
+      const g = hctx.createLinearGradient(0, gy - 3.6, 0, gy + 3.6); g.addColorStop(0, ARC_FROST.f0); g.addColorStop(0.5, ARC_FROST.f1); g.addColorStop(1, ARC_FROST.f2);
+      hctx.globalAlpha = rech ? 0.45 : 1; hctx.fillStyle = use ? '#e6f5ff' : g; hctx.fillRect(gx - 6, gy - 3.6, 12 * f, 7.2);
+      hctx.restore();
+    }
+    hctx.beginPath(); diamondPath(gx, gy, 6, 3.6); hctx.lineWidth = 0.9; hctx.strokeStyle = rech ? ARC_GOLD.dim : ARC_GOLD.line;
+    if (!rech) { hctx.shadowColor = ARC_FROST.glow; hctx.shadowBlur = 6; }
+    hctx.stroke(); hctx.shadowBlur = 0;
+  }
+  if (W.heat > 0.01 || W.overheat > 0) {                   // calor de la llamarada
+    const A0 = 0.9, R = 32, oh = W.overheat > 0, P = oh ? ARC_CRIM : arcHeat(W.heat);
+    hctx.lineCap = 'round'; hctx.lineWidth = 5.5; hctx.strokeStyle = 'rgba(26,15,5,.45)'; hctx.beginPath(); hctx.arc(x, y, R, A0, -A0, true); hctx.stroke();
+    hctx.globalAlpha = oh ? 0.55 + 0.45 * Math.sin(gameTime * 12) : 1;
+    hctx.lineWidth = 3; hctx.strokeStyle = P.line; hctx.shadowColor = P.glow; hctx.shadowBlur = 6;
+    hctx.beginPath(); hctx.arc(x, y, R, A0, A0 - 2 * A0 * clamp(W.heat, 0, 1), true); hctx.stroke();
+    hctx.shadowBlur = 0; hctx.globalAlpha = 1;
+    if (oh) hudGlow('SOBRECALENTADO  ' + W.overheat.toFixed(1) + ' s', x, y + 60, 12 * HUD_K, ARC_CRIM.line, ARC_CRIM.glow, 'center', 1.6 * HUD_K);
+  }
+  hctx.restore();
+}
+/* Flecha (blanco fuera de la pantalla, guiadas enemigas): punta de lanza con aletas, asta y una gema en la cola, con el degradado de P. */
+function arcArrow(x, y, ang, P, len) {
+  const k = HUD_K, L = len * k, w = 9 * k, sw = 2.2 * k;
+  hctx.save(); hctx.translate(x, y); hctx.rotate(ang);
+  hctx.beginPath(); hctx.moveTo(0, 0); hctx.lineTo(-L * 0.42, -w); hctx.lineTo(-L * 0.32, -sw); hctx.lineTo(-L * 0.82, -sw); hctx.lineTo(-L * 0.82, sw); hctx.lineTo(-L * 0.32, sw); hctx.lineTo(-L * 0.42, w); hctx.closePath();
+  const g = hctx.createLinearGradient(0, 0, -L, 0); g.addColorStop(0, P.ink); g.addColorStop(0.4, P.line); g.addColorStop(1, P.f2);
+  hctx.lineJoin = 'round'; hctx.lineWidth = 3 * k; hctx.strokeStyle = ARC_SHADE; hctx.stroke();
+  hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.fillStyle = g; hctx.fill(); hctx.shadowBlur = 0;
+  hctx.lineWidth = k; hctx.strokeStyle = P.line; hctx.stroke();
+  hctx.restore();
+  arcGem(x - Math.cos(ang) * L * 0.9, y - Math.sin(ang) * L * 0.9, 3.6 * k, 3.6 * k, P);
+}
+
+/* ---------- Minimapa redondo (astrolabio) ---------- */
+/* Mismo sitio y tamaño que el cuadrado. Tú en el centro, con tu rumbo hacia arriba; el borde es el anillo de 3 km; anillos a 750 m y 1,5 km,
+   cruz y las dos rayas de tu campo de visión; debajo, el relieve en sepia (MM.cvA). Encima, el bisel: doble anillo dorado con marcas cada 10°
+   y los puntos cardinales (el norte, una flor de lis en brasa) que giran con tu rumbo. Los símbolos, como en el cuadrado
+   (drawMinimapSymbols); lo que queda fuera, en el borde, en su dirección. */
+function arcMinimap(heading, fwd) {
+  const k = HUD_K, S = 242 * k, R = S / 2, Ri = R - 5 * k;
+  const cx = Math.max(28 * k, HW / 2 - 711.5 * k) + R, cy = HH - 47 * k - R, kk = Ri / MM_RANGE;   // (margen para las letras de fuera)
+  const hl = Math.hypot(fwd.x, fwd.z) || 1, fx = fwd.x / hl, fz = fwd.z / hl, rx = -fz, rz = fx, p = dragon.position, G = ARC_GOLD;
+  minimapTerrain(p.x, p.z);
+  hctx.save(); hctx.shadowBlur = 0;
+  hctx.beginPath(); hctx.arc(cx, cy, Ri, 0, 6.2832); hctx.clip();
+  const bg = hctx.createRadialGradient(cx, cy, 0, cx, cy, Ri); bg.addColorStop(0, 'rgba(34,26,14,.55)'); bg.addColorStop(1, 'rgba(14,10,6,.72)');
+  hctx.fillStyle = bg; hctx.fillRect(cx - R, cy - R, S, S);
+  if (MM.ready) {                                          // relieve: la textura (norte arriba) girada con tu rumbo
+    const s = MM_SPAN / MM_N, X0 = MM.cx - MM_SPAN / 2 - p.x, Z0 = MM.cz - MM_SPAN / 2 - p.z;
+    hctx.save(); hctx.globalAlpha = 0.8; hctx.imageSmoothingEnabled = true; hctx.imageSmoothingQuality = 'high';
+    hctx.transform(kk * s * rx, -kk * s * fx, kk * s * rz, -kk * s * fz, cx + kk * (rx * X0 + rz * Z0), cy - kk * (fx * X0 + fz * Z0));
+    hctx.drawImage(MM.cvA, 0, 0); hctx.restore();
+  }
+  const vg = hctx.createRadialGradient(cx, cy, Ri * 0.45, cx, cy, Ri); vg.addColorStop(0, 'rgba(12,8,3,0)'); vg.addColorStop(1, 'rgba(12,8,3,.5)');
+  hctx.fillStyle = vg; hctx.fillRect(cx - R, cy - R, S, S);
+  const A = mission.area;
+  if (A) {                                                 // fuera del área de la misión: rayas de peligro (como en el cuadrado, v45)
+    const dx = A.x - p.x, dz = A.z - p.z, ox = cx + (dx * rx + dz * rz) * kk, oy = cy - (dx * fx + dz * fz) * kk, rr = A.r * kk;
+    hctx.beginPath(); hctx.rect(cx - R, cy - R, S, S); hctx.arc(ox, oy, rr, 0, 6.283);
+    hctx.fillStyle = 'rgba(255,48,32,.28)'; hctx.fill('evenodd');
+    const hz = hazardPattern(k); if (hz.setTransform) hz.setTransform(new DOMMatrix().translateSelf(gameTime * 6 * k % hazardPat.n, 0));
+    hctx.fillStyle = hz; hctx.fill('evenodd');
+    hctx.setLineDash([6 * k, 4 * k]); hctx.strokeStyle = '#ff6a52'; hctx.lineWidth = 2.2 * k; hctx.shadowColor = 'rgba(255,60,40,.95)'; hctx.shadowBlur = 6 * k;
+    hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]); hctx.shadowBlur = 0;
+  }
+  if (hctx.createConicGradient) {                          // barrido dorado, muy tenue (una vuelta cada 4 s)
+    const a = gameTime * 1.57 % 6.2832, cg = hctx.createConicGradient(a, cx, cy);
+    cg.addColorStop(0, 'rgba(255,214,140,0)'); cg.addColorStop(0.8, 'rgba(255,214,140,0)'); cg.addColorStop(1, 'rgba(255,214,140,.15)');
+    hctx.fillStyle = cg; hctx.fillRect(cx - R, cy - R, S, S);
+  }
+  hctx.strokeStyle = G.line; hctx.lineWidth = k;          // anillos, cruz y campo de visión
+  hctx.globalAlpha = 0.5; hctx.beginPath(); hctx.arc(cx, cy, 750 * kk, 0, 6.283); hctx.stroke();
+  hctx.setLineDash([3 * k, 3 * k]); hctx.globalAlpha = 0.6; hctx.beginPath(); hctx.arc(cx, cy, 1500 * kk, 0, 6.283); hctx.stroke(); hctx.setLineDash([]);
+  const va = 0.66; hctx.globalAlpha = 0.3; hctx.beginPath();
+  hctx.moveTo(cx - Ri, cy); hctx.lineTo(cx + Ri, cy); hctx.moveTo(cx, cy - Ri); hctx.lineTo(cx, cy + Ri);
+  hctx.moveTo(cx - Math.sin(va) * Ri, cy - Math.cos(va) * Ri); hctx.lineTo(cx, cy); hctx.lineTo(cx + Math.sin(va) * Ri, cy - Math.cos(va) * Ri); hctx.stroke();
+  hctx.globalAlpha = 1;
+  hudGlow('1.5', cx + 4 * k, cy - 1500 * kk + 11 * k, 8.5 * k, G.line, 'rgba(0,0,0,0)', 'left', 0.6 * k);
+  hudGlow('3 KM', cx + 4 * k, cy - Ri + 15 * k, 8.5 * k, G.line, 'rgba(0,0,0,0)', 'left', 0.8 * k);
+  const at = (x, z) => {                                   // punto del mundo → minimapa; fuera del círculo, en el borde (_rp.far)
+    const dx = x - p.x, dz = z - p.z, m = Ri - 7 * k; let ox = (dx * rx + dz * rz) * kk, oy = -(dx * fx + dz * fz) * kk;
+    const l = Math.hypot(ox, oy), far = l > m; if (far) { ox *= m / l; oy *= m / l; }
+    _rp.x = cx + ox; _rp.y = cy + oy; _rp.d = Math.hypot(dx, dz); _rp.far = far; return _rp;
+  };
+  drawMinimapSymbols(at, rx, rz, fx, fz);
+  const P = ARC_FROST;                                     // tú: flecha de cristal azul con halo
+  hctx.fillStyle = P.line; hctx.strokeStyle = 'rgba(8,18,40,.9)'; hctx.lineWidth = 1.2; hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k;
+  hctx.beginPath(); hctx.moveTo(cx, cy - 9 * k); hctx.lineTo(cx - 6 * k, cy + 6 * k); hctx.lineTo(cx, cy + 2.5 * k); hctx.lineTo(cx + 6 * k, cy + 6 * k); hctx.closePath(); hctx.fill(); hctx.stroke();
+  hctx.shadowBlur = 0; hctx.fillStyle = 'rgba(255,255,255,.45)';
+  hctx.beginPath(); hctx.moveTo(cx, cy - 9 * k); hctx.lineTo(cx + 6 * k, cy + 6 * k); hctx.lineTo(cx, cy + 2.5 * k); hctx.closePath(); hctx.fill();
+  hctx.restore();
+  // bisel
+  hctx.save();
+  hctx.beginPath(); hctx.arc(cx, cy, R, 0, 6.2832); arcStroke(G.line, 1.8 * k);
+  hctx.beginPath(); hctx.arc(cx, cy, Ri, 0, 6.2832); hctx.globalAlpha = 0.85; hctx.lineWidth = 0.9 * k; hctx.strokeStyle = G.line; hctx.stroke(); hctx.globalAlpha = 1;
+  const aN = Math.atan2(fz, -fx), rad = Math.PI / 180;     // ángulo en pantalla del norte (el bisel gira con tu rumbo)
+  hctx.beginPath();
+  for (let b = 10; b < 360; b += 10) {
+    if (b % 90 === 0) continue;
+    const a = aN + b * rad, l = (b % 30 === 0 ? 5 : 3) * k, c = Math.cos(a), s = Math.sin(a);
+    hctx.moveTo(cx + c * Ri, cy + s * Ri); hctx.lineTo(cx + c * (Ri - l), cy + s * (Ri - l));
+  }
+  arcStroke(G.line, 0.9 * k);
+  for (let b = 45; b < 360; b += 90) { const a = aN + b * rad; arcGem(cx + Math.cos(a) * (R - 2.5 * k), cy + Math.sin(a) * (R - 2.5 * k), 2.2 * k, 2.2 * k, G); }
+  for (const [l, b] of [['N', 0], ['E', 90], ['S', 180], ['W', 270]]) {
+    const a = aN + b * rad, c = Math.cos(a), s = Math.sin(a), N = l === 'N';
+    if (N) arcFleur(cx + c * (R + k), cy + s * (R + k), a + Math.PI / 2, 6.5 * k);
+    else arcGem(cx + c * (R - 2.5 * k), cy + s * (R - 2.5 * k), 3.2 * k, 3.2 * k, G);
+    const lr = R + (N ? 19 : 11) * k, sz = (N ? 13 : 11.5) * k;
+    hudGlow(l, cx + c * lr, cy + s * lr + sz * A_CAP / 2, sz, N ? ARC_EMBER.line : G.line, N ? ARC_EMBER.glow : G.glow, 'center');
+  }
+  hctx.restore();
+}
+/* Flor de lis (el norte del minimapa): con la base en (x, y), girada ang (0: hacia arriba) y de tamaño s; en brasa con filo oscuro. Cada
+   pieza se rellena aparte (se solapan). */
+function arcFleur(x, y, ang, s) {
+  const parts = [
+    () => { hctx.moveTo(0, -1.6 * s); hctx.bezierCurveTo(0.45 * s, -1.1 * s, 0.35 * s, -0.5 * s, 0, -0.25 * s); hctx.bezierCurveTo(-0.35 * s, -0.5 * s, -0.45 * s, -1.1 * s, 0, -1.6 * s); },   // pétalo central
+    ...[-1, 1].map(m => () => {                            // pétalos de los lados, que se curvan hacia fuera y abajo
+      hctx.moveTo(0.1 * m * s, -0.3 * s);
+      hctx.bezierCurveTo(0.2 * m * s, -1.0 * s, 1.1 * m * s, -1.15 * s, 1.0 * m * s, -0.5 * s);
+      hctx.bezierCurveTo(0.95 * m * s, -0.25 * s, 0.7 * m * s, -0.25 * s, 0.72 * m * s, -0.45 * s);
+      hctx.bezierCurveTo(0.6 * m * s, -0.35 * s, 0.35 * m * s, -0.2 * s, 0.1 * m * s, -0.3 * s); hctx.closePath();
+    }),
+    () => { hctx.rect(-0.55 * s, -0.3 * s, 1.1 * s, 0.26 * s); hctx.moveTo(-0.3 * s, -0.04 * s); hctx.lineTo(0, 0.5 * s); hctx.lineTo(0.3 * s, -0.04 * s); hctx.closePath(); }   // banda y pie
+  ];
+  const k = HUD_K, P = ARC_EMBER, g = hctx.createLinearGradient(0, -1.6 * s, 0, 0.5 * s);
+  hctx.save(); hctx.translate(x, y); hctx.rotate(ang); hctx.lineJoin = 'round';
+  g.addColorStop(0, P.f0); g.addColorStop(0.5, P.f1); g.addColorStop(1, P.f2);
+  hctx.beginPath(); parts.forEach(f => f()); hctx.lineWidth = 2.4 * k; hctx.strokeStyle = ARC_DARK; hctx.stroke();
+  hctx.fillStyle = g; hctx.shadowColor = P.glow; hctx.shadowBlur = 6 * k;
+  for (const f of parts) { hctx.beginPath(); f(); hctx.fill(); }
+  hctx.shadowBlur = 0; hctx.beginPath(); parts.forEach(f => f()); hctx.lineWidth = 0.7 * k; hctx.strokeStyle = 'rgba(255,230,190,.7)'; hctx.stroke();
+  hctx.restore();
+}
+
+/* ---------- SPEED y ALT, boost y acelerador ---------- */
+/* Caja de un valor (SPEED, ALT), sin fondo: raya de arriba con un rombo al empezar, punta hacia el centro con una gema delante y raya de abajo
+   que sigue hacia fuera y acaba en voluta; un filo fino dentro de la punta; el rótulo encima y el número en Cinzel. dir: +1 apunta a la
+   derecha (SPEED, a la izquierda del centro). */
+function arcValueBox(x, y, w, h, label, txt, dir) {
+  const k = HUD_K, P = ARC_GOLD, pt = 12 * k, ex = 6 * k, X = u => dir > 0 ? x + u : x + w - u;   // X(u): u desde el lado de fuera
+  hctx.save(); hctx.beginPath();
+  hctx.moveTo(X(0), y); hctx.lineTo(X(w - pt), y); hctx.lineTo(X(w), y + h / 2); hctx.lineTo(X(w - pt), y + h); hctx.lineTo(X(-ex), y + h);
+  volutePath(X(-ex), y + h, -dir, 5 * k);
+  arcStroke(P.line, 1.3 * k);
+  hctx.beginPath(); hctx.moveTo(X(w - pt - 4 * k), y + 4 * k); hctx.lineTo(X(w - 4.5 * k), y + h / 2); hctx.lineTo(X(w - pt - 4 * k), y + h - 4 * k);
+  hctx.globalAlpha = 0.6; hctx.lineWidth = 0.9 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  hctx.restore();
+  arcGem(X(0), y, 2.8 * k, 3.4 * k, P);
+  arcGem(X(w + 8 * k), y + h / 2, 3.2 * k, 4.2 * k, P);
+  const tc = X((w - pt) / 2 + 3 * k);
+  hudGlow(label, tc, y - 7 * k, 12.5 * k, P.line, P.glow, 'center', 2.6 * k);
+  hudGlow(txt, tc, y + h / 2 + 21 * k * A_CAP / 2, 21 * k, P.ink, P.glow, 'center', 0.8 * k);
+}
+/* SPEED y ALT (en el sitio de las cajas militares: a 209 px de la marca de la trayectoria, que siguen); bajo SPEED, el boost en una cápsula
+   de brasa con «BOOST» y su porcentaje debajo; a su izquierda, el acelerador; bajo ALT, «HOVER» o «TIERRA». */
+function arcFlightBoxes(cx, cy) {
+  const k = HUD_K, w = 84 * k, h = 32 * k, by = cy - h / 2, sx = cx - 209 * k - w / 2, ax = cx + 209 * k - w / 2;
+  const bb = by + h + 9 * k, bh = 8 * k, bw = w - 4 * k, lb = bb + bh + 14 * k;
+  arcValueBox(sx, by, w, h, 'SPEED', String(Math.round(F.speed * 3.6)), 1);
+  hctx.save(); if (F.boostExhausted) hctx.globalAlpha = 0.55 + 0.45 * Math.sin(gameTime * 9);   // agotado: parpadea
+  arcCapsule(sx, bb, bw, bh, F.boost, ARC_EMBER);
+  hudGlow('BOOST', sx, lb, 9.5 * k, ARC_EMBER.line, ARC_EMBER.glow, 'left', 1.6 * k);
+  hudGlow(Math.round(F.boost * 100) + '%', sx + bw, lb, 9.5 * k, ARC_GOLD.ink, ARC_GOLD.glow, 'right');
+  hctx.restore();
+  arcThrottle(sx - 32 * k, by, 8 * k, bb + bh - by, by - 7 * k, lb);
+  arcValueBox(ax, by, w, h, 'ALT', String(Math.round(dragon.position.y - WL)), -1);
+  if (F.hover || GR.mode) { hctx.save(); hctx.globalAlpha = 0.7 + 0.3 * Math.sin(gameTime * 4); hudGlow(GR.mode ? 'TIERRA' : 'HOVER', ax + w / 2 + 6 * k, lb, 12 * k, ARC_GOLD.line, ARC_GOLD.glow, 'center', 2.4 * k); hctx.restore(); }
+}
+/* Acelerador: cápsula vertical que se llena de abajo arriba, marcas al 25, 50 y 75 % por fuera y una punta a la izquierda en su nivel; «THR»
+   encima y el porcentaje debajo. En hover o en tierra, apagado. */
+function arcThrottle(x, y, w, h, ly, vy) {
+  const k = HUD_K, P = ARC_GOLD, t = clamp(F.throttle, 0, 1);
+  hctx.save(); if (F.hover || GR.mode) hctx.globalAlpha = 0.35;
+  hudGlow('THR', x + w / 2, ly, 12.5 * k, P.line, P.glow, 'center', 2 * k);
+  arcCapsule(x, y, w, h, t, P, true);
+  hctx.beginPath();
+  for (const m of [0.25, 0.5, 0.75]) { const yy = y + h * (1 - m); hctx.moveTo(x + w + 2 * k, yy); hctx.lineTo(x + w + (m === 0.5 ? 6 : 4) * k, yy); }
+  arcStroke(P.line, 0.9 * k);
+  const ay = y + h * (1 - t);
+  hctx.beginPath(); hctx.moveTo(x - 2 * k, ay); hctx.lineTo(x - 8 * k, ay - 4 * k); hctx.lineTo(x - 8 * k, ay + 4 * k); hctx.closePath();
+  hctx.lineJoin = 'round'; hctx.lineWidth = 2.4 * k; hctx.strokeStyle = ARC_SHADE; hctx.stroke(); hctx.fillStyle = P.ink; hctx.fill();
+  hudGlow(Math.round(t * 100) + '%', x + w / 2, vy, 10 * k, P.ink, P.glow, 'center', 0.4 * k);
+  hctx.restore();
+}
+
+/* ---------- Armas, vida y mensajes ---------- */
+/* Armas (abajo a la derecha, sin marco ni cristal): rótulos en Cinzel y barras hexagonales; GUN y MSL de bronce (MSL a 0, carmesí), FLM con
+   el calor (bronce → brasa → carmesí, parpadea más cuanto más lleno), LSR de cristal azul con una gema en el borde (llena o disparando, con
+   halo). Durante el sobrecalentamiento o el rayo, lo que no se puede usar se apaga, como en el militar. */
+function arcWeapons() {
+  const k = HUD_K, w = 92 * k, h = 22 * k, pitch = 30.67 * k, size = 12 * k;
+  let bx = HW / 2 + 522 * k, lx = HW / 2 + 458 * k;
+  const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
+  const y3 = HH - 47 * k - h, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;
+  hctx.save();
+  const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; hudGlow(name, lx, y + h / 2 + 15 * k * A_CAP / 2, 15 * k, ARC_GOLD.line, ARC_GOLD.glow, 'left', 2.4 * k); return y; };
+  let y = row(0, 'GUN', oh || las || gnd);
+  arcBar(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, ARC_BRONZE, 10);
+  y = row(1, 'MSL', oh || las || gnd);
+  arcBar(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, W.msl > 0 ? ARC_BRONZE : ARC_CRIM, 10, W.msl > 0 ? null : ARC_CRIM.line);
+  y = row(2, 'FLM', las);
+  const heat = clamp(W.heat, 0, 1);
+  if (oh) hctx.globalAlpha = 0.55 + 0.45 * blink;
+  else if (heat > 0.02) hctx.globalAlpha *= 1 - 0.55 * heat * heat * (0.5 + 0.5 * Math.sin(gameTime * (4 + 10 * heat)));
+  arcBar(bx, y, w, h, heat, Math.round(heat * 100) + '%', size, oh ? ARC_CRIM : arcHeat(heat), 10, oh ? ARC_CRIM.line : null);
+  y = row(3, 'LSR', oh || gnd);
+  const full = W.ult >= 1 && !las;
+  if (full && !oh) hctx.globalAlpha = 0.65 + 0.35 * blink;
+  if (las || (full && !oh)) {                              // lleno o disparando: halo de cristal alrededor de la barra
+    hctx.save(); hctx.shadowColor = ARC_FROST.glow; hctx.shadowBlur = (las ? 16 : 8 + 14 * blink) * k; hctx.strokeStyle = ARC_FROST.line; hctx.lineWidth = 1.4 * k; hctx.lineJoin = 'round';
+    hctx.beginPath(); hexPath(bx - 3 * k, y - 3 * k, w + 6 * k, h + 6 * k, h * 0.48 + 3 * k); hctx.stroke(); hctx.restore();
+  }
+  arcBar(bx, y, w, h, W.ult, Math.floor(W.ult * 100 + 1e-6) + '%', size, ARC_FROST, 0, null, true);
+  hctx.restore();
+}
+/* Vida (abajo, en el centro): barra hexagonal carmesí con «vida/máxima», una gema y una voluta a cada lado; por debajo del 35 %, el filo
+   también carmesí y late; mientras se regenera, late más suave. */
+function arcHealth() {
+  const k = HUD_K, w = 132 * k, h = 26 * k, x = HW / 2 - w / 2, y = HH - 47 * k - h, hpMax = heroHpMax(), f = clamp(F.health / hpMax, 0, 1), low = f <= 0.35;
+  const regen = F.health < hpMax && F.health > 0 && gameTime - F.lastHit > HP_REGEN_WAIT && state === 'playing';
+  hctx.save();
+  if (regen) hctx.globalAlpha = 0.84 + 0.16 * Math.sin(gameTime * 6);
+  else if (low) hctx.globalAlpha = 0.8 + 0.2 * Math.sin(gameTime * 7);
+  arcBar(x, y, w, h, f, Math.ceil(F.health) + '/' + fmtStat(hpMax), 15 * k, ARC_CRIM, 10, low ? ARC_CRIM.line : null);
+  for (const d of [-1, 1]) {
+    const ex = d < 0 ? x : x + w;
+    arcGem(ex + d * 7 * k, y + h / 2, 3 * k, 4.6 * k, low ? ARC_CRIM : ARC_GOLD);
+    arcVolute(ex + d * 10.5 * k, y + h / 2, d, 6 * k, low ? ARC_CRIM.line : null);
+  }
+  hctx.restore();
+}
+/* «X DESTRUIDO» y «¡PROYECTIL APROXIMÁNDOSE!» (mismo sitio y tiempos que en el militar, drawKills): el texto en Cinzel entre dos rayas que
+   acaban en gemas, sin panel. Los derribos en pergamino, el punto de control en dorado y el aviso en carmesí. */
+function arcKills(warn) {
+  const k = HUD_K, size = 17 * k, sp = 3.2 * k;
+  let y = HH * 0.31;
+  const banner = (txt, sub, P, al, wide) => {
+    hctx.save(); hctx.font = FA(size); hctx.letterSpacing = sp.toFixed(1) + 'px'; const tw = hctx.measureText(txt).width; hctx.restore();
+    const half = (tw / 2 + 16 * k) * wide, L = 44 * k;
+    hctx.save(); hctx.globalAlpha *= al;
+    hctx.beginPath(); for (const d of [-1, 1]) { hctx.moveTo(HW / 2 + d * half, y); hctx.lineTo(HW / 2 + d * (half + L), y); }
+    arcStroke(P.line, 1.2 * k);
+    for (const d of [-1, 1]) arcGem(HW / 2 + d * (half + L + 4 * k), y, 3.2 * k, 4.4 * k, P);
+    hudGlow(txt, HW / 2, y + size * A_CAP / 2, size, P.ink, P.glow, 'center', sp);
+    if (sub) hudGlow(sub, HW / 2, y + size * A_CAP / 2 + 16 * k, 10.5 * k, P.line, P.glow, 'center', 2 * k);
+    hctx.restore();
+  };
+  if (warn) { banner(WARN_TXT, '', ARC_CRIM, Math.sin(gameTime * Math.PI * 2 * 2.5) > -0.2 ? 1 : 0.3, 1); y -= 34 * k; }
+  KILLS.forEach((m, i) => {
+    const t = gameTime - m.t0, al = Math.min(1, t / 0.12) * Math.min(1, (KILL_T - t) / 0.5) * (i ? 0.6 : 1);
+    banner(m.txt, m.sub, hpal(m.pal), al, 1 + 0.22 * Math.max(0, 1 - t / 0.16));
+    y -= (m.sub ? 44 : 34) * k;
+  });
+}
+
+/* ---------- Objetivos (los dos estilos) ---------- */
+/* Arriba a la izquierda (antes, arriba a la derecha con los puntos, que ya no salen): «OBJETIVOS» con su raya y, debajo, el tiempo que queda
+   (si la misión lo tiene) y cada objetivo con su frase de la receta (o.text) y su cuenta; los opcionales, con «· opcional» y la viñeta
+   hueca; los cumplidos, en dorado (se van a los 8 s). Al final, lo que le falta a la flota para escapar (Misión 1). Arcano: Cinzel y EB
+   Garamond, raya con gema y punta de flecha; militar: Graduate, raya verde con un cuadrado. */
+const _wrap = new Map();                                   // líneas ya partidas (texto, fuente y ancho); se vacía al cargar las fuentes
+try { document.fonts.addEventListener('loadingdone', () => _wrap.clear()); } catch (e) { }
+function wrapText(txt, font, sp, maxW) {
+  const key = font + '|' + sp + '|' + maxW + '|' + txt; let L = _wrap.get(key); if (L) return L;
+  hctx.save(); hctx.font = font; hctx.letterSpacing = sp.toFixed(1) + 'px'; L = []; let cur = '';
+  for (const w of txt.split(' ')) { const t = cur ? cur + ' ' + w : w; if (cur && hctx.measureText(t).width > maxW) { L.push(cur); cur = w; } else cur = t; }
+  if (cur) L.push(cur); hctx.restore();
+  if (_wrap.size > 200) _wrap.clear(); _wrap.set(key, L); return L;
+}
+function drawObjectives() {
+  const list = MS.objs.filter(o => o.shown && !(o.done && MS.t - o.doneT > 8));   // (v34: los cumplidos se van a los 8 s: en un capítulo se acumulan)
+  const left = mission.timeLimit ? Math.max(0, mission.timeLimit - MS.t) : null, ed = fleetEscapes() && !MS.ended ? airshipEdgeDist() : Infinity;
+  if (!list.length && left == null && !(ed < Infinity)) return;
+  const k = HUD_K, arc = HUD_ARC, P = hpal(PAL_G), PD = hpal(PAL_GOLD), PR = hpal(PAL_R), x0 = 30 * k, x1 = x0 + 230 * k;
+  let y = 34 * k;
+  hudGlow('OBJETIVOS', x0, y, (arc ? 14 : 13.5) * k, P.line, P.glow, 'left', (arc ? 2.8 : 1.6) * k);
+  const ry = y + 9 * k;
+  hctx.save();
+  if (arc) {
+    hctx.beginPath(); hctx.moveTo(x0 + 5 * k, ry); hctx.lineTo(x1, ry); hctx.moveTo(x1 - 6 * k, ry - 3.5 * k); hctx.lineTo(x1, ry); hctx.lineTo(x1 - 6 * k, ry + 3.5 * k);
+    arcStroke(P.line, 1.1 * k); arcGem(x0 + k, ry, 3 * k, 3.6 * k, P);
+  } else {
+    const g = hctx.createLinearGradient(x0, 0, x1, 0); g.addColorStop(0, P.line); g.addColorStop(1, P.faint);
+    hctx.shadowColor = P.glow; hctx.shadowBlur = 5 * k; hctx.fillStyle = g; hctx.fillRect(x0, ry - 0.6 * k, x1 - x0, 1.2 * k);
+    hctx.fillStyle = P.line; hctx.fillRect(x0, ry - 2.5 * k, 5 * k, 5 * k);
+  }
+  hctx.restore();
+  y = ry + 23 * k;
+  const head = (t, Q) => { hudGlow(t, x0 + 2 * k, y, 12.5 * k, Q.ink, Q.glow, 'left', (arc ? 2 : 1.2) * k); y += 22 * k; };
+  if (left != null) head('TIEMPO  ' + fmtClock(left), left < 30 ? PR : P);
+  const fs = (arc ? 16.5 : 12) * k, lh = (arc ? 19 : 17) * k, font = arc ? FB(fs) : FG(fs), sp = arc ? 0 : 0.6 * k, tx = x0 + 18 * k;
+  for (const o of list) {
+    const Q = o.done ? PD : P, open = o.optional && !o.done, by = y - fs * (arc ? 0.3 : 0.36);
+    const L = wrapText(o.text + ' (' + Math.min(o.n, o.count) + '/' + o.count + ')' + (o.optional ? ' · opcional' : ''), font, sp, 290 * k);
+    hctx.save();
+    if (arc) {                                             // viñeta: rombo dorado con otro dentro (hueco si es opcional)
+      hctx.beginPath(); diamondPath(x0 + 6 * k, by, 4.6 * k, 4.6 * k); arcStroke(Q.line, k);
+      if (!open) { hctx.beginPath(); diamondPath(x0 + 6 * k, by, 2 * k, 2 * k); hctx.fillStyle = Q.line; hctx.fill(); }
+    } else {                                               // viñeta: cuadrado verde (hueco si es opcional)
+      hctx.shadowColor = Q.glow; hctx.shadowBlur = 5 * k; hctx.strokeStyle = hctx.fillStyle = Q.line; hctx.lineWidth = 1.2 * k;
+      if (open) hctx.strokeRect(x0 + 2.5 * k, by - 3.5 * k, 7 * k, 7 * k); else hctx.fillRect(x0 + 2.5 * k, by - 3.5 * k, 7 * k, 7 * k);
+    }
+    hctx.restore();
+    for (const s of L) {
+      if (arc) {
+        hctx.save(); hctx.font = font; hctx.textAlign = 'left'; hctx.lineJoin = 'round';
+        hctx.lineWidth = 3 * k; hctx.strokeStyle = 'rgba(20,12,4,.72)'; hctx.strokeText(s, tx, y);
+        hctx.shadowColor = 'rgba(0,0,0,.6)'; hctx.shadowBlur = 4 * k; hctx.fillStyle = Q.ink; hctx.fillText(s, tx, y);
+        hctx.restore();
+      } else hudGlow(s, tx, y, fs, Q.ink, Q.glow, 'left', sp);
+      y += lh;
+    }
+    y += 6 * k;
+  }
+  if (ed < Infinity) {                                     // v23: lo que le falta a la flota para escapar (el dirigible más cercano al borde)
+    const near = ed < 2000;
+    hctx.save(); if (near) hctx.globalAlpha = 0.65 + 0.35 * Math.sin(gameTime * 8);
+    y += 2 * k; head('BORDE  ' + fmtDist(Math.max(0, ed)), near ? PR : P); hctx.restore();
+  }
+}
 /* ============================================================
    8b. INTRO «SKY APEX» Y MÚSICA DEL MENÚ
    · Al abrir: pantalla negra con «Pulsa cualquier tecla o haz clic» (el gesto, además, deja sonar la música).
@@ -9565,7 +10097,7 @@ const K = (...k) => k.map(x => `<kbd>${x}</kbd>`).join('');
 const TUTORIAL = [
   { cat: 'Vuelo', items: [
     { id: 'steering', title: 'Dirección y puntería', sum: 'El dragón vuela siempre hacia la mira.', keys: [[['Ratón'], 'Mover la mira: el dragón gira hacia ella'], [['Espacio'], 'Mantener: vuelo recto']], text: [
-      'Mueve el ratón para llevar la <b>mira</b> (el círculo naranja) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde vas en ese momento (tu trayectoria); cuando los dos coinciden, vas justo hacia la mira. En 1ª persona, con la mira en el 0 de la escalera de cabeceo, vuelas horizontal.',
+      'Mueve el ratón para llevar la <b>mira</b> (el círculo grande) adonde quieras ir: el dragón gira hacia ella y se inclina solo al virar. El marcador blanco pequeño señala hacia dónde vas en ese momento (tu trayectoria); cuando los dos coinciden, vas justo hacia la mira. En 1ª persona, con la mira en el 0 de la escalera de cabeceo, vuelas horizontal.',
       'Cuanto más lejos del morro pongas la mira, más cerrado será el giro. A poca velocidad el dragón gira más deprisa; a mucha, los giros son más abiertos.',
       'La mira es también el punto de mira de todas las armas. La sensibilidad del ratón se cambia en <b>Opciones</b>.',
       'Mantén ' + K('Espacio') + ' para volar recto: el dragón deja de seguir a la mira, se nivela solo (alas y morro) y vuela horizontal con el rumbo que llevaba, mientras la mira sigue al ratón y la cabeza del dragón la sigue. La cámara pasa a la de <b>apuntado</b>, detrás y por encima del dragón, para ver el suelo al que apuntas. Sirve para barrer el suelo con la llamarada en una pasada rasante. El marcador del morro se vuelve dorado y pone <b>VUELO RECTO</b>. Al soltar, el dragón vuelve a girar hacia la mira y la cámara a la de antes.'] },
@@ -9597,7 +10129,7 @@ const TUTORIAL = [
       K('W') + ' abre el acelerador y ' + K('S') + ' lo cierra. A la izquierda de la mira tienes la velocidad (<b>SPEED</b>, en km/h) y, a su izquierda, el acelerador (<b>THR</b>, de 0 a 100 %). A todo gas, en vuelo nivelado, el dragón llega a {vel_max} km/h. Mientras mantienes ' + K('W') + ', bate las alas con más fuerza.',
       'Volar más despacio permite girar más cerrado, pero por debajo de unos 120 km/h el dragón pierde sustentación y empieza a hundirse.'] },
     { id: 'boost', title: 'Boost', sum: 'Mucha más velocidad durante unos segundos.', keys: [[['Shift'], 'Mantener: boost']], text: [
-      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y en {boost_aceleracion} s pasa de {vel_max} a {vel_boost} km/h. La barra naranja <b>BOOST</b>, bajo la velocidad, dura {boost_duracion} s de uso seguido.',
+      'Mantén ' + K('Shift') + ': el dragón bate las alas al doble de ritmo y en {boost_aceleracion} s pasa de {vel_max} a {vel_boost} km/h. La barra <b>BOOST</b>, bajo la velocidad, dura {boost_duracion} s de uso seguido.',
       'Se recarga sola {boost_espera} s después de soltar ' + K('Shift') + ', un {boost_recarga} % por segundo. Si la vacías por completo (la barra parpadea), tiene que recargar un poco antes de volver a usarla.',
       'Con boost casi no se puede girar: úsalo en línea recta para acercarte, escapar o esquivar. En hover no funciona.'] },
     { id: 'dives', title: 'Subidas y picados', sum: 'Subir cuesta velocidad; bajar la da.', keys: [[['Ratón'], 'Mira arriba: subir · abajo: picar']], text: [
@@ -9610,11 +10142,11 @@ const TUTORIAL = [
       'Tienes {basico_municion} disparos: la barra <b>GUN</b> del panel de armas (abajo a la derecha) se vacía al disparar y, {basico_recarga_espera} s después de dejar de disparar, se vuelve a llenar sola.',
       'Si tienes seleccionado un blanco que se mueve deprisa (un dragón, por ejemplo), apunta al pequeño círculo gris que va por delante de él: es donde estará cuando le llegue el disparo. Con lo que está quieto o va despacio no sale: apunta directamente.'] },
     { id: 'targeting', title: 'Blancos y selección', sum: 'Marcos según el tipo; el clic central elige uno.', keys: [[['Clic central'], 'Seleccionar el blanco más cercano a la mira'], [['Clic central'], 'Otra vez, sin mover la mira: el siguiente']], text: [   // (v41)
-      'Cada enemigo lleva un marco verde a su alrededor, y su forma dice qué es: <b>cuadrado</b>, dragones y la sierpe; <b>círculo</b>, dirigibles, barcos y el superdirigible; <b>triángulo</b>, torres, artillería, torretas y hechiceros; <b>rectángulo</b>, batallones. Los que cuentan para la misión se ven más y llevan <b>TGT</b> al lado.',
+      'Cada enemigo lleva un marco a su alrededor, y su forma dice qué es: <b>cuadrado</b>, dragones y la sierpe; <b>círculo</b>, dirigibles, barcos y el superdirigible; <b>triángulo</b>, torres, artillería, torretas y hechiceros; <b>rectángulo</b>, batallones. Los que cuentan para la misión se ven más y llevan <b>TGT</b> al lado.',
       'El clic central (la rueda) selecciona el blanco en pantalla que esté más cerca de la mira: lleva la mira sobre lo que quieres y haz clic. Su marco parpadea y a su derecha salen su distancia en metros y su nombre (y su vida, si está herido).',
       'Si vuelves a hacer clic sin mover la mira, pasa al siguiente más cercano a ella, y así con cada clic; si apuntas a otro sitio, el clic selecciona lo que tengas allí. Si el único blanco es el que ya tienes seleccionado, lo suelta.',
       'Se selecciona casi todo: dragones (a cualquier distancia), torres, dirigibles y unidades de tierra y mar (a menos de 6 km) y el superdirigible, sus torretas, la sierpe y sus hechiceros (desde más de 12 km), cada torreta y cada hechicero por separado.',
-      'Con un blanco seleccionado aparece el círculo gris de adelanto (para el fuego rápido) y la bola guiada puede fijarlo (ver «Bola guiada»). Si sale de la pantalla, una flecha verde con su distancia te indica hacia dónde girar (y ' + K('F') + ' gira la cámara hacia él).'] },
+      'Con un blanco seleccionado aparece el círculo gris de adelanto (para el fuego rápido) y la bola guiada puede fijarlo (ver «Bola guiada»). Si sale de la pantalla, una flecha con su distancia te indica hacia dónde girar (y ' + K('F') + ' gira la cámara hacia él).'] },
     { id: 'homing_missile', title: 'Bola guiada', sum: 'Se fija sola; mantén el clic para lanzarla.', keys: [[['Clic central'], 'Seleccionar el blanco'], [['Clic izq.'], 'Mantener, con el blanco fijado (en rojo): lanzarla']], text: [   // (v41: como en Ace Combat)
       'Selecciona un blanco (clic central) y llévalo cerca de la mira (a menos de {guiado_cono}°) y a menos de {guiado_alcance} m: se fija solo en {guiado_fijado} s. Unas escuadras rojas se cierran sobre su marco con pitidos cada vez más rápidos y, al fijarse, suena un tono y el marco pasa a <b>rojo</b> con <b>LOCK</b>.',
       'Con el blanco fijado, mantén pulsado el clic izquierdo medio segundo (el primer clic dispara fuego rápido): sale una gran bola de fuego que persigue al blanco ({guiado_vel} km/h) y le quita {guiado_dano} de vida. El fijado sigue: otro clic mantenido, otra bola. Si el blanco se aleja mucho de la mira, el fijado se pierde poco a poco.',
@@ -9651,7 +10183,7 @@ const TUTORIAL = [
   ] },
   { cat: 'Enemigos del aire', items: [
     { id: 'dragons', title: 'Dragones enemigos', sum: 'Dragones amarillos que te buscan y te disparan.', keys: [], text: [
-      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Cada uno lleva un marco cuadrado verde ({enemigo.vida} de vida).',
+      'Son dragones amarillos de la raza de Alientormenta, más grandes que el tuyo, y dejan una estela amarilla que se ve desde muy lejos. Cada uno lleva un marco cuadrado ({enemigo.vida} de vida).',
       'Patrullan hasta que te detectan (a unos {enemigo.deteccion} m). Entonces hacen pasadas: se acercan, te disparan bolas de fuego, se alejan y vuelven por tu espalda. Vuelan a {enemigo.velocidad} km/h.',
       'Si te pegas a su cola, huyen hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzones, subidas y picados): síguelos y apunta. Al rato dan la vuelta con una curva abierta para volver a atacarte.',
       'En las misiones llegan en patrullas y escuadrones que vuelan en formación, sin disparar, hasta que te acercas, les disparas o deciden atacar; mientras no se sabe quiénes son, llevan la marca <b>DESCONOCIDO</b>. En el combate libre hay 20, como mucho 6 a la vez. En el radar son triángulos rojos que apuntan hacia donde vuelan.'] },
@@ -9659,7 +10191,7 @@ const TUTORIAL = [
       'Un dragón que te tiene delante puede fijarte: verás <b>TE ESTÁN FIJANDO</b>. A los {enemigo.guiada_fijado} s lanza una bola guiada ({enemigo.guiada_dano} de daño, {enemigo.guiada_vel} km/h): una flecha roja alrededor de la mira apunta hacia de donde viene, con los metros que le quedan, y suena un pitido que se acelera según se acerca; en el radar, un punto rojo que parpadea.',
       'Su guiado no es perfecto: cuando esté a unos 700 m, gira fuerte hacia un lado y pasará de largo. Si ya la tienes encima, esquiva con ' + K('A') + ' o ' + K('D') + ': a menos de {esquiva_guiadas} m pierde el blanco y sigue recta. También puede estrellarse contra el terreno, una isla o una torre si la llevas cerca. Si no puedes esquivarla, usa el escudo (' + K('R') + ').'] },
     { id: 'airships', title: 'Dirigibles', sum: 'Barcos voladores que disparan por los costados.', keys: [], text: [
-      'Grandes barcos voladores quietos en el aire, a cientos de metros sobre el suelo. Cada uno lleva un marco circular verde; en el radar son cápsulas huecas que apuntan hacia su proa.',
+      'Grandes barcos voladores quietos en el aire, a cientos de metros sobre el suelo. Cada uno lleva un marco circular; en el radar son cápsulas huecas que apuntan hacia su proa.',
       'A menos de {dirigible.alcance} m disparan sin parar proyectiles arcanos morados ({dirigible.dano} de daño cada uno), pero <b>solo por los costados</b>: si te acercas de frente o por detrás, o justo por encima o por debajo, no pueden apuntarte.',
       'Aguantan {dirigible.vida} de daño (la bola guiada hace {guiado_dano}) y dan {dirigible.puntos} puntos. Al caer revientan en una explosión de energía. Su casco no se puede atravesar.'] },
     { id: 'super_airship', title: 'Superdirigible', sum: 'Una fortaleza voladora de un kilómetro, erizada de torretas.', keys: [[['Clic central'], 'Fijar el núcleo o cada torreta']], text: [
@@ -9675,24 +10207,25 @@ const TUTORIAL = [
   ] },
   { cat: 'Enemigos de tierra y mar', items: [
     { id: 'towers', title: 'Torres antiaéreas', sum: 'Torres fijas que disparan ráfagas.', keys: [], text: [
-      'Se reconocen de lejos por el gran cristal morado que gira en su cima; cada una lleva un marco triangular verde y el radar las marca todas: cuadrados rojos (huecos si la torre está sobre una isla flotante; las que quedan lejos, en el borde). En el combate libre hay 30 alrededor del punto de partida, entre 10 y 15 de ellas en islas.',
+      'Se reconocen de lejos por el gran cristal morado que gira en su cima; cada una lleva un marco triangular y el radar las marca todas: cuadrados rojos (huecos si la torre está sobre una isla flotante; las que quedan lejos, en el borde). En el combate libre hay 30 alrededor del punto de partida, entre 10 y 15 de ellas en islas.',
       'A menos de {torre.aa_alcance} m te disparan ráfagas antiaéreas de {torre.aa_rafaga} proyectiles ({torre.aa_dano} de daño cada uno). Aguantan {torre.vida} de daño y destruirlas da {torre.puntos} puntos. No se pueden atravesar: rodéalas o pasa por encima.'] },
     { id: 'artillery', title: 'Artillería', sum: 'Balistas, catapultas y cañones: lentos, pero van en grupo.', keys: [], text: [
-      'Piezas de artillería en tierra: balistas, catapultas y cañones. Son iguales salvo el aspecto y lo que lanzan (virotes, piedras ardiendo o bolas). Suelen ir en grupos y en formación. Cada una lleva un marco triangular verde; en el radar, un cuadrado pequeño.',
+      'Piezas de artillería en tierra: balistas, catapultas y cañones. Son iguales salvo el aspecto y lo que lanzan (virotes, piedras ardiendo o bolas). Suelen ir en grupos y en formación. Cada una lleva un marco triangular; en el radar, un cuadrado pequeño.',
       'De vez en cuando (cada {artilleria.pausa_min}-{artilleria.pausa_max} s) te lanzan un proyectil en parábola, apuntando por delante de ti, si estás a menos de {artilleria.alcance} m. Hacen poco daño ({artilleria.dano}), pero un grupo entero se nota si te quedas encima.',
       'Aguantan {artilleria.vida} de daño y dan {artilleria.puntos} puntos. Lo más rápido: una pasada rasante con la llamarada a lo largo de la fila, o quedarte en hover (' + K('Ctrl izq.') + ') delante del grupo y acabar con ellos uno a uno con la llamarada y el fuego rápido. Al caer quedan sus restos, humeando.'] },
     { id: 'battalions', title: 'Batallones', sum: 'Bloques de cientos de soldados: el blanco de la llamarada.', keys: [[['Espacio'], 'Mantener: vuelo recto'], [['Ctrl izq.'], 'Hover: barrer el bloque sin moverte'], [['Clic dcho.'], 'Mantener: llamarada']], text: [
-      'Formaciones rectangulares de soldados a pie, de cientos o incluso miles. Cada batallón lleva un marco rectangular verde (al seleccionarlo, sus soldados en pie); en el radar, un rectángulo pequeño. La bola guiada no los fija. El batallón cuenta como destruido cuando no queda ninguno en pie.',
+      'Formaciones rectangulares de soldados a pie, de cientos o incluso miles. Cada batallón lleva un marco rectangular (al seleccionarlo, sus soldados en pie); en el radar, un rectángulo pequeño. La bola guiada no los fija. El batallón cuenta como destruido cuando no queda ninguno en pie.',
       'Cada soldado cae con muy poco ({batallon.vida} de vida): la llamarada quema a todos los que toca. Lo mejor es una pasada rasante: vuela bajo, mantén ' + K('Espacio') + ' para ir recto y barre el bloque de punta a punta con el clic derecho. También puedes quedarte en hover (' + K('Ctrl izq.') + ') delante del bloque y barrerlo con la mira. El fuego rápido mata a los que están junto al impacto; la bola guiada y el rayo, a un grupo más grande.',
       'Si pasas a menos de {batallon.flechas_alcance} m te lanzan andanadas de flechas: se ven, pero apenas hacen daño ({batallon.flechas_dano} por flecha). Cada soldado da {batallon.puntos_soldado} puntos y el batallón entero, {batallon.puntos} más.'] },
     { id: 'naval_ships', title: 'Barcos navales', sum: 'Barcos de guerra que disparan por los costados.', keys: [], text: [
-      'Barcos de guerra de {barco_naval.largo} m en el agua. Funcionan como los dirigibles: a menos de {barco_naval.alcance} m disparan andanadas ({barco_naval.dano} de daño por proyectil) <b>solo por los costados</b>; de proa, de popa o justo por encima no pueden apuntarte. Cada uno lleva un marco circular verde; en el radar, una cápsula hueca que apunta a su proa.',
+      'Barcos de guerra de {barco_naval.largo} m en el agua. Funcionan como los dirigibles: a menos de {barco_naval.alcance} m disparan andanadas ({barco_naval.dano} de daño por proyectil) <b>solo por los costados</b>; de proa, de popa o justo por encima no pueden apuntarte. Cada uno lleva un marco circular; en el radar, una cápsula hueca que apunta a su proa.',
       'Aguantan {barco_naval.vida} de daño (la bola guiada hace {guiado_dano}) y dan {barco_naval.puntos} puntos. Al hundirse escoran, arden y se van al fondo.'] }
   ] },
   { cat: 'Partida', items: [
     { id: 'hud', title: 'La pantalla (HUD)', sum: 'Dónde está cada indicador.', keys: [[['Esc', 'P'], 'Pausa'], [['M'], 'Silenciar el sonido']], text: [
-      '<b>En el centro</b>, la mira naranja (con los slots del escudo debajo) y la marca blanca de la dirección; a sus lados, la velocidad (<b>SPEED</b>, km/h) con el <b>BOOST</b> debajo, en naranja, y el acelerador (<b>THR</b>) a su izquierda, y la altitud sobre el nivel del mar (<b>ALT</b>, m; debajo, <b>HOVER</b> si estás en hover). Cada enemigo, un marco verde según su tipo (ver «Blancos y selección»); al destruir uno, <b>X DESTRUIDO</b> en el centro, encima de la mira. <b>Arriba</b>: la brújula con tu rumbo y, debajo, la radio y los avisos; arriba a la derecha, los objetivos de la misión y los puntos.',
-      '<b>Abajo a la izquierda</b>, el radar: un minimapa cuadrado con el relieve del terreno y tu rumbo hacia arriba, con anillos a 750 m, 1,5 y 3 km. Tú eres la flecha verde, por debajo del centro (ves más por delante); los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco seleccionado lleva un círculo dorado. Lo que queda más lejos sale en el borde, en su dirección.',
+      'Hay dos estilos (<b>Opciones → Estilo del HUD</b>): <b>Arcano</b> (oro viejo, gemas y volutas, como un manuscrito; el de partida) y <b>Militar</b> (verde, de cabina). Los dos muestran lo mismo en los mismos sitios.',
+      '<b>En el centro</b>, la mira (con los slots del escudo debajo) y la marca pequeña de la dirección; a sus lados, la velocidad (<b>SPEED</b>, km/h) con el <b>BOOST</b> debajo y el acelerador (<b>THR</b>) a su izquierda, y la altitud sobre el nivel del mar (<b>ALT</b>, m; debajo, <b>HOVER</b> si estás en hover). Cada enemigo, un marco según su tipo (ver «Blancos y selección»); al destruir uno, <b>X DESTRUIDO</b> en el centro, encima de la mira. <b>Arriba</b>: la brújula con tu rumbo y, debajo, la radio y los avisos; arriba a la izquierda, los objetivos de la misión.',
+      '<b>Abajo a la izquierda</b>, el radar: un minimapa con el relieve del terreno y tu rumbo hacia arriba, con anillos a 750 m, 1,5 y 3 km (en el arcano, redondo como un astrolabio, contigo en el centro y los puntos cardinales girando en el borde; en el militar, cuadrado, contigo por debajo del centro para ver más por delante). Tú eres la flecha (azul en el arcano, verde en el militar); los dragones enemigos, triángulos rojos; tus compañeros, triángulos azules huecos; las torres, cuadrados (las lejanas, en el borde); la artillería, cuadrados pequeños; los batallones, rectángulos; dirigibles, barcos y el superdirigible, cápsulas huecas; la sierpe, un círculo doble; y las bolas guiadas que vienen a por ti, puntos rojos que parpadean. Lo que cuenta para la misión sale en rojo vivo y lo demás, apagado; el blanco seleccionado lleva un círculo dorado. Lo que queda más lejos sale en el borde, en su dirección.',
       '<b>Abajo a la derecha</b>, las armas: <b>GUN</b> (fuego rápido) y <b>MSL</b> (bolas guiadas) con su munición, <b>FLM</b> con el calor de la llamarada y <b>LSR</b> con la carga del rayo. <b>Abajo en el centro</b>, la vida.'] },
     { id: 'squadron', title: 'Escuadrón y radio', sum: 'Tus compañeros vuelan contigo y hablan por radio.', keys: [[['Intro'], 'Saltar la pantalla de capítulo y la voz de la entrada']], text: [   // v35
       'En algunas misiones no vuelas solo: tus compañeros de escuadrón (en el Modo Historia, el <b>Escuadrón Paladin</b>; tú eres Percival, Paladin 3) son dragones azules. Sobre cada uno, un chevrón azul con su nombre y su distancia; en el radar, triángulos azules huecos. Los enemigos no los atacan.',
@@ -9700,7 +10233,7 @@ const TUTORIAL = [
       'Lo que dicen sale en la <b>radio</b>, arriba, bajo la brújula (en las escenas de cine, abajo, como un subtítulo): su inicial, su nombre y su designación (Paladin 1, Mando…) y el texto. También comentan lo que pasa: tus derribos, si te dan, si te lanzan una guiada… Algunos mensajes tienen voz (en inglés) y el texto sale como subtítulos.',
       'En <b>Opciones</b> eliges el idioma de los subtítulos (español o inglés) y el volumen de las voces; ' + K('M') + ' silencia todo el sonido. Al empezar un capítulo, ' + K('Intro') + ' salta la pantalla del capítulo y, durante la entrada de cine, corta la voz que suena.'] },
     { id: 'missions', title: 'Misiones y objetivos', sum: 'Qué hay que hacer, dónde, y cómo se gana o se pierde.', keys: [[['Esc', 'P'], 'Pausa: continuar, reintentar o volver al menú']], text: [   // v35: sustituye a «Objetivo de la partida»
-      'Cada misión empieza con unos segundos de vuelo automático, con bandas negras de cine y su nombre arriba; luego tomas el control. Los <b>objetivos</b> están arriba a la derecha, cada uno con su cuenta, y pueden ir apareciendo durante la misión (aviso <b>Nuevo objetivo</b>); los cumplidos se ponen dorados y los que llevan un rombo (◇) son opcionales. A veces, un recuadro bajo los avisos te da un consejo.',
+      'Cada misión empieza con unos segundos de vuelo automático, con bandas negras de cine y su nombre arriba; luego tomas el control. Los <b>objetivos</b> están arriba a la izquierda, cada uno con su cuenta, y pueden ir apareciendo durante la misión (aviso <b>Nuevo objetivo</b>); los cumplidos se ponen dorados y los opcionales lo dicen («· opcional») y llevan la viñeta hueca. A veces, un recuadro bajo los avisos te da un consejo.',
       'Los blancos que cuentan para un objetivo llevan la marca <b>TGT</b> junto a su marco y destacan en el radar. Lo que no la lleva también te ataca, pero no hace falta destruirlo para ganar.',
       'Las misiones tienen un <b>área</b>: en el radar, lo de fuera sale en rojo con rayas diagonales de peligro y el borde, con una línea discontinua. Si sales, una cuenta atrás de 15 s y una flecha dorada te indican el camino de vuelta; si llega a 0, la misión falla.',
       'En las misiones y en el Modo Historia no hay segunda oportunidad: si te derriban, <b>MISIÓN FALLIDA</b> (puedes reintentarla desde los resultados o desde la pausa). En los capítulos del Modo Historia, al acabar con cada oleada se guarda un <b>punto de control</b>: si caes, puedes reintentar desde él, con la vida, los escudos y la munición llenos. Al cumplir todos los objetivos, <b>MISIÓN CUMPLIDA</b> y la pantalla de resultados: tiempo, puntos, derribos, precisión, daño recibido…',
@@ -10783,6 +11316,7 @@ function updateRadio(dt) {
   MS.radio.shift();
   radioIconEl.textContent = m.c.icon || '?'; radioIconEl.style.background = m.c.color || '#f2b84b';
   radioNameEl.textContent = m.c.name + (m.c.tag ? '  ·  ' + m.c.tag : ''); radioNameEl.style.color = m.c.color || '#f2b84b'; radioEl.style.borderLeftColor = m.c.color || '#f2b84b';   // (v34: tag = su designación, «Paladin 1»)
+  radioEl.style.setProperty('--spk', m.c.color || '#f2b84b');   // (v48: el color de quien habla, para el sello del estilo arcano)
   const vd = m.voice ? voicePlay(m.voice) : 0;             // v34: la voz grabada (si está): el mensaje dura lo que ella
   if (vd > 0) m.dur = vd + 0.35;
   m.t0 = MS.t; m.chunks = subChunks(txt(m.text), vd > 0 ? vd : m.dur); m.ci = -1;
@@ -11016,7 +11550,7 @@ function drawDesign(heading) {
   const mine = DESIGN.marks.filter(m => m.seed === WORLD.seed);
   lines.push(['Intro: marcar punto' + (mine.length ? '  ·  ' + mine.length + (DESIGN.copied ? ', copiados' : ', sin copiar') : ''), C_DIM]);
   for (const m of mine.slice(-5)) lines.push(['#' + m.n + '  x ' + m.x + '  z ' + m.z + '  rumbo ' + m.heading + '°  altura ' + m.height + ' m', C_GOLD]);
-  const x0 = 24, y0 = 22, w = 360, lh = 18, h = 30 + lines.length * lh;
+  const w = 360, x0 = HW - 24 - w, y0 = mission.dev ? 44 : 22, lh = 18, h = 30 + lines.length * lh;   // (v48: arriba a la derecha: a la izquierda van los objetivos; en el Dev Test, bajo su rótulo)
   hctx.shadowBlur = 0;
   hctx.fillStyle = 'rgba(13,10,15,.74)'; hctx.fillRect(x0, y0, w, h);
   hctx.fillStyle = C_GOLD; hctx.fillRect(x0, y0, 2, h);
