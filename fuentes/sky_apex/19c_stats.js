@@ -67,11 +67,11 @@ const STATS_SCHEMA = {
     ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
     ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
     ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
-    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 350, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
     { sec: 'Tierra (solo el Tyrant)' },                    // v44
     ['aterrizaje_pendiente', 'Pendiente máxima para aterrizar', '°', 30, 'En suelo más empinado no aterriza: rebota.', 1],
     ['aterrizaje_margen', 'Margen de velocidad al aterrizar', '%', 20, 'Bajando hacia el suelo (a menos de 1 s), aterriza aunque vaya hasta este tanto por encima de la velocidad para posarse: al bajar el dragón acelera solo (con 0, solo a esa velocidad o menos).', 1],
-    ['tierra_vel', 'Velocidad andando', 'km/h', 15, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
+    ['tierra_vel', 'Velocidad andando', 'km/h', 20, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
     ['tierra_atras', 'Velocidad hacia atrás', '%', 60, 'S en tierra: este tanto de la velocidad andando.', 1],
     ['tierra_giro', 'Giro en tierra', '°/s', 60, 'A/D en tierra.'],
     ['despegue_vel', 'Velocidad al despegar', 'km/h', 150, 'Con la que vuelve al vuelo tras el despegue (Espacio en tierra), con el morro 12° arriba.']

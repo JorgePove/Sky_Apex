@@ -8571,7 +8571,7 @@ function updateDodge(dt) {
    Durante CRASH_GRACE s, otro choque rebota pero no quita vida (no se encadenan). Solo se cae si no queda vida (hurtDragon, con el motivo de
    siempre). Despacio sobre el agua (≤ LAND_SPEED, sin picar ni ir muy de lado) no hay choque: el dragón la roza sin hundirse. Los valores son
    stats del dragón (Excel, «Choques»: applyHeroStats). */
-let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 200 / 3.6;
+let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 350 / 3.6;
 const BUMP = { v: new THREE.Vector3(), t: -99, skim: false };   // velocidad del rebote (m/s), gameTime del último choque con daño, ¿rozando el agua?
 const _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _bc = new THREE.Vector3(), _bf = new THREE.Vector3(), _bu = new THREE.Vector3(), _bq = new THREE.Quaternion();
 function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
@@ -8837,11 +8837,14 @@ function flightEnd(dt, auto) {
    La animación (groundAnim, desde animateHero): GR.G = peso de los clips de tierra (el vuelo, el planeo y el hover se multiplican por
    1 − G en animateTyrant) y, dentro, reposo / andar / aterrizar / despegar.
    ============================================================ */
-let GROUND_SPEED = 15 / 3.6, GROUND_BACK = 0.6, GROUND_TURN = 60 * Math.PI / 180, GROUND_TAKEOFF = 150 / 3.6, LAND_SLOPE = 30, LAND_MARGIN = 0.2;   // (Excel, «Tierra»: applyHeroStats)
-const LAND_AGL = 14, LAND_RATE = 1.25, LAND_SETTLE = 0.55, TAKE_RATE = 1, GROUND_STEEP = 38, GROUND_BLEND = 6;
+let GROUND_SPEED = 20 / 3.6, GROUND_BACK = 0.6, GROUND_TURN = 60 * Math.PI / 180, GROUND_TAKEOFF = 150 / 3.6, LAND_SLOPE = 30, LAND_MARGIN = 0.2;   // (Excel, «Tierra»: applyHeroStats)
+const LAND_AGL = 14, LAND_RATE = 1.25, LAND_DECEL = 45, LAND_SETTLE = 0.55, TAKE_RATE = 1, GROUND_STEEP = 38, GROUND_BLEND = 6;
+/* v45 (aterrizaje_vel pasa a 350 km/h): la frenada dura lo que pida la velocidad (como mucho LAND_DECEL m/s²) y el clip «aterrizar» va a la
+   par, más despacio cuanto más deprisa llega (a LAND_RATE como mucho), para tocar el suelo justo al pararse. landTime: s hasta tocarlo. */
+const landTime = v => Math.max(GR.touch / LAND_RATE, v / LAND_DECEL);
 const GR = { mode: null, t: 0, yaw: 0, v: 0, turn: 0, G: 0, cool: 0, beat: false,
   p0: new THREE.Vector3(), v0: new THREE.Vector3(), y0: 0, q0: new THREE.Quaternion(), n: new THREE.Vector3(0, 1, 0),
-  lift: 3.36, walkV: 2.5, touch: 1.45, landEnd: 2.0, footLand: [], footTake: [], rate: 30,
+  lift: 3.36, walkV: 2.5, touch: 1.45, landEnd: 2.0, footLand: [], footTake: [], rate: 30, landRate: LAND_RATE,
   w: { idle: 0, walk: 0, land: 0, take: 0 } };               // pesos actuales de los clips de tierra (dentro de G)
 const _gF = new THREE.Vector3(), _gR = new THREE.Vector3(), _gN = new THREE.Vector3(), _gQ = new THREE.Quaternion(), _gP = new THREE.Vector3();
 
@@ -8893,7 +8896,7 @@ function canLand(pos, q, approach) {
   _gF.set(0, 0, -1).applyQuaternion(q); _gR.set(1, 0, 0).applyQuaternion(q); _gN.set(0, 1, 0).applyQuaternion(q);
   if (_gF.y < -0.42 || _gN.y <= 0 || Math.abs(Math.atan2(_gR.y, _gN.y)) > Math.PI / 4) return false;   // picando, boca abajo o muy de lado
   // dónde se posa: un poco más adelante (lo que avanza mientras frena)
-  _gP.copy(dragonVel).setY(0).multiplyScalar(GR.touch / LAND_RATE / 2).add(pos);
+  _gP.copy(dragonVel).setY(0); _gP.multiplyScalar(landTime(_gP.length()) / 2).add(pos);
   for (const p of [pos, _gP]) if (heightAt(p.x, p.z) < WL + 0.3 || terrainNormal(p.x, p.z, _gN).y < Math.cos(LAND_SLOPE * Math.PI / 180)) return false;
   return true;
 }
@@ -8903,14 +8906,15 @@ function landStart() {
   const p = dragon.position, q = dragon.quaternion;
   GR.mode = 'land'; GR.t = 0; GR.beat = false;
   GR.p0.copy(p); GR.y0 = p.y; GR.q0.copy(q);
-  GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED) GR.v0.setLength(LAND_SPEED);
+  GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED * (1 + LAND_MARGIN)) GR.v0.setLength(LAND_SPEED * (1 + LAND_MARGIN));
+  GR.landRate = GR.touch / landTime(GR.v0.length());           // (v45: ritmo del clip, para tocar el suelo al pararse)
   _gF.set(0, 0, -1).applyQuaternion(q); _gF.y = 0; if (_gF.lengthSq() < 1e-4) _gF.set(0, 1, 0).applyQuaternion(q).setY(0);
   GR.yaw = Math.atan2(-_gF.x, -_gF.z); GR.v = 0; GR.turn = 0;
   terrainNormal(p.x, p.z, GR.n);
   F.third = true;                                          // (Jorge: al aterrizar, 3ª persona; se queda al despegar)
   F.hover = false; F.hvy = 0; F.sink = 0; F.boosting = false; F.straight = false; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
   W.lmb = false; W.lockArmed = false; dodgeReset(); bumpReset();
-  const a = hero.act.gLand; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = LAND_RATE; a.setEffectiveWeight(0); a.play();
+  const a = hero.act.gLand; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = GR.landRate; a.setEffectiveWeight(0); a.play();
   for (const b of [hero.act.gIdle, hero.act.gWalk]) { b.reset(); b.setLoop(THREE.LoopRepeat, Infinity); b.clampWhenFinished = false; b.timeScale = 1; b.setEffectiveWeight(0); b.play(); }
   hero.act.gTake.stop();
   GR.w.idle = GR.w.walk = GR.w.take = 0; GR.w.land = 0;
@@ -8944,10 +8948,11 @@ function updateGround(dt) {
   F.hoverK = Math.max(0, F.hoverK - dt * 3);
   if (GR.mode === 'land') {
     // frena hasta pararse justo al tocar el suelo, baja hasta él (nunca con las patas por debajo) y se endereza sobre el terreno
-    const T = GR.touch / LAND_RATE, t = Math.min(GR.t, T), u = t / T;
+    const T = GR.touch / GR.landRate, t = Math.min(GR.t, T), u = t / T;
     const s = t - t * t / (2 * T);
     p.x = GR.p0.x + GR.v0.x * s; p.z = GR.p0.z + GR.v0.z * s;
-    const h = heightAt(p.x, p.z), ct = GR.t * LAND_RATE;
+    const h = heightAt(p.x, p.z), ct = Math.min(GR.t, T) * GR.landRate + Math.max(0, GR.t - T) * LAND_RATE;   // (tras tocar el suelo, el asentamiento a su ritmo)
+    if (GR.t >= T) hero.act.gLand.timeScale = LAND_RATE;
     p.y = Math.max(lerp(GR.y0, h + GR.lift, u * u * (3 - 2 * u)), h - footAt(GR.footLand, ct) + 0.1);
     GR.n.lerp(bodyNormal(p.x, p.z, _gN), 1 - Math.exp(-dt * 6)).normalize();
     q.copy(GR.q0).slerp(groundQuat(GR.n, _gQ), smooth(0, 0.7, u));
@@ -9034,7 +9039,7 @@ function groundAnim(dt) {
   }
   let tl = 0, tt = 0, ti = 0, tw = 0;
   const move = Math.abs(GR.v) / GROUND_SPEED, turn = Math.abs(GR.turn) / GROUND_TURN;
-  if (GR.mode === 'land') { const ct = GR.t * LAND_RATE; tl = 1 - smooth(GR.landEnd - 0.25, GR.landEnd + 0.15, ct); ti = 1 - tl; }
+  if (GR.mode === 'land') { const T = GR.touch / GR.landRate, ct = Math.min(GR.t, T) * GR.landRate + Math.max(0, GR.t - T) * LAND_RATE; tl = 1 - smooth(GR.landEnd - 0.25, GR.landEnd + 0.15, ct); ti = 1 - tl; }
   else if (GR.mode === 'takeoff' || !GR.mode) tt = 1;
   else { tw = clamp(Math.max(move, turn * 0.8), 0, 1); ti = 1 - tw; }
   const w = GR.w;
@@ -9354,6 +9359,19 @@ function minimapTerrain(px, pz) {
   }
   MM.g.putImageData(MM.img, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
 }
+/* v45: rayas de peligro de la zona fuera del área en el minimapa: bandas rojas vivas a 45° sobre rojo oscuro translúcido (una baldosa que se
+   repite sin cortes; se rehace si cambia la escala del HUD). */
+let hazardPat = null;
+function hazardPattern(k) {
+  if (hazardPat && hazardPat.k === k) return hazardPat.pat;
+  const n = Math.max(8, Math.round(12 * k)), c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(90,4,2,.35)'; g.fillRect(0, 0, n, n);
+  g.strokeStyle = 'rgba(255,82,60,.8)'; g.lineWidth = n * 0.36; g.lineCap = 'square';
+  for (const o of [-n, 0, n]) { g.beginPath(); g.moveTo(o, n); g.lineTo(o + n, 0); g.stroke(); }
+  hazardPat = { k, n, pat: hctx.createPattern(c, 'repeat') };
+  return hazardPat.pat;
+}
 function drawMinimap(heading, fwd) {
   const k = HUD_K, S = 242 * k, cxs = HW / 2;
   const xa = Math.max(16 * k, cxs - 711.5 * k), yb = HH - 47 * k, ya = yb - S, xb = xa + S;   // (a la izquierda del centro; en pantallas estrechas, pegado al borde)
@@ -9371,17 +9389,21 @@ function drawMinimap(heading, fwd) {
     hctx.transform(kk * s * rx, -kk * s * fx, kk * s * rz, -kk * s * fz, cx + kk * (rx * X0 + rz * Z0), cy - kk * (fx * X0 + fz * Z0));
     hctx.drawImage(MM.cv, 0, 0); hctx.restore();
   }
-  const A = mission.area;
-  if (A) {                                                 // v15: área de la misión: fuera de ella, sombreado rojo; el borde, discontinuo
-    const dx = A.x - p.x, dz = A.z - p.z, ox = cx + (dx * rx + dz * rz) * kk, oy = cy - (dx * fx + dz * fz) * kk, rr = A.r * kk;
-    hctx.beginPath(); hctx.rect(xa, ya, S, S); hctx.arc(ox, oy, rr, 0, 6.283);
-    hctx.fillStyle = 'rgba(255,74,58,.2)'; hctx.fill('evenodd');
-    hctx.setLineDash([5, 4]); hctx.strokeStyle = 'rgba(255,74,58,.9)'; hctx.lineWidth = 1.6;
-    hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]);
-  }
   const vg = hctx.createRadialGradient(cx, cy, S * 0.25, cx, cy, S * 0.95);   // viñeta: bordes más oscuros
   vg.addColorStop(0, 'rgba(0,12,5,0)'); vg.addColorStop(1, 'rgba(0,12,5,.45)'); hctx.fillStyle = vg; hctx.fillRect(xa, ya, S, S);
   hctx.fillStyle = scanPattern(); hctx.fillRect(xa, ya, S, S);
+  const A = mission.area;
+  if (A) {                                                 // v15: área de la misión: fuera de ella, zona roja; el borde, discontinuo
+    // v45 (Jorge: se distinguía muy poco del verde): rojo más vivo, rayas diagonales de peligro que avanzan despacio (hazardPattern) y el
+    // borde más grueso y con brillo; encima de la viñeta, para que no se apague hacia los bordes
+    const dx = A.x - p.x, dz = A.z - p.z, ox = cx + (dx * rx + dz * rz) * kk, oy = cy - (dx * fx + dz * fz) * kk, rr = A.r * kk;
+    hctx.beginPath(); hctx.rect(xa, ya, S, S); hctx.arc(ox, oy, rr, 0, 6.283);
+    hctx.fillStyle = 'rgba(255,48,32,.28)'; hctx.fill('evenodd');
+    const hz = hazardPattern(k); if (hz.setTransform) hz.setTransform(new DOMMatrix().translateSelf(gameTime * 6 * k % hazardPat.n, 0));
+    hctx.fillStyle = hz; hctx.fill('evenodd');
+    hctx.setLineDash([6 * k, 4 * k]); hctx.strokeStyle = '#ff6a52'; hctx.lineWidth = 2.2 * k; hctx.shadowColor = 'rgba(255,60,40,.95)'; hctx.shadowBlur = 6 * k;
+    hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]); hctx.shadowBlur = 0;
+  }
   if (hctx.createConicGradient) {                          // barrido de radar: una vuelta cada 4 s, con estela
     const a = gameTime * 1.57 % 6.2832, cg = hctx.createConicGradient(a, cx, cy);
     cg.addColorStop(0, 'rgba(120,255,170,0)'); cg.addColorStop(0.8, 'rgba(120,255,170,0)'); cg.addColorStop(1, 'rgba(120,255,170,.2)');
@@ -10133,7 +10155,7 @@ const TUTORIAL = [
     { id: 'misiones', title: 'Misiones y objetivos', sum: 'Qué hay que hacer, dónde, y cómo se gana o se pierde.', keys: [[['Esc', 'P'], 'Pausa: continuar, reintentar o volver al menú']], text: [   // v35: sustituye a «Objetivo de la partida»
       'Cada misión empieza con unos segundos de vuelo automático, con bandas negras de cine y su nombre arriba; luego tomas el control. Los <b>objetivos</b> están arriba a la derecha, cada uno con su cuenta, y pueden ir apareciendo durante la misión (aviso <b>Nuevo objetivo</b>); los cumplidos se ponen dorados y los que llevan un rombo (◇) son opcionales. A veces, un recuadro bajo los avisos te da un consejo.',
       'Los blancos que cuentan para un objetivo llevan la marca <b>TGT</b> junto a su marco y destacan en el radar. Lo que no la lleva también te ataca, pero no hace falta destruirlo para ganar.',
-      'Las misiones tienen un <b>área</b>: en el radar, lo de fuera sale sombreado en rojo y el borde, con una línea discontinua. Si sales, una cuenta atrás de 15 s y una flecha dorada te indican el camino de vuelta; si llega a 0, la misión falla.',
+      'Las misiones tienen un <b>área</b>: en el radar, lo de fuera sale en rojo con rayas diagonales de peligro y el borde, con una línea discontinua. Si sales, una cuenta atrás de 15 s y una flecha dorada te indican el camino de vuelta; si llega a 0, la misión falla.',
       'En las misiones y en el Modo Historia no hay segunda oportunidad: si te derriban, <b>MISIÓN FALLIDA</b> (puedes reintentarla desde los resultados o desde la pausa). En los capítulos del Modo Historia, al acabar con cada oleada se guarda un <b>punto de control</b>: si caes, puedes reintentar desde él, con la vida, los escudos y la munición llenos. Al cumplir todos los objetivos, <b>MISIÓN CUMPLIDA</b> y la pantalla de resultados: tiempo, puntos, derribos, precisión, daño recibido…',
       'En el <b>combate libre</b> no hay área ni prisa: destruye las 30 torres y derriba los 20 dragones para ganar. Si caes, reapareces en el aire.'] }
   ] }
@@ -11515,11 +11537,11 @@ const STATS_SCHEMA = {
     ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
     ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
     ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
-    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 200, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
+    ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 350, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
     { sec: 'Tierra (solo el Tyrant)' },                    // v44
     ['aterrizaje_pendiente', 'Pendiente máxima para aterrizar', '°', 30, 'En suelo más empinado no aterriza: rebota.', 1],
     ['aterrizaje_margen', 'Margen de velocidad al aterrizar', '%', 20, 'Bajando hacia el suelo (a menos de 1 s), aterriza aunque vaya hasta este tanto por encima de la velocidad para posarse: al bajar el dragón acelera solo (con 0, solo a esa velocidad o menos).', 1],
-    ['tierra_vel', 'Velocidad andando', 'km/h', 15, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
+    ['tierra_vel', 'Velocidad andando', 'km/h', 20, 'W en tierra. El andar se acelera en proporción (a su ritmo natural va a unos 9 km/h), así que las patas no patinan.'],
     ['tierra_atras', 'Velocidad hacia atrás', '%', 60, 'S en tierra: este tanto de la velocidad andando.', 1],
     ['tierra_giro', 'Giro en tierra', '°/s', 60, 'A/D en tierra.'],
     ['despegue_vel', 'Velocidad al despegar', 'km/h', 150, 'Con la que vuelve al vuelo tras el despegue (Espacio en tierra), con el morro 12° arriba.']
@@ -11821,7 +11843,7 @@ function statsResolve(vals) {
 }
 
 /* ---------- En el juego ---------- */
-const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":200,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":15,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
+const STATS_EMBED = /*STATS_EMBED*/{"base":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":350,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":20,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"tyrant":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":350,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":20,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"rojo":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":350,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":20,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"drogon":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":350,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":20,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"fulgor":{"vida":100,"vida_espera":5,"vida_regen":10,"escudos":3,"escudo_duracion":5,"escudo_recarga":15,"escudo_derribo":3,"basico_dano":5,"basico_municion":20,"basico_pausa":0.1,"basico_recarga_espera":1,"basico_recarga":8,"guiado_dano":60,"guiado_municion":30,"guiado_vel":2160,"guiado_alcance":3000,"guiado_fijado":2,"guiado_cono":15,"llamas_dano":15,"llamas_alcance":300,"llamas_sobrecarga":5,"llamas_bloqueo":10,"llamas_enfriado":4,"rayo_dano":50,"rayo_duracion":5,"rayo_alcance":8,"rayo_recarga":0.5,"rayo_por_derribo":5,"vel_max":600,"vel_boost":1000,"boost_duracion":10,"boost_aceleracion":3,"boost_espera":2,"boost_recarga":2,"giro_radio":110,"esquiva_distancia":30,"esquiva_duracion":1.5,"esquiva_recarga":1,"esquiva_guiadas":400,"choque_dano":20,"choque_rebote":30,"choque_pausa":1.5,"aterrizaje_vel":350,"aterrizaje_pendiente":30,"aterrizaje_margen":20,"tierra_vel":20,"tierra_atras":60,"tierra_giro":60,"despegue_vel":150},"enemigo":{"vida":70,"velocidad":500,"giro_radio":130,"deteccion":2000,"perder":3500,"puntos":300,"huida_distancia":1800,"huida_min":10,"huida_max":18,"bola_dano":10,"bola_alcance":1000,"bola_pausa_min":1.7,"bola_pausa_max":2.9,"bola_error":2.2,"guiada_dano":30,"guiada_fijado":4,"guiada_alcance_min":500,"guiada_alcance_max":2000,"guiada_pausa":60,"guiada_separacion":20,"guiada_vel":750,"guiada_giro":30,"choque_dano":25,"choque_recibe":50},"torre":{"vida":60,"puntos":100,"guiada_destruye":1,"aa_dano":3,"aa_alcance":1000,"aa_rafaga":5,"aa_cadencia":0.12,"aa_pausa_min":2.2,"aa_pausa_max":3.6,"aa_vel":1100,"aa_dispersion":2},"dirigible":{"vida":50,"puntos":200,"dano":1,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":50},"artilleria":{"vida":40,"puntos":80,"largo":11,"velocidad":20,"dano":3,"alcance":700,"pausa_min":6,"pausa_max":10,"vel":200,"dispersion":2.5},"batallon":{"soldados_min":300,"soldados_max":1000,"separacion":1.6,"vida":2,"puntos_soldado":2,"puntos":150,"velocidad":5,"radio_llamas":3,"radio_basico":2.5,"radio_guiado":12,"radio_rayo":5,"flechas_alcance":400,"flechas_andanada":40,"flechas_pausa":2.5,"flechas_vel":75,"flechas_dispersion":4,"flechas_dano":0.1},"barco_naval":{"vida":50,"puntos":200,"largo":110,"velocidad":30,"dano":2,"alcance":1000,"cadencia":0.3,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":70},"superdirigible":{"vida":1500,"puntos":2000,"largo":1000,"altura_min":1500,"velocidad":60,"torretas":6,"torreta_vida":50,"torreta_puntos":100,"torreta_largo":24,"torreta_cadencia":1.5,"dano":2,"alcance":2000,"vel":800,"dispersion":1.72,"muerto_proa":35,"muerto_vertical":35,"rayo_espera":60,"rayo_carga":10,"rayo_duracion":4,"rayo_repetir":45,"rayo_dano":30,"rayo_radio":30,"rayo_ancho":70,"rayo_alcance":12000,"rayo_giro":2},"sierpe":{"vida":1500,"puntos":5000,"largo":500,"altura":2000,"radio_circulo":3500,"velocidad":300,"llamas_dano":40,"llamas_alcance":900,"llamas_angulo":25,"llamas_duracion":4,"llamas_pausa":6,"bola_dano":15,"bola_alcance":1500,"bola_pausa_min":1.2,"bola_pausa_max":2.4,"hechiceros":3,"hechicero_vida":60,"hechicero_puntos":300},"lance":{"basico_dano":5,"basico_pausa_min":0.14,"basico_pausa_max":0.26,"basico_alcance":1000,"basico_error":1,"llamas_dano":70,"llamas_alcance":200,"vel_max":1100,"combate_distancia":2000,"proteger_dist":1000,"proteger_prob":60,"proteger_urgente":600,"blanco_min":5,"blanco_max":10,"escolta_radio":550,"escolta_persecucion":5,"escolta_pausa":14,"escolta_dano":25,"escolta_vida_min":40}}/*FIN*/;           // copia del Excel: la escribe construir.mjs al construir
 let STATS = statsResolve({}).R;                            // stats de cada unidad (STATS.tyrant, STATS.enemigo…): los de ahora
 const statsInfo = { src: 'por defecto', at: null, sig: '', err: '', miss: [] };
 let HP_REGEN_WAIT = 5, HP_REGEN = 10, SHIELD_CD = 15, SHIELD_KILL_CUT = 3;   // (v39) jugador: regeneración de la vida y recarga de los slots de escudo

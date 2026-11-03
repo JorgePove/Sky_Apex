@@ -21,11 +21,14 @@
    La animación (groundAnim, desde animateHero): GR.G = peso de los clips de tierra (el vuelo, el planeo y el hover se multiplican por
    1 − G en animateTyrant) y, dentro, reposo / andar / aterrizar / despegar.
    ============================================================ */
-let GROUND_SPEED = 15 / 3.6, GROUND_BACK = 0.6, GROUND_TURN = 60 * Math.PI / 180, GROUND_TAKEOFF = 150 / 3.6, LAND_SLOPE = 30, LAND_MARGIN = 0.2;   // (Excel, «Tierra»: applyHeroStats)
-const LAND_AGL = 14, LAND_RATE = 1.25, LAND_SETTLE = 0.55, TAKE_RATE = 1, GROUND_STEEP = 38, GROUND_BLEND = 6;
+let GROUND_SPEED = 20 / 3.6, GROUND_BACK = 0.6, GROUND_TURN = 60 * Math.PI / 180, GROUND_TAKEOFF = 150 / 3.6, LAND_SLOPE = 30, LAND_MARGIN = 0.2;   // (Excel, «Tierra»: applyHeroStats)
+const LAND_AGL = 14, LAND_RATE = 1.25, LAND_DECEL = 45, LAND_SETTLE = 0.55, TAKE_RATE = 1, GROUND_STEEP = 38, GROUND_BLEND = 6;
+/* v45 (aterrizaje_vel pasa a 350 km/h): la frenada dura lo que pida la velocidad (como mucho LAND_DECEL m/s²) y el clip «aterrizar» va a la
+   par, más despacio cuanto más deprisa llega (a LAND_RATE como mucho), para tocar el suelo justo al pararse. landTime: s hasta tocarlo. */
+const landTime = v => Math.max(GR.touch / LAND_RATE, v / LAND_DECEL);
 const GR = { mode: null, t: 0, yaw: 0, v: 0, turn: 0, G: 0, cool: 0, beat: false,
   p0: new THREE.Vector3(), v0: new THREE.Vector3(), y0: 0, q0: new THREE.Quaternion(), n: new THREE.Vector3(0, 1, 0),
-  lift: 3.36, walkV: 2.5, touch: 1.45, landEnd: 2.0, footLand: [], footTake: [], rate: 30,
+  lift: 3.36, walkV: 2.5, touch: 1.45, landEnd: 2.0, footLand: [], footTake: [], rate: 30, landRate: LAND_RATE,
   w: { idle: 0, walk: 0, land: 0, take: 0 } };               // pesos actuales de los clips de tierra (dentro de G)
 const _gF = new THREE.Vector3(), _gR = new THREE.Vector3(), _gN = new THREE.Vector3(), _gQ = new THREE.Quaternion(), _gP = new THREE.Vector3();
 
@@ -77,7 +80,7 @@ function canLand(pos, q, approach) {
   _gF.set(0, 0, -1).applyQuaternion(q); _gR.set(1, 0, 0).applyQuaternion(q); _gN.set(0, 1, 0).applyQuaternion(q);
   if (_gF.y < -0.42 || _gN.y <= 0 || Math.abs(Math.atan2(_gR.y, _gN.y)) > Math.PI / 4) return false;   // picando, boca abajo o muy de lado
   // dónde se posa: un poco más adelante (lo que avanza mientras frena)
-  _gP.copy(dragonVel).setY(0).multiplyScalar(GR.touch / LAND_RATE / 2).add(pos);
+  _gP.copy(dragonVel).setY(0); _gP.multiplyScalar(landTime(_gP.length()) / 2).add(pos);
   for (const p of [pos, _gP]) if (heightAt(p.x, p.z) < WL + 0.3 || terrainNormal(p.x, p.z, _gN).y < Math.cos(LAND_SLOPE * Math.PI / 180)) return false;
   return true;
 }
@@ -87,14 +90,15 @@ function landStart() {
   const p = dragon.position, q = dragon.quaternion;
   GR.mode = 'land'; GR.t = 0; GR.beat = false;
   GR.p0.copy(p); GR.y0 = p.y; GR.q0.copy(q);
-  GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED) GR.v0.setLength(LAND_SPEED);
+  GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED * (1 + LAND_MARGIN)) GR.v0.setLength(LAND_SPEED * (1 + LAND_MARGIN));
+  GR.landRate = GR.touch / landTime(GR.v0.length());           // (v45: ritmo del clip, para tocar el suelo al pararse)
   _gF.set(0, 0, -1).applyQuaternion(q); _gF.y = 0; if (_gF.lengthSq() < 1e-4) _gF.set(0, 1, 0).applyQuaternion(q).setY(0);
   GR.yaw = Math.atan2(-_gF.x, -_gF.z); GR.v = 0; GR.turn = 0;
   terrainNormal(p.x, p.z, GR.n);
   F.third = true;                                          // (Jorge: al aterrizar, 3ª persona; se queda al despegar)
   F.hover = false; F.hvy = 0; F.sink = 0; F.boosting = false; F.straight = false; F.rate.p = F.rate.y = F.rate.r = 0; F.bank = 0;
   W.lmb = false; W.lockArmed = false; dodgeReset(); bumpReset();
-  const a = hero.act.gLand; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = LAND_RATE; a.setEffectiveWeight(0); a.play();
+  const a = hero.act.gLand; a.reset(); a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; a.timeScale = GR.landRate; a.setEffectiveWeight(0); a.play();
   for (const b of [hero.act.gIdle, hero.act.gWalk]) { b.reset(); b.setLoop(THREE.LoopRepeat, Infinity); b.clampWhenFinished = false; b.timeScale = 1; b.setEffectiveWeight(0); b.play(); }
   hero.act.gTake.stop();
   GR.w.idle = GR.w.walk = GR.w.take = 0; GR.w.land = 0;
@@ -128,10 +132,11 @@ function updateGround(dt) {
   F.hoverK = Math.max(0, F.hoverK - dt * 3);
   if (GR.mode === 'land') {
     // frena hasta pararse justo al tocar el suelo, baja hasta él (nunca con las patas por debajo) y se endereza sobre el terreno
-    const T = GR.touch / LAND_RATE, t = Math.min(GR.t, T), u = t / T;
+    const T = GR.touch / GR.landRate, t = Math.min(GR.t, T), u = t / T;
     const s = t - t * t / (2 * T);
     p.x = GR.p0.x + GR.v0.x * s; p.z = GR.p0.z + GR.v0.z * s;
-    const h = heightAt(p.x, p.z), ct = GR.t * LAND_RATE;
+    const h = heightAt(p.x, p.z), ct = Math.min(GR.t, T) * GR.landRate + Math.max(0, GR.t - T) * LAND_RATE;   // (tras tocar el suelo, el asentamiento a su ritmo)
+    if (GR.t >= T) hero.act.gLand.timeScale = LAND_RATE;
     p.y = Math.max(lerp(GR.y0, h + GR.lift, u * u * (3 - 2 * u)), h - footAt(GR.footLand, ct) + 0.1);
     GR.n.lerp(bodyNormal(p.x, p.z, _gN), 1 - Math.exp(-dt * 6)).normalize();
     q.copy(GR.q0).slerp(groundQuat(GR.n, _gQ), smooth(0, 0.7, u));
@@ -218,7 +223,7 @@ function groundAnim(dt) {
   }
   let tl = 0, tt = 0, ti = 0, tw = 0;
   const move = Math.abs(GR.v) / GROUND_SPEED, turn = Math.abs(GR.turn) / GROUND_TURN;
-  if (GR.mode === 'land') { const ct = GR.t * LAND_RATE; tl = 1 - smooth(GR.landEnd - 0.25, GR.landEnd + 0.15, ct); ti = 1 - tl; }
+  if (GR.mode === 'land') { const T = GR.touch / GR.landRate, ct = Math.min(GR.t, T) * GR.landRate + Math.max(0, GR.t - T) * LAND_RATE; tl = 1 - smooth(GR.landEnd - 0.25, GR.landEnd + 0.15, ct); ti = 1 - tl; }
   else if (GR.mode === 'takeoff' || !GR.mode) tt = 1;
   else { tw = clamp(Math.max(move, turn * 0.8), 0, 1); ti = 1 - tw; }
   const w = GR.w;

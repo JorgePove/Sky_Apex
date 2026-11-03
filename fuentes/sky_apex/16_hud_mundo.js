@@ -306,6 +306,19 @@ function minimapTerrain(px, pz) {
   }
   MM.g.putImageData(MM.img, 0, 0); MM.cx = b.cx; MM.cz = b.cz; MM.ready = true; MM.b = null;
 }
+/* v45: rayas de peligro de la zona fuera del área en el minimapa: bandas rojas vivas a 45° sobre rojo oscuro translúcido (una baldosa que se
+   repite sin cortes; se rehace si cambia la escala del HUD). */
+let hazardPat = null;
+function hazardPattern(k) {
+  if (hazardPat && hazardPat.k === k) return hazardPat.pat;
+  const n = Math.max(8, Math.round(12 * k)), c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(90,4,2,.35)'; g.fillRect(0, 0, n, n);
+  g.strokeStyle = 'rgba(255,82,60,.8)'; g.lineWidth = n * 0.36; g.lineCap = 'square';
+  for (const o of [-n, 0, n]) { g.beginPath(); g.moveTo(o, n); g.lineTo(o + n, 0); g.stroke(); }
+  hazardPat = { k, n, pat: hctx.createPattern(c, 'repeat') };
+  return hazardPat.pat;
+}
 function drawMinimap(heading, fwd) {
   const k = HUD_K, S = 242 * k, cxs = HW / 2;
   const xa = Math.max(16 * k, cxs - 711.5 * k), yb = HH - 47 * k, ya = yb - S, xb = xa + S;   // (a la izquierda del centro; en pantallas estrechas, pegado al borde)
@@ -323,17 +336,21 @@ function drawMinimap(heading, fwd) {
     hctx.transform(kk * s * rx, -kk * s * fx, kk * s * rz, -kk * s * fz, cx + kk * (rx * X0 + rz * Z0), cy - kk * (fx * X0 + fz * Z0));
     hctx.drawImage(MM.cv, 0, 0); hctx.restore();
   }
-  const A = mission.area;
-  if (A) {                                                 // v15: área de la misión: fuera de ella, sombreado rojo; el borde, discontinuo
-    const dx = A.x - p.x, dz = A.z - p.z, ox = cx + (dx * rx + dz * rz) * kk, oy = cy - (dx * fx + dz * fz) * kk, rr = A.r * kk;
-    hctx.beginPath(); hctx.rect(xa, ya, S, S); hctx.arc(ox, oy, rr, 0, 6.283);
-    hctx.fillStyle = 'rgba(255,74,58,.2)'; hctx.fill('evenodd');
-    hctx.setLineDash([5, 4]); hctx.strokeStyle = 'rgba(255,74,58,.9)'; hctx.lineWidth = 1.6;
-    hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]);
-  }
   const vg = hctx.createRadialGradient(cx, cy, S * 0.25, cx, cy, S * 0.95);   // viñeta: bordes más oscuros
   vg.addColorStop(0, 'rgba(0,12,5,0)'); vg.addColorStop(1, 'rgba(0,12,5,.45)'); hctx.fillStyle = vg; hctx.fillRect(xa, ya, S, S);
   hctx.fillStyle = scanPattern(); hctx.fillRect(xa, ya, S, S);
+  const A = mission.area;
+  if (A) {                                                 // v15: área de la misión: fuera de ella, zona roja; el borde, discontinuo
+    // v45 (Jorge: se distinguía muy poco del verde): rojo más vivo, rayas diagonales de peligro que avanzan despacio (hazardPattern) y el
+    // borde más grueso y con brillo; encima de la viñeta, para que no se apague hacia los bordes
+    const dx = A.x - p.x, dz = A.z - p.z, ox = cx + (dx * rx + dz * rz) * kk, oy = cy - (dx * fx + dz * fz) * kk, rr = A.r * kk;
+    hctx.beginPath(); hctx.rect(xa, ya, S, S); hctx.arc(ox, oy, rr, 0, 6.283);
+    hctx.fillStyle = 'rgba(255,48,32,.28)'; hctx.fill('evenodd');
+    const hz = hazardPattern(k); if (hz.setTransform) hz.setTransform(new DOMMatrix().translateSelf(gameTime * 6 * k % hazardPat.n, 0));
+    hctx.fillStyle = hz; hctx.fill('evenodd');
+    hctx.setLineDash([6 * k, 4 * k]); hctx.strokeStyle = '#ff6a52'; hctx.lineWidth = 2.2 * k; hctx.shadowColor = 'rgba(255,60,40,.95)'; hctx.shadowBlur = 6 * k;
+    hctx.beginPath(); hctx.arc(ox, oy, rr, 0, 6.283); hctx.stroke(); hctx.setLineDash([]); hctx.shadowBlur = 0;
+  }
   if (hctx.createConicGradient) {                          // barrido de radar: una vuelta cada 4 s, con estela
     const a = gameTime * 1.57 % 6.2832, cg = hctx.createConicGradient(a, cx, cy);
     cg.addColorStop(0, 'rgba(120,255,170,0)'); cg.addColorStop(0.8, 'rgba(120,255,170,0)'); cg.addColorStop(1, 'rgba(120,255,170,.2)');

@@ -936,7 +936,7 @@ function updateDodge(dt) {
    Durante CRASH_GRACE s, otro choque rebota pero no quita vida (no se encadenan). Solo se cae si no queda vida (hurtDragon, con el motivo de
    siempre). Despacio sobre el agua (≤ LAND_SPEED, sin picar ni ir muy de lado) no hay choque: el dragón la roza sin hundirse. Los valores son
    stats del dragón (Excel, «Choques»: applyHeroStats). */
-let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 200 / 3.6;
+let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 350 / 3.6;
 const BUMP = { v: new THREE.Vector3(), t: -99, skim: false };   // velocidad del rebote (m/s), gameTime del último choque con daño, ¿rozando el agua?
 const _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _bc = new THREE.Vector3(), _bf = new THREE.Vector3(), _bu = new THREE.Vector3(), _bq = new THREE.Quaternion();
 function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
