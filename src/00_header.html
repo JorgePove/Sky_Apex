@@ -3,18 +3,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sky Apex</title>
-<!-- RAMA EXPERIMENTAL: TyrantDragon (modelo GLB riggeado con animaciones de vuelo); primera persona, C pasa a tercera.
-     Nombre provisional del juego: «Sky Apex». Intro con el logo (assets/images/logo_sky.png y logo_apex.png) y música del menú
-     (assets/audio/music/menu.* y assets/audio/music/game.* junto al HTML: cualquier formato que lea el navegador).
-     v15: la fuente se edita por módulos, en src/ (NN_*.html, .css y .js, en ese orden). tools/build.mjs los junta
-     en dev.html (generado, no editar: sirve para probar con el servidor local, porque carga ../assets/models/*.glb e
-     ../assets/images/logo_*.png sueltos) y genera sky_apex.html, el archivo para jugar, con tools/embed_assets.mjs, que mete dentro
-     los modelos y el logo (la música queda fuera, en la carpeta assets/audio/music/: musica_menu y musica_game). Hasta la v4 se llamaba alas_de_brasa_tyrant.
-     Misiones: recetas de datos en 18_missions_data.js; el motor, en 19_missions_engine.js.
-     El dragón sale de tools/prepare_fbx_model.mjs (FBX del pack «Drogon» → GLB). Licencia sin aclarar: uso solo en local.
-     Los brazos del jinete salen de tools/prepare_rider_arms.mjs (Knighty.fbx → GLB riggeado).
-     v12: Tutorial en el menú. Sus vídeos van fuera, en la carpeta assets/tutorial/ junto al HTML (assets/tutorial/<sección>.webm); se graban con el
-     propio juego: tools/tutorial_recorder.js + tools/tutorial_server.mjs (ver sus cabeceras). ?semilla=N fija el mundo. -->
+<!-- Sky Apex (antes «Alas de Brasa»): juego de dragones con el TyrantDragon (GLB riggeado y animado). ARCHIVO GENERADO por tools/build.mjs
+     desde los módulos de src/ (NN_*.html, .css y .js, en ese orden): no editar aquí, editar src/.
+     v46: este index.html es el juego entero (el «HTML maestro») y no lleva los recursos dentro: los busca en assets/ (modelos, sonidos,
+     voces, logo, mapas, música y vídeos del tutorial). Con servidor (la web o play.bat) los pide sueltos; abierto con doble clic usa sus
+     copias en assets/packed/<ruta>.js (ver loadBytes, 09). Hace falta la carpeta entera, no solo este archivo.
+     Misiones: recetas en 18_missions_data.js y capítulos en 18b_*; el motor, en 19_missions_engine.js. Stats: data/sky_apex_stats.xlsx (19c).
+     El dragón sale de tools/prepare_fbx_model.mjs (FBX del pack «Drogon» → GLB); los brazos del jinete, de tools/prepare_rider_arms.mjs.
+     v12: Tutorial en el menú, con sus vídeos en assets/tutorial/<sección>.webm, grabados con el propio juego: tools/tutorial_recorder.js +
+     tools/tutorial_server.mjs (ver sus cabeceras). ?semilla=N fija el mundo; ?packed=1 fuerza las copias .js de los recursos. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Graduate&family=Share+Tech+Mono&display=swap">

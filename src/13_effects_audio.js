@@ -392,11 +392,11 @@ function updateTowerAI(dt) {
    v32: y tres sonidos grabados de la carpeta audio/ (incrustados en sky_apex.html por build.mjs; la fuente los carga sueltos): el aleteo
    (un archivo con varios golpes de ala separados por silencios: se cortan solos en trozos, audioSegments, y cada golpe de ala suena uno al
    azar), el rugido y la llamarada (al activar el lanzallamas; la llamarada en bucle mientras dura). Si no cargan, suena lo procedural. */
-const SFX_FILES = {                                        // [id del recurso incrustado, archivo]
-  wings: ['sfx-wings-flap', 'assets/audio/sfx/dragon_wings_flap.mp3'],
-  roar: ['sfx-roar', 'assets/audio/sfx/dragon_roar.mp3'],
-  fire: ['sfx-fire-breath', 'assets/audio/sfx/dragon_fire_breath.mp3'],
-  growl: ['sfx-growl', 'assets/audio/sfx/dragon_growl.mp3']   // v44: al aterrizar y al despegar (15b)
+const SFX_FILES = {                                        // archivo de cada uno (v46: sin id incrustado)
+  wings: 'assets/audio/sfx/dragon_wings_flap.mp3',
+  roar: 'assets/audio/sfx/dragon_roar.mp3',
+  fire: 'assets/audio/sfx/dragon_fire_breath.mp3',
+  growl: 'assets/audio/sfx/dragon_growl.mp3'   // v44: al aterrizar y al despegar (15b)
 };
 const SFX_VOL = { wings: 0.9, roar: 0.9, fire: 1, growl: 1 };        // volumen de cada uno (antes del de «Opciones»)
 const FIRE_LOOP = [0.33, 1.5, 5.5], ROAR_GAP = 2;          // llamarada: empieza en (s; antes hay silencio) y bucle de… a… (s); rugido: como mucho uno cada ROAR_GAP s
@@ -470,8 +470,8 @@ const sfx = (() => {
       const tr = ctx.createOscillator(); tr.frequency.value = 31; const trG = ctx.createGain(); trG.gain.value = 0; tr.connect(trG); trG.connect(eg.gain); tr.start();
       brn = { f: bf, g: bg, eg, ef, trG };
       // v32: los sonidos grabados (aleteo, rugido, llamarada)
-      for (const [k, [id, url]] of Object.entries(SFX_FILES)) {
-        loadBytes(id, url).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)))
+      for (const [k, url] of Object.entries(SFX_FILES)) {
+        loadBytes(url).then(b => new Promise((res, rej) => ctx.decodeAudioData(b, res, rej)))
           .then(buf => { smp[k] = buf; if (k === 'wings') segs.push(...audioSegments(buf)); })
           .catch(err => console.warn('Sonido «' + k + '» no cargado (suena el procedural):', err));
       }

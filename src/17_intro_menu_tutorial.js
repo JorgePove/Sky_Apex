@@ -341,7 +341,7 @@ const intro = { phase: 'load', t0: 0, t: 0, last: 0, busy: false, hitAt: null, e
 const logoEls = [document.getElementById('logoSky'), document.getElementById('logoApex')], stageEl = logoEls[0].parentElement;
 const fxBack = document.getElementById('fxBack'), fxFront = document.getElementById('fxFront'), fxB = fxBack.getContext('2d'), fxF = fxFront.getContext('2d');
 
-const LOGO_FILES = ['assets/images/logo_sky.png', 'assets/images/logo_apex.png'], LOGO_IDS = ['logo-sky-png', 'logo-apex-png'];
+const LOGO_FILES = ['assets/images/logo_sky.png', 'assets/images/logo_apex.png'];
 /* v14: logo en una sola línea, separado en dos PNG del mismo tamaño: SKY a la izquierda y APEX a la derecha. LOGO_BOX: caja de cada palabra
    (por si no se pueden leer los píxeles); LOGO_HIT: punto del choque (entre la Y y la A), en fracción del logo.
    v26: logo nuevo de Jorge, recortado y con transparencia de verdad (assets/images/logo_v3.webp), separado con tools/split_logo_alpha.mjs
@@ -378,7 +378,7 @@ function logoEdges(img, k) {
 function introBoot() {
   const imgs = Promise.all(logoEls.map((im, k) => new Promise(res => {
     im.onload = im.onerror = () => res();
-    const b64 = embedded(LOGO_IDS[k]); im.src = b64 ? 'data:image/png;base64,' + b64 : LOGO_FILES[k];
+    assetImageUrl(LOGO_FILES[k], 'image/png').then(u => { im.src = u; });   // (v46: con doble clic, su copia en .js como data:)
   }))).then(() => { intro.edges = logoEls.map(logoEdges); });
   imgs.then(() => { intro.phase = 'wait'; menuEl.classList.add('wait'); });   // siempre se espera al clic (los modelos siguen cargando detrás)
 }

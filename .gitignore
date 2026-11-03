@@ -20,7 +20,6 @@
 /*.mp3
 
 # Generated, or specific to each PC
-/dev.html
 node_modules/
 __pycache__/
 /tools/output/

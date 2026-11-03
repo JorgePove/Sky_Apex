@@ -40,7 +40,7 @@ const _Ap = new THREE.Vector3(), _Ai = new THREE.Vector3(), _Ah = new THREE.Vect
 /* Modelo: el color por vértice del glTF es lineal (Blender lo guarda en enteros de 16 bits normalizados) y el juego pinta sin corrección
    de gamma (como las torres): se pasa a sRGB, en coma flotante, al cargar. */
 function loadAirships() {
-  return loadGLB('airship-glb', 'assets/models/airship.glb').then(g => {
+  return loadGLB('assets/models/airship.glb').then(g => {
     let src = null; g.scene.traverse(o => { if (o.isMesh && !src) src = o; });
     const geo = src.geometry, col = geo.attributes.color;
     if (col) {

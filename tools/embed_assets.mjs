@@ -1,11 +1,8 @@
 /* Genera el HTML jugable con el modelo dentro (base64), para abrirlo con doble clic o publicarlo como artifact.
    Uso: node embed_assets.mjs --fuente ../legacy/src/alas_de_brasa_humanoid.src.html --modelo ../legacy/models/gargoyle_dragon.glb --salida ../legacy/alas_de_brasa_humanoid.html
    Otros recursos: --extra id=ruta (repetible) rellena <script id="id" type="application/octet-stream"></script> con ese archivo.
-   Sky Apex (rama Tyrant):
-     node embed_assets.mjs --fuente ../dev.html --modelo ../assets/models/dragon_tyrant.glb
-       --extra brazos-glb=../assets/models/rider_arms.glb --extra logo-sky-png=../assets/images/logo_sky.png --extra logo-apex-png=../assets/images/logo_apex.png
-       --salida ../sky_apex.html
-   La música (assets/audio/music/menu.* y musica_game.*) no se incrusta: queda en su carpeta para poder cambiarla. */
+   v46: ya solo lo usa el juego antiguo (legacy/): hasta la v46 incrustaba también los recursos de Sky Apex en sky_apex.html; ahora el juego
+   los carga de assets/ (o de sus copias en assets/packed/, que genera tools/build.mjs). */
 import fs from 'fs';
 
 const argv = process.argv.slice(2);

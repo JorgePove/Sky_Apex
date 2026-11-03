@@ -26,9 +26,9 @@ const txt = t => t == null ? '' : typeof t === 'string' ? t : (t[subLang] || t.e
 { const sel = document.getElementById('subLang'); sel.value = subLang; sel.addEventListener('change', () => { subLang = sel.value; try { localStorage.setItem(SUB_KEY, subLang); } catch (err) { } }); }
 
 /* ---------- Voces ---------- */
-const VOICES = {                                           // id: [recurso incrustado en sky_apex.html, archivo (desde la raíz)]
-  seraphin_01: ['voice-seraphin-01', 'assets/audio/voice/seraphin_01.mp3'],
-  volger_01: ['voice-volger-01', 'assets/audio/voice/volger_01.wav']
+const VOICES = {                                           // id: archivo (desde la raíz)
+  seraphin_01: 'assets/audio/voice/seraphin_01.mp3',
+  volger_01: 'assets/audio/voice/volger_01.wav'
 };
 const VO = { bufs: {}, state: {}, src: null, id: null, t0: 0, off: 0, paused: false };
 function voicesLoad(ids) {
@@ -38,7 +38,7 @@ function voicesLoad(ids) {
     if (VO.state[id]) continue;
     const f = VOICES[id]; if (!f) { VO.state[id] = 'none'; continue; }
     VO.state[id] = 'loading';
-    loadBytes(f[0], f[1]).then(b => sfx.decode(b)).then(buf => { VO.bufs[id] = buf; VO.state[id] = 'ready'; })
+    loadBytes(f).then(b => sfx.decode(b)).then(buf => { VO.bufs[id] = buf; VO.state[id] = 'ready'; })
       .catch(err => { VO.state[id] = 'none'; console.warn('Voz «' + id + '» no cargada (solo subtítulos):', err); });
   }
 }

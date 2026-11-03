@@ -15,7 +15,7 @@ const KNIGHT_STAND = { lean: 0, upper: [0.22, -1, 0.02], fore: [0.12, -1, 0.15],
 const KNIGHT_SHOW = [5, 4.5, -0.5];                          // «Elige tu dragón»: posición en la plataforma (x, z en m) y hacia dónde mira (rad)
 const knight = { ready: false, root: null, B: {}, holder: new THREE.Group(), eyes: new THREE.Vector3(), eye: null };
 function loadKnight() {
-  return loadGLB('knight-glb', KNIGHT_URL).then(setupKnight).catch(err => console.error('No se pudo cargar el caballero:', err));
+  return loadGLB(KNIGHT_URL).then(setupKnight).catch(err => console.error('No se pudo cargar el caballero:', err));
 }
 function setupKnight(gltf) {
   const root = knight.root = gltf.scene; let eyes = null;

@@ -63,22 +63,39 @@ const hero = { ready: false, error: null, wrap: new THREE.Group(), model: null, 
 hero.wrap.rotation.set(0, Math.PI, 0);
 dragon.add(hero.wrap);
 
-/* Recursos incrustados: el base64 de un <script id=…> (vacío si el HTML no lo lleva y hay que cargar el archivo suelto). */
-function embedded(id) { const tag = document.getElementById(id), b64 = tag ? tag.textContent.replace(/\s+/g, '') : ''; return b64.length > 1000 ? b64 : ''; }
-/* Los bytes de un recurso incrustado o, si no, del archivo (necesita un servidor local). v32: también los sonidos (13). */
-function loadBytes(id, url) {
-  const b64 = embedded(id);
-  return b64
-    ? Promise.resolve().then(() => { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; })
-    : fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); });
+/* v46: recursos (modelos, sonidos, voces y el logo), por su ruta desde la raíz (assets/…). Ya no van incrustados en el HTML:
+   · Con servidor (la web, play.bat o el de pruebas) se piden sueltos, tal cual (fetch): más ligero, y el navegador los guarda en caché.
+   · Abierto con doble clic (file://) el navegador no deja leer archivos sueltos, pero sí cargar scripts: cada recurso tiene su copia en
+     assets/packed/<ruta>.js (la genera tools/build.mjs), que deja su base64 en window.SKY_ASSETS['<ruta sin assets/>'], y se carga con
+     una etiqueta <script> la primera vez que hace falta (como los mapas, 19b).
+   Si una forma falla, se prueba la otra. ?packed=1 fuerza las copias aunque haya servidor (para probarlas). */
+const ASSET_PACKED = location.protocol === 'file:' || /[?&]packed=1\b/.test(location.search);
+const assetKey = url => url.replace(/^assets\//, '');
+function loadPacked(url) {                                 // → el base64 del recurso (y lo suelta de SKY_ASSETS: ya no hace falta)
+  const key = assetKey(url), take = () => { const b = window.SKY_ASSETS[key]; delete window.SKY_ASSETS[key]; return b; };
+  if (window.SKY_ASSETS && window.SKY_ASSETS[key]) return Promise.resolve(take());
+  return new Promise((ok, ko) => {
+    const s = document.createElement('script'); s.src = 'assets/packed/' + key + '.js';
+    s.onload = () => { s.remove(); if (window.SKY_ASSETS && window.SKY_ASSETS[key]) ok(take()); else ko(new Error('assets/packed/' + key + '.js no trae el recurso')); };
+    s.onerror = () => { s.remove(); ko(new Error('no se pudo cargar assets/packed/' + key + '.js')); };
+    document.head.appendChild(s);
+  });
 }
-/* Un .glb incrustado o, si no, el archivo (necesita un servidor local). */
-function loadGLB(id, url) {
-  return loadBytes(id, url).then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
+function b64ToBuffer(b64) { const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u.buffer; }
+function fetchBytes(url) { return fetch(url).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status + ' en ' + url); return r.arrayBuffer(); }); }
+/* Los bytes de un recurso (v32: también los sonidos, 13; v34: las voces, 19e). */
+function loadBytes(url) {
+  return ASSET_PACKED ? loadPacked(url).then(b64ToBuffer).catch(() => fetchBytes(url)) : fetchBytes(url).catch(() => loadPacked(url).then(b64ToBuffer));
 }
-/* Carga: del <script id="dragon-tyrant-glb"> en base64 si lo hay; si no, del archivo .glb (necesita un servidor local). */
+/* Una imagen (el logo, 8b): con servidor, su ruta; con doble clic, su copia como data: (así se pueden leer sus píxeles). */
+function assetImageUrl(url, mime) {
+  return ASSET_PACKED ? loadPacked(url).then(b => 'data:' + mime + ';base64,' + b).catch(() => url) : Promise.resolve(url);
+}
+function loadGLB(url) {
+  return loadBytes(url).then(buf => new Promise((res, rej) => new THREE.GLTFLoader().parse(buf, '', res, rej)));
+}
 function loadHero() {
-  return loadGLB('dragon-tyrant-glb', HERO_URL)
+  return loadGLB(HERO_URL)
     .then(setupHero)
     .catch(err => { hero.error = err; console.error('No se pudo cargar el dragón:', err); });
 }

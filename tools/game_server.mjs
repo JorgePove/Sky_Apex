@@ -12,7 +12,7 @@ import { fileURLToPath } from 'url';
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUERTO = +process.argv.find(a => /^\d+$/.test(a)) || 8770, NAVEGADOR = !process.argv.includes('--sin-navegador');
-const URL_JUEGO = `http://localhost:${PUERTO}/sky_apex.html`;
+const URL_JUEGO = `http://localhost:${PUERTO}/`;   // (v46: index.html, el HTML maestro)
 const TIPOS = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.webm': 'video/webm', '.mp4': 'video/mp4', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.m4a': 'audio/mp4', '.wav': 'audio/wav', '.aac': 'audio/aac',

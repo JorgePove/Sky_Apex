@@ -1,5 +1,5 @@
 /* Ayudantes de prueba de los tres dragones (v16-v17), para el navegador integrado. No forma parte del juego.
-   Uso, en la página de la fuente servida por el preview (http://localhost:8767/dev.html):
+   Uso, en la página de la fuente servida por el preview (http://localhost:8767/index.html):
      await new Promise(r => { const s = document.createElement('script'); s.src = '../tools/dragon_testbench.js?' + Date.now(); s.onload = r; document.head.appendChild(s); });
      await BD.listo();                       // terreno, Tyrant y los otros dos cargados, y estado «menu»
      BD.ver(BD.rejilla([BD.foto('drogon', 'idle', 1, 0, BD.FRENTE), …]))   // capturas de «Elige tu dragón» en una rejilla 2×2

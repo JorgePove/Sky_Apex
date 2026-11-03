@@ -6,7 +6,7 @@
    assets/tutorial/<id>.webm (el juego busca ahí los vídeos).
    Uso (navegador integrado de la app o Chrome):
      1. preview_start «grabador-tutorial» (= node tools/tutorial_server.mjs, puerto 8766) y abrir
-        http://localhost:8766/dev.html?semilla=777   (semilla fija: siempre el mismo mundo)
+        http://localhost:8766/index.html?semilla=777   (semilla fija: siempre el mismo mundo)
      2. Cargar este script y preparar:
         await new Promise(r => { const s = document.createElement('script'); s.src = 'tools/tutorial_recorder.js?v=' + Date.now(); s.onload = r; document.head.appendChild(s); });
         await REC.prepare();

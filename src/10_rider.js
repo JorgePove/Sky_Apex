@@ -40,7 +40,7 @@ rider.scene.add(rider.root, rider.fireLight);
     hemi.color.copy(hemiLight.color); hemi.groundColor.copy(hemiLight.groundColor); hemi.intensity = hemiLight.intensity; }); }
 
 function loadRider() {
-  return loadGLB('rider-arms-glb', RIDER_URL).then(setupRider)
+  return loadGLB(RIDER_URL).then(setupRider)
     .catch(err => { rider.error = err; console.error('No se pudieron cargar los brazos del jinete:', err); });
 }
 function setupRider(gltf) {

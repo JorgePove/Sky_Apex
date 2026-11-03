@@ -27,7 +27,7 @@ const DRAGONS = {
   rojo: {
     name: 'Abrasanubes', desc: 'Dragón de cuatro patas nacido en las forjas del sur: veloz y con un fuego que abrasa hasta las nubes, pero de piel frágil.',
     credit: 'Modelo «Red Dragon» de GadgetHamster (Sketchfab, CC-BY 4.0)',
-    embed: 'dragon-red-glb', url: 'assets/models/dragon_red.glb', sides: ['L', 'R'], span: 34, ref: null, seatBone: 'spine1',
+    url: 'assets/models/dragon_red.glb', sides: ['L', 'R'], span: 34, ref: null, seatBone: 'spine1',
     showClip: 'stand', idle: true,                             // plataforma: de pie a cuatro patas (pose «stand») y el reposo por código
     rider: { path: [['neck1', 'neck2', 0], ['neck2', 'neck3', 0]], collar: ['neck3', 'neck4', 0.3] },
     map: [
@@ -43,7 +43,7 @@ const DRAGONS = {
   },
   drogon: {
     name: 'Ventoscuro', desc: 'Wyvern negro como la obsidiana: lento, pero una fortaleza con alas de aliento devastador.',
-    embed: 'dragon-drogon-glb', url: 'assets/models/dragon_drogon.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'Bip002-Spine3',
+    url: 'assets/models/dragon_drogon.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'Bip002-Spine3',
     showClip: 'idle',                                     // plataforma: su propio reposo de combate
     fold: [0.8, 0, 0.15],                                   // v33: picado: sus dedos apenas siguen a los del Tyrant, así que el brazo se va más atrás (HERO_FOLD, 5c)
     rider: { path: [['Bip002-Neck', 'Bip002-Neck1', 0.35], ['Bip002-Neck', 'Bip002-Neck1', 0.75]], collar: ['Bip002-Neck1', 'Bip002-Neck2', 0.4] },
@@ -65,7 +65,7 @@ const DRAGONS = {
      En la plataforma flota con su propio hover (showClip) un poco por encima de ella (showLift, m). */
   fulgor: {
     name: 'Fulgor', desc: 'Wyvern dorado de alas inmensas que deslumbra al sol: lento, pero una fortaleza con un aliento devastador.',
-    embed: 'dragon-syrax-glb', url: 'assets/models/dragon_syrax.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'spine1',
+    url: 'assets/models/dragon_syrax.glb', sides: ['L', 'R'], span: 34, ref: 'enlace', seatBone: 'spine1',
     fpAdj: [0, 0.5, -0.08, 1.0],                             // jinete 1 m tras el hueso spine1 (~1,9 m tras los hombros), sentado en el lomo; cámara 1 m más alta y algo más inclinada: el cuello y la cabeza por encima de las púas
     showClip: 'hover', showLift: 1.5, showTag: 'Vuelo estático',
     rider: { path: [['neck1', 'neck2', 0.25], ['neck2', 'neck3', 0.3]], collar: ['neck3', 'neck4', 0.1] },
@@ -247,7 +247,7 @@ function loadDragons() {
   if (!hero.ready) return;
   for (const id of DRAGON_IDS) {
     const D = DRAGONS[id]; if (!D.url) continue;
-    loadGLB(D.embed, D.url).then(g => setupDragon(D, id, g))
+    loadGLB(D.url).then(g => setupDragon(D, id, g))
       .catch(err => { D.error = err; console.error('No se pudo cargar ' + D.name + ':', err); refreshDragonButtons(); });
   }
 }

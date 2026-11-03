@@ -1,5 +1,5 @@
 /* Servidor local para grabar los vídeos del tutorial (puerto 8766).
-   Sirve la carpeta del proyecto como el de python (para abrir dev.html) y además acepta
+   Sirve la carpeta del proyecto como el de python (para abrir index.html) y además acepta
    PUT /assets/tutorial/<nombre>.webm, que guarda el vídeo en la carpeta assets/tutorial/ del proyecto. Solo escucha en 127.0.0.1.
    Uso: node tools/tutorial_server.mjs  (o preview_start «grabador-tutorial» de .claude/launch.json)
    Después, en la página: tools/tutorial_recorder.js (ver su cabecera). */

@@ -18,11 +18,11 @@
 const UNITS = [];
 const unitState = { kills: 0 };
 const unitRes = {};                                         // modelo → [{ geo, mat }] cuando ha cargado
-const UNIT_GLB = {                                          // modelo: [id incrustado en sky_apex.html, archivo]
-  balista: ['artillery-ballista-glb', 'assets/models/artillery_ballista.glb'], catapulta: ['artillery-catapult-glb', 'assets/models/artillery_catapult.glb'],
-  canon: ['artillery-cannon-glb', 'assets/models/artillery_cannon.glb'], barco: ['naval-ship-glb', 'assets/models/naval_ship.glb'],
-  superdirigible: ['super-airship-glb', 'assets/models/super_airship.glb'], sierpe: ['serpent-glb', 'assets/models/serpent.glb'],
-  soldado: ['soldier-glb', 'assets/models/soldier.glb']        // (dos mallas: «soldado» y «hechicero»)
+const UNIT_GLB = {                                          // modelo: archivo (v46: sin id incrustado)
+  balista: 'assets/models/artillery_ballista.glb', catapulta: 'assets/models/artillery_catapult.glb',
+  canon: 'assets/models/artillery_cannon.glb', barco: 'assets/models/naval_ship.glb',
+  superdirigible: 'assets/models/super_airship.glb', sierpe: 'assets/models/serpent.glb',
+  soldado: 'assets/models/soldier.glb'        // (dos mallas: «soldado» y «hechicero»)
 };
 const UNIT_G = 9.8;                                         // gravedad de los proyectiles con parábola (artillería, flechas) (m/s²)
 const ART_NAME = { balista: 'Balista', catapulta: 'Catapulta', canon: 'Cañón' };
@@ -43,7 +43,7 @@ function srgbColors(geo) {                                  // color por vértic
   geo.setAttribute('color', new THREE.BufferAttribute(out, 3));
 }
 function loadUnits() {
-  return Promise.all(Object.entries(UNIT_GLB).map(([key, [id, url]]) => loadGLB(id, url).then(g => {
+  return Promise.all(Object.entries(UNIT_GLB).map(([key, url]) => loadGLB(url).then(g => {
     g.scene.updateMatrixWorld(true);
     g.scene.traverse(o => {
       if (!o.isMesh) return;
