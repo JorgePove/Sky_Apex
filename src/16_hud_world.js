@@ -154,27 +154,29 @@ function drawTargets() {
   const add = t => {
     const c = targetCenter(t), d = c.distanceTo(_camP);
     if ((t !== sel && d > frameRange(t)) || !proj(c.x, c.y, c.z, a) || !onScreenAt(a)) return;
-    const r = clamp(targetHalf(t) * (FRAME_K[t.kind] || 1) * HH / (2 * d * tanFov), 7 * k, HH * 0.35), shape = FRAME_SHAPE[t.kind] || 'sq';
+    const r = clamp(targetHalf(t) * (FRAME_K[t.kind] || 1) * HH / (2 * d * tanFov), (HUD_ARC ? FRAME_MIN : 7) * k, HH * 0.35), shape = FRAME_SHAPE[t.kind] || 'sq';
     if (t.kind === 'superdirigible') sup = { u: t, x: a.x, y: a.y, r };
     if (t === sel) selF = { t, x: a.x, y: a.y, r, shape, d };
     else _fl[isTgt(t) ? 1 : 0].push(a.x, a.y, r, shape);
   };
   eachTarget(add);
-  const P = hpal(PAL_G), dk = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.5)';   // (v48: en el arcano, dorados con sombra parda)
-  hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
-  for (let g = 0; g < 2; g++) {                            // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
-    const L = _fl[g]; if (!L.length) continue;
-    hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
-    hctx.globalAlpha = g ? 0.95 : 0.5;
-    hctx.lineWidth = 3.2 * k; hctx.strokeStyle = dk; hctx.stroke();
-    hctx.lineWidth = 1.4 * k; hctx.strokeStyle = P.line; hctx.stroke();
+  if (HUD_ARC) arcFrames();                                // v49: las imágenes de Jorge (16b)
+  else {
+    hctx.save(); hctx.shadowBlur = 0; hctx.lineJoin = 'round';
+    for (let g = 0; g < 2; g++) {                          // todos los marcos de una vez: un trazo oscuro debajo y el verde encima
+      const L = _fl[g]; if (!L.length) continue;
+      hctx.beginPath(); for (let i = 0; i < L.length; i += 4) framePath(L[i + 3], L[i], L[i + 1], L[i + 2]);
+      hctx.globalAlpha = g ? 0.95 : 0.5;
+      hctx.lineWidth = 3.2 * k; hctx.strokeStyle = 'rgba(0,18,8,.5)'; hctx.stroke();
+      hctx.lineWidth = 1.4 * k; hctx.strokeStyle = PAL_G.line; hctx.stroke();
+    }
+    const T = _fl[1];                                      // «TGT» junto a los que cuentan para la misión
+    if (T.length) {
+      hctx.globalAlpha = 0.95; hctx.font = FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = 'rgba(0,16,7,.8)'; hctx.fillStyle = PAL_G.ink;
+      for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
+    }
+    hctx.restore();
   }
-  const T = _fl[1];                                        // «TGT» junto a los que cuentan para la misión
-  if (T.length) {
-    hctx.globalAlpha = 0.95; hctx.font = HUD_ARC ? FA(10 * k) : FG(9.5 * k); hctx.textAlign = 'left'; hctx.lineWidth = 2.5 * k; hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.8)'; hctx.fillStyle = P.ink;
-    for (let i = 0; i < T.length; i += 4) { const x = T[i] + T[i + 2] * FRAME_EXT[T[i + 3]] + 4 * k, y = T[i + 1] - T[i + 2] * 0.55 + 4 * k; hctx.strokeText('TGT', x, y); hctx.fillText('TGT', x, y); }
-  }
-  hctx.restore();
   if (sup) superBar(sup.u, sup.x, sup.y, sup.r);
   if (sel && !sel.dead) { if (selF) { drawSelected(selF); drawLeadPipper(sel); } else drawLockArrow(sel); }
   drawAllyMarker(a);
@@ -185,9 +187,13 @@ function drawSelected(f) {
   const k = HUD_K, { t, x, y, r, shape, d } = f, locked = W.locked, P = hpal(locked ? PAL_R : PAL_G), PR = hpal(PAL_R), p = W.lock;   // (v48: hpal, paletas arcanas)
   const blink = locked ? 1 : Math.sin(gameTime * 2 * Math.PI * 2.4) > -0.3 ? 1 : 0.3;
   hctx.save(); hctx.lineJoin = 'round';
-  hctx.globalAlpha = blink; hctx.beginPath(); framePath(shape, x, y, r);
-  hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = HUD_ARC ? ARC_SHADE : 'rgba(0,18,8,.55)'; hctx.stroke();
-  hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
+  hctx.globalAlpha = blink;
+  if (HUD_ARC) { hctx.shadowColor = locked ? 'rgba(255,60,40,.9)' : 'rgba(255,214,140,.95)'; hctx.shadowBlur = 9 * k; arcFrame(shape, x, y, r, locked); hctx.shadowBlur = 0; }   // (v49: la imagen, con un halo; fijado, en carmesí)
+  else {
+    hctx.beginPath(); framePath(shape, x, y, r);
+    hctx.shadowBlur = 0; hctx.lineWidth = 4 * k; hctx.strokeStyle = 'rgba(0,18,8,.55)'; hctx.stroke();
+    hctx.shadowColor = P.glow; hctx.shadowBlur = 8 * k; hctx.lineWidth = 2 * k; hctx.strokeStyle = locked ? P.line : P.ink; hctx.stroke();
+  }
   hctx.globalAlpha = 1;
   if (p > 0.01 && !locked) {                               // fijando: escuadras rojas que se cierran del doble de lejos hasta el marco
     const q = r * FRAME_EXT[shape] + 4 * k + (r + 26 * k) * (1 - p), l = 7 * k;
@@ -214,7 +220,7 @@ function superBar(u, x, y, r) {
   const k = HUD_K, w = 220 * k, h = 11 * k, by = y + r * 1.05 + 14 * k;
   if (by > HH - 110 * k) return;
   const left = u.kids.filter(c => !c.dead).length, P = hpal(PAL_G);
-  if (HUD_ARC) arcBar(x - w / 2, by - k, w, h + 3 * k, u.hp / u.hpMax, '', 0, ARC_CRIM, 20);   // (v48: en el arcano, barra carmesí)
+  if (HUD_ARC) arcPlate(x - w / 2, by - 2 * k, w, h + 6 * k, u.hp / u.hpMax, '', 0, ARC_CRIM);   // (v48: en el arcano, una placa carmesí)
   else hudBar(x - w / 2, by, w, h, u.hp / u.hpMax, '', 0, PAL_G, 20);
   hudGlow('NÚCLEO  ' + Math.ceil(u.hp) + ' / ' + Math.round(u.hpMax) + '    TORRETAS  ' + left + ' / ' + u.kids.length, x, by + h + 15 * k, 10.5 * k, P.line, P.glow, 'center', 1.2 * k);
 }
@@ -548,13 +554,14 @@ function hudPanel(x, y, w, h, P, c, a) {
   hctx.moveTo(x + L, y + h); hctx.lineTo(x, y + h); hctx.lineTo(x, y + h - L); hctx.stroke();
   hctx.restore();
 }
-/* Texto con contorno oscuro y halo (y: línea base). v48: en el estilo arcano (16b), en Cinzel con contorno pardo y halo más suave. */
+/* Texto con contorno oscuro y halo (y: línea base). v48: en el estilo arcano, arcText (16b). */
 function hudGlow(txt, x, y, size, col, glow, align, spacing) {
+  if (HUD_ARC) return arcText(txt, x, y, size, col, glow, align, spacing);
   const k = HUD_K;
-  hctx.save(); hctx.font = HUD_ARC ? FA(size) : FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
+  hctx.save(); hctx.font = FG(size); hctx.textAlign = align || 'center'; hctx.letterSpacing = (spacing || 0).toFixed(1) + 'px';
   const sx = hctx.textAlign === 'center' ? x + (spacing || 0) / 2 : x;   // (el espaciado se añade también tras la última letra)
-  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = HUD_ARC ? ARC_DARK : 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
-  hctx.shadowColor = glow; hctx.shadowBlur = (HUD_ARC ? 5 : 7) * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
+  hctx.shadowBlur = 0; hctx.lineJoin = 'round'; hctx.lineWidth = Math.max(2, size * 0.17); hctx.strokeStyle = 'rgba(0,16,7,.82)'; hctx.strokeText(txt, sx, y);
+  hctx.shadowColor = glow; hctx.shadowBlur = 7 * k; hctx.fillStyle = col; hctx.fillText(txt, sx, y);
   hctx.restore();
 }
 /* Barra: panel, lo lleno (fracción f) con degradado, brillo arriba, segmentos (seg) y borde de avance luminoso; el texto, centrado.
