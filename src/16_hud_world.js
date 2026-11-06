@@ -466,17 +466,52 @@ function drawMinimapSymbols(at, rx, rz, fx, fz) {
   hctx.globalAlpha = 1;
 }
 const _rp = { x: 0, y: 0, d: 0, far: false };
-/* Bolas guiadas enemigas en camino. v41: solo una flecha roja de holograma en un anillo alrededor del centro, hacia de donde viene cada una
-   (se vea o no), con la distancia (m) por fuera (si apunta arriba, por dentro: arriba va la radio); el pitido que se acelera al acercarse va
-   en updateWorld. Antes: rombo sobre la bola y aviso de texto, que con tantos proyectiles confundía. */
+/* Bolas guiadas enemigas en camino. v50, como en Ace Combat (v41: una flecha por bola, girando en un anillo alrededor del centro): una sola flecha 3D, fija justo encima de la mira (a la
+   altura de SPEED y ALT: _anc), que apunta hacia la bola más cercana, con los metros que le quedan (y cuántas hay, si son varias). Se ve desde una cámara algo inclinada (MW_TILT): si la bola
+   viene de frente, la punta se aleja hacia arriba; por detrás, viene hacia ti hacia abajo; a los lados, a los lados. Es un prisma: el contorno MW_PTS con grosor, cada cara con su luz y
+   pintadas de atrás adelante. En rojo en los dos estilos; en el arcano, con filo de oro. El pitido que se acelera al acercarse va en updateWorld. */
+const MW_PTS = [[1, 0], [0.1, 0.62], [0.24, 0.24], [-0.9, 0.24], [-0.9, -0.24], [0.24, -0.24], [0.1, -0.62]];   // contorno (a lo largo, a lo ancho), en sentido antihorario
+const MW_H = 0.14, MW_EYE = 3.4, MW_TILT = 32 * Math.PI / 180, MW_L = [-0.33, 0.77, 0.55], MW_REF = new THREE.Vector3(0, 0.55, 0.83);   // medio grosor, ojo (en largos de flecha), inclinación, luz y «arriba» de la flecha
+const MW = { t: -1, d: new THREE.Vector3(0, 0, -1), n: new THREE.Vector3(0, 1, 0), s: new THREE.Vector3() }, _mwV = new THREE.Vector3();
 function drawMissileWarn() {
-  if (!threat.incoming.length || state !== 'playing') return;
-  const k = HUD_K, m = Math.min(HW, HH), rx = m * 0.42, ry = m * 0.34, L = 54, blink = 0.65 + 0.35 * Math.sin(gameTime * 14), P = hpal(PAL_R);   // (v42: en una elipse: a los lados no pisa el THR ni el ALT)
-  for (const f of threat.incoming) {
-    const { x: dx, y: dy } = screenDir(f.pos, _dr), R = 1 / Math.hypot(dx / rx, dy / ry), x = HW / 2 + dx * R, y = HH / 2 + dy * R, o = dy < -0.5 ? -(L + 22) : 26;
-    hctx.save(); hctx.globalAlpha = blink; hudArrow(x, y, Math.atan2(dy, dx), PAL_R, L); hctx.restore();
-    hudGlow(String(Math.round(f.pos.distanceTo(_camP))), x + dx * o * k, y + dy * (o - 6) * k + 5 * k, 15 * k, P.ink, P.glow, 'center', k);
+  const inc = threat.incoming;
+  if (!inc.length || state !== 'playing') { MW.t = -1; return; }
+  let f = inc[0], dist = Infinity;
+  for (const o of inc) { const dd = o.pos.distanceTo(_camP); if (dd < dist) { dist = dd; f = o; } }
+  const k = HUD_K, c = Math.cos(MW_TILT), sn = Math.sin(MW_TILT), R = 27 * k, x0 = _anc.x, y0 = Math.max(_anc.y - 84 * k, HH * 0.31 + 48 * k), now = performance.now() / 1000;
+  _pv.copy(f.pos).applyMatrix4(camera.matrixWorldInverse).normalize();
+  _mwV.set(_pv.x, _pv.y * c - _pv.z * sn, _pv.y * sn + _pv.z * c);   // hacia la bola, visto desde la cámara inclinada
+  const first = MW.t < 0, dt = first ? 1 : now - MW.t; MW.t = now;
+  if (first) { MW.d.copy(_mwV); MW.n.copy(MW_REF); } else MW.d.lerp(_mwV, 1 - Math.exp(-14 * dt)).normalize();
+  const d = MW.d, n = MW.n, s = MW.s;
+  _mwV.copy(MW_REF).addScaledVector(d, -MW_REF.dot(d));    // su «arriba», el que más se ve; con inercia, para que no dé saltos al apuntar casi hacia ti
+  if (_mwV.lengthSq() > 0.04) n.lerp(_mwV.normalize(), first ? 1 : 1 - Math.exp(-8 * dt));
+  n.addScaledVector(d, -n.dot(d)).normalize(); s.crossVectors(n, d);
+  const V = (i, h) => { const p = MW_PTS[i], X = d.x * p[0] + s.x * p[1] + n.x * h, Y = d.y * p[0] + s.y * p[1] + n.y * h, Z = d.z * p[0] + s.z * p[1] + n.z * h, q = MW_EYE / (MW_EYE - Z); return [x0 + R * X * q, y0 - R * Y * q, Z]; };
+  const N = MW_PTS.length, top = [], bot = [], F3 = [];
+  for (let i = 0; i < N; i++) { top.push(V(i, MW_H)); bot.push(V(i, -MW_H)); }
+  const add = (pts, nx, ny, nz, cz, isTop) => { if (nz < -0.02) return; F3.push({ pts, b: clamp(nx * MW_L[0] + ny * MW_L[1] + nz * MW_L[2], 0, 1), z: cz, isTop }); };
+  const avgZ = P => P.reduce((m, q) => m + q[2], 0) / P.length;
+  add(top, n.x, n.y, n.z, avgZ(top), true); add(bot, -n.x, -n.y, -n.z, avgZ(bot), false);
+  for (let i = 0; i < N; i++) {                            // caras de los lados (normal hacia fuera: el contorno va en sentido antihorario)
+    const j = (i + 1) % N, e0 = MW_PTS[j][0] - MW_PTS[i][0], e1 = MW_PTS[j][1] - MW_PTS[i][1], l = Math.hypot(e0, e1), a0 = e1 / l, a1 = -e0 / l, P = [top[i], top[j], bot[j], bot[i]];
+    add(P, d.x * a0 + s.x * a1, d.y * a0 + s.y * a1, d.z * a0 + s.z * a1, avgZ(P), false);
   }
+  F3.sort((p, q) => p.z - q.z);
+  const P = hpal(PAL_R), ramp = HUD_ARC ? [[88, 10, 12], [200, 36, 30], [246, 118, 96]] : [P.c.f2, P.c.f1, P.c.f0], edge = HUD_ARC ? '#f0d9a0' : P.ink;
+  const col = b => { const u = clamp(0.2 + 0.8 * b, 0, 1) * 2, A = ramp[u < 1 ? 0 : 1], B = ramp[u < 1 ? 1 : 2], w = u < 1 ? u : u - 1; return `rgb(${Math.round(A[0] + (B[0] - A[0]) * w)},${Math.round(A[1] + (B[1] - A[1]) * w)},${Math.round(A[2] + (B[2] - A[2]) * w)})`; };
+  const path = pts => { hctx.beginPath(); hctx.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) hctx.lineTo(pts[i][0], pts[i][1]); hctx.closePath(); };
+  hctx.save(); hctx.globalAlpha = 0.82 + 0.18 * Math.sin(gameTime * 14); hctx.lineJoin = 'round';
+  hctx.shadowColor = 'rgba(255,40,20,.75)'; hctx.shadowBlur = 11 * k; hctx.lineWidth = 3 * k; hctx.strokeStyle = 'rgba(16,6,4,.9)';   // silueta oscura con halo rojo
+  for (const q of F3) { path(q.pts); hctx.stroke(); }
+  hctx.shadowBlur = 0;
+  for (const q of F3) {
+    path(q.pts); hctx.fillStyle = col(q.b); hctx.fill();
+    hctx.lineWidth = (q.isTop ? 1.1 : 0.6) * k; hctx.strokeStyle = q.isTop ? edge : 'rgba(30,6,4,.55)'; hctx.stroke();
+  }
+  hctx.restore();
+  hudGlow(String(Math.round(dist)), x0 + 42 * k, y0 + 5 * k, 15 * k, P.ink, P.glow, 'left', k);
+  if (inc.length > 1) hudGlow('× ' + inc.length, x0 + 42 * k, y0 + 21 * k, 11 * k, P.line, P.glow, 'left', 0.4 * k);
 }
 /* v15: fuera del área de la misión, hacia su centro (a la altura del jugador): rombo dorado si se ve; si no, flecha dorada en un anillo
    alrededor del centro de la pantalla, como la de los misiles. */
@@ -664,11 +699,11 @@ function drawWeapons() {
   const k = HUD_K, w = 80 * k, h = 23 * k, pitch = 30.67 * k, size = 13 * k;
   let bx = HW / 2 + 528.5 * k, lx = HW / 2 + 463.5 * k;
   const over = bx + w - (HW - 16 * k); if (over > 0) { bx -= over; lx -= over; }   // (pantallas estrechas: pegado al borde)
-  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;   // (v44: en tierra, solo FLM)
+  const y3 = HH - 47 * k - h, y0 = y3 - 3 * pitch, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;   // (v44: en tierra, sin MSL ni LSR)
   hctx.save();
   hctx.globalAlpha = 0.55; hudPanel(lx - 12 * k, y0 - 9 * k, bx + w + 9 * k - (lx - 12 * k), y3 + h + 7 * k - (y0 - 9 * k), { line: PAL_G.faint, glow: 'rgba(0,0,0,0)' }, 10 * k, 0.6);
   const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; hudGlow(name, lx, y + h / 2 + 17 * k * G_CAP / 2, 17 * k, PAL_G.line, PAL_G.glow, 'left', 1.5 * k); return y; };
-  let y = row(0, 'GUN', oh || las || gnd);
+  let y = row(0, 'GUN', oh || las);                         // (v50: también en tierra)
   hudBar(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, PAL_G, Math.min(GUN_AMMO, 20));
   y = row(1, 'MSL', oh || las || gnd);
   hudBar(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, W.msl > 0 ? PAL_G : PAL_R, 10);
@@ -770,15 +805,17 @@ function drawHUD() {
   const fwd = _f.set(0, 0, -1).applyQuaternion(dragon.quaternion);
   const heading = ((Math.atan2(fwd.x, -fwd.z) * 180 / Math.PI) + 360) % 360;
   if (F.boostFx > 0.02 || F.kickFx > 0.02) drawSpeedLines(F.boostFx, F.kickFx);
-  drawCompass(heading);
+  hudLayer(true);                                          // v50: lo que marca algo del mundo, con solo parte de la sacudida (16c)
   if (dragonAnim.cam < 0.5) drawLadder(fwd);                 // (v27: en 1ª persona de verdad; la cámara de apuntado la saca)
   drawMarkers(fwd);
   drawTargets();                                           // (v41: marcos por tipo, como en Ace Combat)
+  hudLayer(false);                                         // v50: los instrumentos, con toda
+  drawCompass(heading);
   drawMinimap(heading, fwd);                               // (v39: el HUD de Ace Combat; antes, radar redondo, velocidad e instrumentos a los lados)
   drawWeapons();
-  drawMissileWarn();
   if (MS.out && state === 'playing') drawAreaArrow();       // v15: fuera del área de la misión
   drawFlightBoxes();
+  drawMissileWarn();                                       // (v50: tras drawFlightBoxes: se coloca con ella)
   drawKills();                                             // v41: «X DESTRUIDO»
   drawHealth();
   drawObjectives();                                        // v48: arriba a la izquierda, en los dos estilos (16b; antes, arriba a la derecha y con los puntos)
@@ -815,9 +852,10 @@ function updateWorld(dt) {
     hover: F.hoverK, boost: F.boostFx, climb: F.hvy / HOVER_VSPEED, dive: smooth(0.15, 0.6, -fwdY), aimCam, aimPt,   // (v44: desde la v34 el comentario de arriba se comía esta línea: sin hover, boost, picado ni cámara de apuntado)
     effort: F.effort, roll: F.roll, dodgeOff: F.dodgeCam });   // (v32: esfuerzo con W, tonel de la esquiva y cámara que se queda atrás)
   updateKnight(); updateAttacks(dt);
+  updateHudShake(dt);                                      // v50: sacudida del HUD y temblor de cámara en giros y con la llamarada (16c)
   if (camShake > 0.002) {
-    camera.position.x += (Math.random() - 0.5) * camShake * 0.7; camera.position.y += (Math.random() - 0.5) * camShake * 0.7;
-    camera.rotation.z += (Math.random() - 0.5) * camShake * 0.04;   // (v13: suma; el alabeo de la cámara ya no es 0)
+    camera.position.x += (Math.random() - 0.5) * camShake * 0.7 * HS.k; camera.position.y += (Math.random() - 0.5) * camShake * 0.7 * HS.k;
+    camera.rotation.z += (Math.random() - 0.5) * camShake * 0.04 * HS.k;   // (v13: suma; el alabeo de la cámara ya no es 0)
     camShake *= Math.exp(-dt * 4.5);
   }
   // v32: golpe de ala: el sonido (un trozo del aleteo al azar, programado para que su pico caiga en el golpe) y un temblor leve de cámara que
@@ -833,12 +871,12 @@ function updateWorld(dt) {
     if (e < 0.005) beatSh.a = 0;
   }
   // boost: temblor suave (ondas de 7-11 Hz, no saltos al azar), más fuerte en el golpe al activarlo
-  const bsh = F.boostFx * BOOST_SHAKE[0] + F.kickFx * BOOST_SHAKE[1] + SPEED_SHAKE * smooth(VCRUISE_MAX * 1.15, VMAX, F.speed) * (state === 'playing' ? 1 : 0);   // (v13) y un temblor leve a mucha velocidad
-  if (bsh > 1e-5) {
+  const bsh = (F.boostFx * BOOST_SHAKE[0] + F.kickFx * BOOST_SHAKE[1] + SPEED_SHAKE * smooth(VCRUISE_MAX * 1.15, VMAX, F.speed) * (state === 'playing' ? 1 : 0)) * HS.k;   // (v13) y un temblor leve a mucha velocidad
+  if (bsh + HS.camX + HS.camY > 1e-5) {                    // (v50: y en giros cerrados, en el eje en que se gira, y con la llamarada y el rayo: HS.camX, HS.camY)
     const t = gameTime;
-    camera.rotation.x += (Math.sin(t * 71) * 0.6 + Math.sin(t * 53 + 1.3) * 0.4) * bsh;
-    camera.rotation.y += (Math.sin(t * 64 + 0.7) * 0.6 + Math.sin(t * 47 + 2.1) * 0.4) * bsh;
-    camera.rotation.z += Math.sin(t * 58 + 0.3) * bsh * 0.6;
+    camera.rotation.x += (Math.sin(t * 71) * 0.6 + Math.sin(t * 53 + 1.3) * 0.4) * (bsh + HS.camX);
+    camera.rotation.y += (Math.sin(t * 64 + 0.7) * 0.6 + Math.sin(t * 47 + 2.1) * 0.4) * (bsh + HS.camY);
+    camera.rotation.z += Math.sin(t * 58 + 0.3) * (bsh + (HS.camX + HS.camY) * 0.5) * 0.6;
   }
   let fov = lerp(FOV_BASE[0], FOV_BASE[1], clamp(sn, 0, 1)) + F.fireFlash * 1.5 + F.boostFx * BOOST_FOV + F.kickFx * BOOST_KICK_FOV - F.hoverK * 2 + SPEED_FOV * smooth(VCRUISE_MAX, VMAX, F.speed);
   if (CC.fov && CC.k > 0.001) fov = lerp(fov, CC.fov, CC.k);   // v34: el zoom de un plano de cine (19e)

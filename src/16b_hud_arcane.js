@@ -210,24 +210,23 @@ function arcCompass(heading) {
 function astroidPath(p, x, y, r, c) {
   p.moveTo(x, y - r); p.quadraticCurveTo(x + c, y - c, x + r, y); p.quadraticCurveTo(x + c, y + c, x, y + r); p.quadraticCurveTo(x - c, y + c, x - r, y); p.quadraticCurveTo(x - c, y - c, x, y - r); p.closePath();
 }
-/* Marca de la dirección (la trayectoria): el rombo de lados curvos del mockup, hueco y en marfil, para distinguirla de la mira dorada (también cuando se solapan,
-   al volar recto hacia ella, y queda dentro de su círculo); en vuelo recto (Espacio), ámbar. */
+/* Marca de la dirección (la trayectoria; v50: antes era la mira): el círculo de metal dorado con cuatro puntas del mockup; en vuelo recto (Espacio), ámbar. */
 function arcPathMarker(p) {
-  const k = HUD_K, x = p.x, y = p.y, R = 16 * k, a = new Path2D();
-  astroidPath(a, x, y, R, 1.9 * k); astroidPath(a, x, y, 9.6 * k, 2.1 * k);
-  metalFill(a, y - R, y + R, F.straight ? METAL_SUN : METAL_IVORY, 'evenodd');
-  if (F.straight) arcText('VUELO RECTO', x, y - 34 * k, 11 * k, ARC_SUN.ink, SHADOW, 'center', 0.8 * k, PTB(11 * k));
-}
-/* Mira: círculo de metal dorado con cuatro puntas (como la del mockup; más clara al disparar; gris sin armas). Debajo, los slots del escudo (las imágenes de
-   Jorge: el vacío, y encima el lleno recortado de abajo arriba: el que está en uso se vacía; los gastados se rellenan, apagados, durante su recarga). Por fuera,
-   a la derecha, el arco del calor de la llamarada (bronce → brasa → carmesí). */
-function arcReticle(a) {
-  const k = HUD_K, hot = W.cool > 0, off = !weaponsReady(), M = off ? METAL_OFF : hot ? METAL_HOT : METAL, x = a.x, y = a.y, R = 18 * k;
-  if (Math.hypot(x - _sp.x, y - _sp.y) > 26 * k) { hctx.save(); hctx.globalAlpha = 0.4; hctx.strokeStyle = ARC_GOLD.line; hctx.lineWidth = k; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(x, y); hctx.stroke(); hctx.restore(); }
+  const k = HUD_K, x = p.x, y = p.y, R = 18 * k, M = F.straight ? METAL_SUN : METAL;
   const ring = new Path2D(); ring.arc(x, y, R, 0, 6.2832); metal(ring, y - R, y + R, 1.7 * k, M, 3);
   const sp = new Path2D(), b = R - 0.6 * k, w = 1.8 * k, m = R + 3.5 * k, T = R + 13 * k;   // puntas: rombos largos que nacen del círculo
   for (const [ux, uy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { sp.moveTo(x + ux * b, y + uy * b); sp.lineTo(x + ux * m - uy * w, y + uy * m + ux * w); sp.lineTo(x + ux * T, y + uy * T); sp.lineTo(x + ux * m + uy * w, y + uy * m - ux * w); sp.closePath(); }
   metalFill(sp, y - T, y + T, M);
+  if (F.straight) arcText('VUELO RECTO', x, y - T - 6 * k, 11 * k, ARC_SUN.ink, SHADOW, 'center', 0.8 * k, PTB(11 * k));
+}
+/* Mira (donde apuntas y disparas; v50: antes era la marca de la dirección): el rombo de lados curvos, hueco, en marfil para distinguirla del círculo dorado (al volar recto hacia ella queda
+   dentro de él); más clara al disparar, gris sin armas. Debajo, los slots del escudo (las imágenes de Jorge: el vacío, y encima el lleno recortado de abajo arriba: el que está en uso se
+   vacía; los gastados se rellenan, apagados, durante su recarga). Por fuera, a la derecha, el arco del calor de la llamarada (bronce → brasa → carmesí). */
+function arcReticle(a) {
+  const k = HUD_K, hot = W.cool > 0, off = !weaponsReady(), M = off ? METAL_OFF : hot ? METAL_HOT : METAL_IVORY, x = a.x, y = a.y, R = 16 * k;
+  if (Math.hypot(x - _sp.x, y - _sp.y) > 26 * k) { hctx.save(); hctx.globalAlpha = 0.4; hctx.strokeStyle = ARC_GOLD.line; hctx.lineWidth = k; hctx.beginPath(); hctx.moveTo(_sp.x, _sp.y); hctx.lineTo(x, y); hctx.stroke(); hctx.restore(); }
+  const st = new Path2D(); astroidPath(st, x, y, R, 1.9 * k); astroidPath(st, x, y, 9.6 * k, 2.1 * k);
+  metalFill(st, y - R, y + R, M, 'evenodd');
   drawShields(x, y + 41.5 * k);
   if (W.heat > 0.01 || W.overheat > 0) {                   // calor de la llamarada
     const A0 = 0.9, Rh = 35 * k, oh = W.overheat > 0, P = oh ? ARC_CRIM : arcHeat(W.heat);
@@ -404,7 +403,7 @@ function arcWeapons() {
   const y3 = HH - 55 * k - h, oh = W.overheat > 0, las = W.laser > 0, blink = 0.5 + 0.5 * Math.sin(gameTime * 9), gnd = !!GR.mode;
   hctx.save();
   const row = (i, name, dim) => { const y = y3 - (3 - i) * pitch; hctx.globalAlpha = dim ? 0.32 : 1; arcText(name, lx, y + h / 2 + 16 * k * A_CAP / 2, 16 * k, ARC_GOLD.line, SHADOW, 'left', 0, PTL(16 * k)); return y; };
-  let y = row(0, 'GUN', oh || las || gnd);
+  let y = row(0, 'GUN', oh || las);                         // (v50: también en tierra)
   arcPlate(bx, y, w, h, W.ammo / GUN_AMMO, W.ammo + '/' + GUN_AMMO, size, ARC_BRONZE);
   y = row(1, 'MSL', oh || las || gnd);
   arcPlate(bx, y, w, h, MSL_AMMO > 0 ? W.msl / MSL_AMMO : 0, W.msl + '/' + MSL_AMMO, size, ARC_BRONZE, 0, W.msl > 0 ? null : ARC_CRIM.line);

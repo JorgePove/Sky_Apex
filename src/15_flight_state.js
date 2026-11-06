@@ -94,7 +94,7 @@ canvasGL.addEventListener('mousedown', e => {
   if (DEV.open) { devPanel(false); return; }               // v27: con el panel de pruebas abierto, un clic en el juego lo cierra
   if (e.button === 1) { e.preventDefault(); cycleTarget(); return; }   // clic central: fijar el siguiente dragón enemigo a la vista
   const t = performance.now() / 1000;
-  if (e.button === 0 && GR.mode) return;                   // v44: en tierra, solo la llamarada (clic dcho.) y el escudo
+  if (e.button === 0 && GR.mode && GR.mode !== 'walk') return;   // (v44; v50: ya posado, también el fuego rápido; al aterrizar y al despegar, no)
   if (e.button === 0) {
     W.lmb = true; W.lmbT = t;
     if (!(W.rmb && t - W.rmbT < COMBO_WIN && tryLaser())) pressLeft();
@@ -466,7 +466,7 @@ function launchMissile(e) {
   for (let i = 0; i < 30; i++) emit(fxAdd, _mouth.x, _mouth.y, _mouth.z, d.x * rnd(20, 60) + rnd(-10, 10) + dragonVel.x, d.y * rnd(20, 60) + rnd(-10, 10) + dragonVel.y, d.z * rnd(20, 60) + rnd(-10, 10) + dragonVel.z, rnd(0.25, 0.5), 3, 8, ATTACK.r, ATTACK.g * rnd(0.8, 1.2), ATTACK.b, 0.9, 1.5, 0);
 }
 function tryLaser() {
-  if (W.ult < 1 || !weaponsReady()) return false;
+  if (W.ult < 1 || !weaponsReady() || GR.mode) return false;   // (v50: en tierra se usan los dos botones, pero sin rayo)
   W.laser = LASER_T; W.lock = 0; W.locked = false; W.lockArmed = false; W.flame = false; W.shotQ = false; stats.lasers++;
   F.fireFlash = 1; camShake = Math.max(camShake, 0.4);
   sfx.laserOn(); toast('¡RAYO DE FUEGO!');
@@ -1036,7 +1036,7 @@ function updateFlight(dt, auto) {
     if (F.boostDelay <= 0) F.boost = Math.min(1, F.boost + BOOST_REFILL * dt);
   }
   if (F.boostExhausted && F.boost >= 0.2) F.boostExhausted = false;   // tras vaciarse hace falta un mínimo de carga
-  if (boosting && !F.boosting) { sfx.boost(); F.boostKick = 1; }
+  if (boosting && !F.boosting) { sfx.boost(); F.boostKick = 1; hudKick(0, 6); }   // (v50: el golpe también en el HUD, 16c)
   F.boosting = boosting;
   F.boostFx += ((boosting ? 1 : 0) - F.boostFx) * (1 - Math.exp(-dt * (boosting ? 3.2 : 1.8)));
   F.boostKick *= Math.exp(-dt * 3.5);                    // golpe: sube rápido (kickFx) y se apaga en ~0,6 s

@@ -6,7 +6,7 @@
      (GROUND_TURN); quieto, el clip «reposo». Una sola velocidad (GROUND_SPEED): el andar se acelera en proporción a su ritmo natural
      (GR.walkV, medido en el clip: las patas no patinan).
    · El ratón mueve la mira y la cabeza la sigue (hasta donde llega el cuello: updateAim); el cuerpo solo gira con A/D.
-   · Solo la llamarada (clic dcho.) y el escudo (R): ni fuego rápido, ni guiadas, ni rayo, ni hover, ni boost, ni esquiva.
+   · El fuego rápido (clic izq.; v50), la llamarada (clic dcho.) y el escudo (R): ni guiadas, ni rayo, ni hover, ni boost, ni esquiva.
    · Espacio: clip «despegar» (se agacha, abre las alas y salta con el primer aletazo) y vuelve al vuelo normal a GROUND_TAKEOFF, con el
      morro algo arriba y un empujón hacia arriba (BUMP.v).
    · Al aterrizar la cámara pasa a 3ª persona y se queda así al despegar (la 1ª, con la C). Al aterrizar y al despegar, el gruñido grabado.
@@ -88,7 +88,7 @@ function canLand(pos, q, approach) {
 /* ---------- Aterrizar ---------- */
 function landStart() {
   const p = dragon.position, q = dragon.quaternion;
-  GR.mode = 'land'; GR.t = 0; GR.beat = false;
+  GR.mode = 'land'; GR.t = 0; GR.beat = false; GR.hit = false;
   GR.p0.copy(p); GR.y0 = p.y; GR.q0.copy(q);
   GR.v0.copy(dragonVel).setY(0); if (GR.v0.length() > LAND_SPEED * (1 + LAND_MARGIN)) GR.v0.setLength(LAND_SPEED * (1 + LAND_MARGIN));
   GR.landRate = GR.touch / landTime(GR.v0.length());           // (v45: ritmo del clip, para tocar el suelo al pararse)
@@ -137,6 +137,10 @@ function updateGround(dt) {
     p.x = GR.p0.x + GR.v0.x * s; p.z = GR.p0.z + GR.v0.z * s;
     const h = heightAt(p.x, p.z), ct = Math.min(GR.t, T) * GR.landRate + Math.max(0, GR.t - T) * LAND_RATE;   // (tras tocar el suelo, el asentamiento a su ritmo)
     if (GR.t >= T) hero.act.gLand.timeScale = LAND_RATE;
+    if (GR.t >= T && !GR.hit) {                            // v50: el golpe al tocar el suelo, más fuerte cuanto más deprisa llega (16c)
+      GR.hit = true; const f = clamp(GR.v0.length() / LAND_SPEED, 0.35, 1);
+      camShake = Math.max(camShake, 0.9 * f); hudKick(0, 15 * f);
+    }
     p.y = Math.max(lerp(GR.y0, h + GR.lift, u * u * (3 - 2 * u)), h - footAt(GR.footLand, ct) + 0.1);
     GR.n.lerp(bodyNormal(p.x, p.z, _gN), 1 - Math.exp(-dt * 6)).normalize();
     q.copy(GR.q0).slerp(groundQuat(GR.n, _gQ), smooth(0, 0.7, u));
@@ -164,7 +168,7 @@ function updateGround(dt) {
     const ct = GR.t * TAKE_RATE, dur = hero.act.gTake.getClip().duration, h = heightAt(p.x, p.z);
     p.y = Math.max(h + GR.lift, h - footAt(GR.footTake, ct) + 0.1) + 3.5 * smooth(dur * 0.6, dur, ct) ** 2;
     groundQuat(GR.n, q); dragonVel.set(0, 0, 0); F.speed = 0;
-    if (!GR.beat && ct > dur * 0.7) { GR.beat = true; sfx.wingBeat(1, lerp(1, 0.7, dragonAnim.cam), 0.02); camShake = Math.max(camShake, 0.25); }   // (el primer aletazo)
+    if (!GR.beat && ct > dur * 0.7) { GR.beat = true; sfx.wingBeat(1, lerp(1, 0.7, dragonAnim.cam), 0.02); camShake = Math.max(camShake, 0.6); hudKick(0, 10); }   // (el primer aletazo: el salto; v50: más fuerte, y en el HUD)
     if (ct >= dur) takeoffEnd();
   }
 }

@@ -31,6 +31,8 @@ const ENEMY_BREAK = 230;              // a esta distancia rompen la pasada
 const ENEMY_TURN = [1.97, 1.07];
 const ALLY_TURN = [1.75, 0.95];       // Lance (6e) gira como los enemigos antes de la v26 (cada eje con su tope)
 let ENEMY_EVADE_DIST = 1800, ENEMY_EVADE_T = [10, 18];   // v26, huida: distancia a la que se siente perseguido (m) y tiempo de huida antes de volver a atacar (s)
+let ENEMY_VFLEE = 800 / 3.6, ENEMY_FLEE_ACC = 45;        // v50, huida: velocidad (m/s) y aceleración (m/s²) (Excel)
+let ENEMY_DODGE_P = 0.2, ENEMY_DODGE_DIST = 40, ENEMY_DODGE_T = 1.5, ENEMY_DODGE_MSL = 400;   // v50, esquiva de las guiadas: probabilidad, m de lado, s y m de la bola a los que reacciona (Excel)
 const ENEMY_HIT_R = 13 * ENEMY_SCALE, PLAYER_HIT_R = 10;   // radios de impacto (m)
 const ENEMY_RESPAWN = [6, 10];        // segundos hasta que aparece un sustituto
 const TRAIL_LEN = 1100;               // longitud de la estela amarilla (m); se desvanece a lo largo de ella
@@ -163,6 +165,7 @@ function makeEnemy() {
     wp: new THREE.Vector3(), hasWp: false, orbit: 1, side: 1, repY: 60, extDir: new THREE.Vector3(0, 0, -1), avoidDir: new THREE.Vector3(),
     aimLocal: new THREE.Vector3(0, 0, -1),
     chase: 0, evT: 0, ev: { kind: '', t: 0, dur: 0, h0: 0, p0: 0, s: 1, A: 0, T: 1, w: 0 },   // v26: huida (cuánto tiempo lleva perseguido y la maniobra en curso)
+    dg: { on: false, t: 0, s: 0, dir: 1, side: new THREE.Vector3() },   // v50: esquiva de las guiadas del jugador
     kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
@@ -179,7 +182,7 @@ function placeEscort(e, launch) {
   e.q.copy(a.q);                                           // con el rumbo de la flota
   e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
   e.hasWp = false; setEnemyMode(e, 'patrol'); e.alert = launch ? 0 : 3;
-  resetTrail(e); releaseLock(e);
+  resetTrail(e); dodgeClear(e); releaseLock(e);
   return true;
 }
 function nearestAirshipDist(p) { let d = Infinity; for (const a of airships) if (!a.dead) d = Math.min(d, a.pos.distanceTo(p)); return d; }
@@ -198,7 +201,7 @@ function placeEnemy(e, rmin, rmax) {
   e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP));
   e.speed = 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0;
   e.hasWp = false; setEnemyMode(e, 'patrol'); e.alert = 3;
-  resetTrail(e); if (enemyLock.e === e) enemyLock.e = null;
+  resetTrail(e); dodgeClear(e); if (enemyLock.e === e) enemyLock.e = null;
 }
 function reviveEnemy(e) {
   enemyState.spawned++;
@@ -264,7 +267,7 @@ function spawnSquad(id) {
     e.speed = q.cruise ? (q.cruise.speed || 400) / 3.6 : 64; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.avoidT = 0; e.hasWp = false;
     if (q.cruise) { setEnemyMode(e, 'cruise'); e.alert = 0; e.cr = { lead, r: lat, b: back, y: cy, v: (q.cruise.speed || 400) / 3.6, engage: q.cruise.engage || 2500 }; if (!i) lead = e; }
     else if (q.attack === false) { setEnemyMode(e, 'patrol'); e.alert = 3; } else { setEnemyMode(e, 'pass'); e.alert = 0; }
-    resetTrail(e);
+    resetTrail(e); dodgeClear(e);
   }
 }
 /* v34: el escuadrón deja la formación y ataca (todos a la vez): al acercarse el jugador, al recibir un disparo o por un evento («engage»). */
@@ -285,7 +288,7 @@ function spawnStatue(x, y, z, heading, tags) {
   const a = heading * Math.PI / 180; _Eef.set(Math.sin(a), 0, -Math.cos(a));
   e.pos.set(x, y, z); e.q.setFromRotationMatrix(_m4.lookAt(ZERO, _Eef, UP)); e.vel.set(0, 0, 0);
   e.speed = 0; e.rate.p = e.rate.y = e.rate.r = 0; e.bank = 0; e.aimLocal.set(0, 0, -1); setEnemyMode(e, 'patrol'); e.alert = 1e9;
-  resetTrail(e);
+  resetTrail(e); dodgeClear(e);
   return e;
 }
 /* El jugador reaparece: los enemigos pierden el rastro un momento. */
@@ -466,7 +469,8 @@ function thinkEnemy(e, dt, playing) {
     const w = smooth(650, 1150, dist) * (1 - smooth(1500, 2000, dist)), need = (pv.dot(_Etn) + 25) / Math.max(e.speed, 60);
     const thMax = need >= 1 ? 0 : Math.acos(Math.max(need, -1));
     if (w > 0.01) rotY(want, Math.min(w * 1.05, thMax) * e.orbit);
-    tSpeed = lerp(80, ENEMY_VMAX, smooth(200, 900, dist));
+    // v50: atacando va más o menos a tu velocidad (de cerca, la tuya, hasta su máxima); de lejos, a su máxima, para alcanzarte
+    tSpeed = lerp(clamp(F.speed, 80, ENEMY_VMAX), ENEMY_VMAX, smooth(450, 1200, dist));
     if (playing && e.fireCool <= 0 && dist < ENEMY_FIRE_RANGE && dist > 110) enemyShoot(e);
     if (dist < ENEMY_BREAK || (dotF < 0 && dist < 800) || e.t > 28) setEnemyMode(e, 'extend');
   } else if (e.mode === 'extend') {
@@ -486,7 +490,7 @@ function thinkEnemy(e, dt, playing) {
       else if (e.t > e.evT || e.chase <= 0) evadeTurnBack(e);
       else evadePick(e);
     }
-    if (e.mode === 'evade') { evadeWant(e, dt, want); tSpeed = ENEMY_VMAX; }
+    if (e.mode === 'evade') { evadeWant(e, dt, want); tSpeed = e.ev.kind === 'vuelta' ? ENEMY_VMAX : ENEMY_VFLEE; }   // (v50: huye mucho más rápido de lo que ataca: hay que apretar para alcanzarlo)
   }
   return tSpeed;
 }
@@ -548,8 +552,8 @@ function steerEnemy(e, tSpeed, dt) {
   _Esax.set(e.rate.p, e.rate.y, e.rate.r + bankRate);
   const ang = _Esax.length() * dt;
   if (ang > 1e-6) { _Edq.setFromAxisAngle(_Esax.normalize(), ang); q.multiply(_Edq).normalize(); }
-  // velocidad (tope = el del jugador sin boost) y avance
-  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, 24 * dt), 40, e.vmax || ENEMY_VMAX);   // (v23: el aliado tiene su tope, e.vmax)
+  // velocidad y avance (v50: acelera más al huir; el tope lo pone tSpeed: al dejar de huir frena poco a poco)
+  e.speed = clamp(e.speed + clamp(tSpeed - e.speed, -35 * dt, (e.mode === 'evade' && !e.vmax ? ENEMY_FLEE_ACC : 24) * dt), 40, e.vmax || Math.max(ENEMY_VMAX, ENEMY_VFLEE));   // (v23: el aliado tiene su tope, e.vmax)
   _Esf.set(0, 0, -1).applyQuaternion(q);
   e.vel.copy(_Esf).multiplyScalar(e.speed);
   pos.addScaledVector(e.vel, dt);
@@ -562,6 +566,32 @@ function steerEnemy(e, tSpeed, dt) {
     e.avoidDir.set(pos.x - isl.x, 0, pos.z - isl.z); if (e.avoidDir.lengthSq() < 1) e.avoidDir.copy(_Esf).negate(); e.avoidDir.normalize();
     const still = islandAt(pos.x, pos.y, pos.z, 0); if (still) pos.y = still.yMax + 55;   // por si apareció dentro de una isla recién cargada
   }
+}
+
+/* ---------- v50: esquiva de las guiadas del jugador ----------
+   La misma que hace el jugador con A/D (updateDodge, 15): se desplaza de lado (perpendicular a la bola) frenando al final, con un tonel de 360°, y la bola pierde el blanco y sigue
+   recta. Cada guiada, al llegar a ENEMY_DODGE_MSL m de su blanco, tira el dado una sola vez (ENEMY_DODGE_P: steerMissile, 13). Solo los dragones (no las estatuas de la galería): lo demás no
+   esquiva. El tonel, visual, va en e.wrap (girado 180°: su z positiva baja el ala derecha). */
+const _Edg = new THREE.Vector3();
+function dodgeClear(e) { e.dg.on = false; e.wrap.rotation.z = 0; }
+function enemyDodgeStart(e, f) {
+  const G = e.dg; if (G.on) return false;
+  _Edg.copy(f.vel).normalize(); _Esr.set(1, 0, 0).applyQuaternion(e.q);
+  G.side.copy(_Esr).addScaledVector(_Edg, -_Esr.dot(_Edg));   // su derecha, en perpendicular a la bola
+  if (G.side.lengthSq() < 0.05) G.side.set(0, 1, 0).applyQuaternion(e.q);
+  G.side.normalize(); G.on = true; G.t = 0; G.s = 0; G.dir = Math.random() < 0.5 ? -1 : 1;
+  for (const o of fireballs) if (o.kind === 'msl' && o.target === e && o.pos.distanceTo(e.pos) < ENEMY_DODGE_MSL) { o.target = null; o.rolled = true; }   // (como la del jugador: todas las que tiene encima)
+  if (e.pos.distanceTo(dragon.position) < 700) sfx.dodge();
+  killFeed('Guiada esquivada', '', PAL_A);                 // (la bola era del jugador: para que sepa que no ha sido un fallo)
+  return true;
+}
+function updateEnemyDodge(e, dt) {
+  const G = e.dg; if (!G.on) return;
+  G.t += dt;
+  const u = Math.min(1, G.t / ENEMY_DODGE_T), s = 1 - Math.pow(1 - u, 3), r = Math.min(1, u / 0.9);
+  e.pos.addScaledVector(G.side, (s - G.s) * ENEMY_DODGE_DIST * G.dir); G.s = s;
+  e.wrap.rotation.z = G.dir * Math.PI * 2 * r * r * (3 - 2 * r);
+  if (u >= 1) dodgeClear(e);
 }
 
 /* ---------- Daño y muerte ---------- */
@@ -588,7 +618,7 @@ function damageEnemy(e, n, at, soft) {
 function killEnemy(e) {
   const mine = !byAlly;                                    // v23: los derribos del aliado no recargan el rayo ni el escudo
   if (mine) heroKill();                                    // (v39: el escudo se recarga con el tiempo; cada derribo le quita unos segundos)
-  e.dead = true; showEnemy(e, false); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
+  e.dead = true; showEnemy(e, false); dodgeClear(e); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
@@ -643,7 +673,8 @@ function animateEnemyModel(e, dt, dist) {
     const thr = clamp((e.speed - 40) / 65, 0, 1), dive = smooth(0.1, 0.55, -_Eef.y), climb = smooth(0.15, 0.5, _Eef.y);
     _Est.throttle = thr; _Est.flapTarget = clamp((0.25 + thr * 0.75 + climb * 0.25) * (1 - 0.85 * dive), 0.04, 1);
     _Est.aimLocal = e.aimLocal; _Est.yawRate = e.rate.y; _Est.pitchRate = e.rate.p; _Est.fire = Math.max(e.fireFlash, e.hitFlash * 0.7);
-    animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0;
+    _Est.boost = e.mode === 'evade' && !e.vmax ? smooth(ENEMY_VMAX, ENEMY_VFLEE, e.speed) : 0;   // (v50: huyendo a toda velocidad, las alas recogidas como en el boost)
+    animateTyrant(e, e.A, e.animAcc, _Est); e.animAcc = 0; _Est.boost = 0;
   }
   // destellos: la piel al recibir un impacto y la boca al disparar
   e.U.uHit.value = e.hitFlash * 0.85;
@@ -666,7 +697,7 @@ function updateEnemies(dt) {
     }
     if (e.mode !== 'cruise' && (escorting() ? e.mode === 'patrol' && nearestAirshipDist(e.pos) > 5000 : e.pos.distanceTo(P) > 8500)) placeEnemy(e, 4500, 6500);   // (v23: la escolta, de vuelta a la flota; v34: los que vienen en formación, no)
     const tSpeed = thinkEnemy(e, dt, playing);
-    steerEnemy(e, tSpeed, dt);
+    steerEnemy(e, tSpeed, dt); updateEnemyDodge(e, dt);      // (v50: esquiva, antes de la estela y los choques)
     e.fireFlash = Math.max(0, e.fireFlash - dt * 3.2); e.hitFlash = Math.max(0, e.hitFlash - dt * 2.5);
     updateTrail(e, dt);
     const dist = e.pos.distanceTo(P);

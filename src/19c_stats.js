@@ -88,6 +88,13 @@ const STATS_SCHEMA = {
     ['huida_distancia', 'Distancia a la que se siente perseguido', 'm', 1800, 'Con el jugador detrás, apuntándole y más cerca que esto, huye hacia delante con maniobras amplias (eses, curvas abiertas, tirabuzón, subidas y picados).', 1],
     ['huida_min', 'Tiempo de huida (mínimo)', 's', 10, 'Pasado este tiempo (entre el mínimo y el máximo) da la vuelta con una curva abierta y vuelve a atacar.', 1],
     ['huida_max', 'Tiempo de huida (máximo)', 's', 18, '', 1],
+    ['huida_velocidad', 'Velocidad al huir', 'km/h', 800, 'Perseguido, acelera hasta esto (v50). Por encima de tu velocidad máxima (Base), solo lo alcanzas con boost. Atacando, en cambio, se ajusta a tu velocidad, hasta su velocidad máxima de arriba.'],
+    ['huida_aceleracion', 'Aceleración al huir', 'm/s²', 45, 'Lo rápido que coge esa velocidad.'],
+    { sec: 'Esquiva de tus bolas guiadas' },
+    ['esquiva_prob', 'Probabilidad de esquivar', '%', 20, 'Por cada bola guiada tuya que se le acerca (v50). Solo los dragones: lo demás no las esquiva.'],
+    ['esquiva_distancia', 'Distancia de la esquiva', 'm', 40, 'Lo que se desplaza de lado, con un tonel de 360°, como tu esquiva con A/D. Debe superar su radio de impacto (~20 m) para que la bola pase de largo.'],
+    ['esquiva_duracion', 'Duración de la esquiva', 's', 1.5, ''],
+    ['esquiva_guiadas', 'Distancia a la que reacciona', 'm', 400, 'Con la bola a menos de esto decide si esquiva y, si lo hace, la bola pierde el blanco y sigue recta.'],
     { sec: 'Bola de fuego' },
     ['bola_dano', 'Daño bola de fuego', 'puntos', 15, ''],
     ['bola_alcance', 'Alcance', 'm', 1000, ''],
@@ -430,6 +437,8 @@ function applyStats(vals, src) {
   ENEMY_HP = E.vida; ENEMY_VMAX = E.velocidad / 3.6; ENEMY_DETECT = E.deteccion; ENEMY_LOSE = E.perder; ENEMY_SCORE = E.puntos;
   ENEMY_TURN[1] = ENEMY_VMAX / Math.max(20, E.giro_radio); ENEMY_TURN[0] = ENEMY_TURN[1] * 1.75 / 0.95;   // (v26: el giro total; despacio, más cerrado, como el jugador)
   ENEMY_EVADE_DIST = E.huida_distancia; ENEMY_EVADE_T[0] = E.huida_min; ENEMY_EVADE_T[1] = Math.max(E.huida_min, E.huida_max);
+  ENEMY_VFLEE = E.huida_velocidad / 3.6; ENEMY_FLEE_ACC = Math.max(1, E.huida_aceleracion);
+  ENEMY_DODGE_P = clamp(E.esquiva_prob / 100, 0, 1); ENEMY_DODGE_DIST = E.esquiva_distancia; ENEMY_DODGE_T = Math.max(0.1, E.esquiva_duracion); ENEMY_DODGE_MSL = E.esquiva_guiadas;
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
   EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(20, E.guiada_vel / 3.6); EMSL_SPEED[0] = EMSL_SPEED[1] * 0.53;   // (v41: la de salida, en proporción: 170 de 320 m/s) EMSL_TURN = deg(E.guiada_giro);

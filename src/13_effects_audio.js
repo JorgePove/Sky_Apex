@@ -73,7 +73,7 @@ function explode(x, y, z, power) {
     emit(fxAdd, x, y, z, Math.cos(a) * s * sp, c * sp, Math.sin(a) * s * sp, rnd(0.6, 1.4), 0.7, 0.2, 1, 0.85, 0.4, 1, 0.3, 24);
   }
   const d = Math.hypot(x - dragon.position.x, y - dragon.position.y, z - dragon.position.z);
-  camShake = Math.max(camShake, power * 0.55 * clamp(1 - d / 900, 0, 1));
+  const shk = power * 0.55 * clamp(1 - d / 900, 0, 1); camShake = Math.max(camShake, shk); hudBlast(x, y, z, shk);   // (v50: empuja el HUD, 16c)
   sfx.boom(power * clamp(1.2 - d / 1800, 0.15, 1));
 }
 function debris(x, y, z) {
@@ -226,6 +226,10 @@ function steerMissile(f, dt) {
   f.speed = Math.min(MSL_SPEED[1], f.speed + MSL_ACCEL * dt);
   _mv.copy(f.vel).normalize();
   const e = f.target;
+  if (e && !e.dead && e.kind === 'dragon' && !e.statue && !f.rolled && f.pos.distanceTo(e.pos) < ENEMY_DODGE_MSL) {   // v50: los dragones pueden esquivarla (14)
+    f.rolled = true;
+    if (Math.random() < ENEMY_DODGE_P && enemyDodgeStart(e, f)) { f.vel.copy(_mv).multiplyScalar(f.speed); return; }
+  }
   if (e && !e.dead) {
     if (interceptPoint(e, f.pos, _mt, f.speed, 30) < 0) _mt.copy(targetCenter(e));
     if (e.ground) {                                        // v30: contra tierra y mar, sube un poco y cae sobre el blanco (parábola: apunta por encima y baja al acercarse)
