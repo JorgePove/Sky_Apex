@@ -523,6 +523,8 @@ const sfx = (() => {
     growl() { if (!ctx) return; if (smp.growl) this.play(smp.growl, ctx.currentTime, 0, smp.growl.duration, SFX_VOL.growl); else this.roar(0.6); },
     /* v32: esquiva: un soplo que barre de grave a agudo y un aletazo fuerte */
     dodge() { this.noise(0.55, 'bandpass', 380, 2600, 0.5, 0.8); this.wingBeat(1, 1, 0.12); },
+    /* v51: llamarada de un dragón enemigo: un trozo de la grabada, más bajo cuanto más lejos (v: 0-1). */
+    enemyFlame(v) { if (!ctx || v < 0.04) return; if (smp.fire) this.play(smp.fire, ctx.currentTime, FIRE_LOOP[0], 1.3, SFX_VOL.fire * 0.7 * v); else this.noise(1.1, 'bandpass', 900, 280, 0.5 * v, 0.7); },
     /* v32: llamarada grabada: al empezar, el rugido (como mucho uno cada ROAR_GAP s) y la llamarada, que sigue en bucle hasta soltar */
     fireSample(on) {
       const t = ctx.currentTime;

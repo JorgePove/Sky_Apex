@@ -32,6 +32,8 @@ const ENEMY_TURN = [1.97, 1.07];
 const ALLY_TURN = [1.75, 0.95];       // Lance (6e) gira como los enemigos antes de la v26 (cada eje con su tope)
 let ENEMY_EVADE_DIST = 1800, ENEMY_EVADE_T = [10, 18];   // v26, huida: distancia a la que se siente perseguido (m) y tiempo de huida antes de volver a atacar (s)
 let ENEMY_VFLEE = 800 / 3.6, ENEMY_FLEE_ACC = 45;        // v50, huida: velocidad (m/s) y aceleración (m/s²) (Excel)
+let ENEMY_PASS_OFF = 90, ENEMY_RAM_R = 9;                  // v51: a cuántos m de ti pasa y distancia de choque (Excel)
+const EFL = { dps: 7.5, range: 250, cos: 0.5, dur: 1.2, pause: 4 };   // v51: su llamarada: daño/s, alcance, coseno del ángulo, duración y pausa (Excel)
 let ENEMY_DODGE_P = 0.2, ENEMY_DODGE_DIST = 40, ENEMY_DODGE_T = 1.5, ENEMY_DODGE_MSL = 400;   // v50, esquiva de las guiadas: probabilidad, m de lado, s y m de la bola a los que reacciona (Excel)
 const ENEMY_HIT_R = 13 * ENEMY_SCALE, PLAYER_HIT_R = 10;   // radios de impacto (m)
 const ENEMY_RESPAWN = [6, 10];        // segundos hasta que aparece un sustituto
@@ -51,6 +53,7 @@ const _Edq = new THREE.Quaternion(), _Eiq = new THREE.Quaternion();
 const _Emo = new THREE.Vector3(), _Eai = new THREE.Vector3(), _Ead = new THREE.Vector3(), _Epf = new THREE.Vector3();
 const _Etl = new THREE.Vector3(), _Ecam = new THREE.Vector3(), _Ev1 = new THREE.Vector3(), _Ev2 = new THREE.Vector3(), _Eside = new THREE.Vector3(), _Epside = new THREE.Vector3(), _Evn = new THREE.Vector3();
 const _Est = { throttle: 0, flapTarget: 0, aimLocal: new THREE.Vector3(0, 0, -1), yawRate: 0, pitchRate: 0, fire: 0, third: false, hover: 0, boost: 0, climb: 0 };
+const _Epu = new THREE.Vector3(), _Efl = new THREE.Vector3(), _Efd = new THREE.Vector3();
 const _Efr = new THREE.Frustum(), _Epm = new THREE.Matrix4(), _Esph = new THREE.Sphere(new THREE.Vector3(), 30 * ENEMY_SCALE);
 
 const groundAt = (x, z) => Math.max(heightAt(x, z), WL);
@@ -166,6 +169,7 @@ function makeEnemy() {
     aimLocal: new THREE.Vector3(0, 0, -1),
     chase: 0, evT: 0, ev: { kind: '', t: 0, dur: 0, h0: 0, p0: 0, s: 1, A: 0, T: 1, w: 0 },   // v26: huida (cuánto tiempo lleva perseguido y la maniobra en curso)
     dg: { on: false, t: 0, s: 0, dir: 1, side: new THREE.Vector3() },   // v50: esquiva de las guiadas del jugador
+    passA: 0, flT: 0, flCool: 0, flD: new THREE.Vector3(0, 0, -1),      // v51: hacia qué lado tuyo pasa (rad) y su llamarada (lo que le queda, la pausa y la dirección del chorro)
     kind: 'dragon', tags: [], squad: null                    // v21: blanco (6d); squad = escuadrón de un evento (no reaparece)
   };
 }
@@ -300,10 +304,13 @@ function enemiesCalm() {
 
 function setEnemyMode(e, m) {
   e.mode = m; e.t = 0;
-  if (m === 'pass') { e.orbit = Math.random() < 0.5 ? -1 : 1; e.fireCool = Math.max(e.fireCool, rnd(0.5, 1.1)); }
-  else if (m === 'extend') {
+  if (m === 'pass') {
+    e.orbit = Math.random() < 0.5 ? -1 : 1; e.fireCool = Math.max(e.fireCool, rnd(0.5, 1.1));
+    e.passA = (Math.random() < 0.5 ? 0 : Math.PI) + rnd(-0.75, 0.75);   // v51: pasará por tu izquierda o tu derecha, algo por encima o por debajo
+  } else if (m === 'extend') {
     _Eef.set(0, 0, -1).applyQuaternion(e.q); _Eef.y = 0; if (_Eef.lengthSq() < 1e-4) _Eef.set(0, 0, -1); _Eef.normalize();
-    rotY(_Eef, rnd(-0.7, 0.7)); e.extDir.copy(_Eef); e.extDir.y = rnd(-0.10, 0.30); e.extDir.normalize();
+    const rt = (dragon.position.x - e.pos.x) * -_Eef.z + (dragon.position.z - e.pos.z) * _Eef.x;   // v51: rompe hacia el lado contrario al jugador (antes, al azar: podía girar hacia él); >0: lo tiene a la derecha
+    rotY(_Eef, (rt > 0 ? 1 : -1) * rnd(0.15, 0.7)); e.extDir.copy(_Eef); e.extDir.y = rnd(-0.10, 0.30); e.extDir.normalize();
   } else if (m === 'reposition') { e.side = Math.random() < 0.5 ? -1 : 1; e.repY = rnd(-30, 170); }
   else if (m === 'evade') { e.evT = rnd(ENEMY_EVADE_T[0], ENEMY_EVADE_T[1]); e.ev.kind = ''; evadePick(e); }
   else if (m === 'patrol') e.chase = 0;
@@ -464,6 +471,12 @@ function thinkEnemy(e, dt, playing) {
     // persecución con adelanto; a media distancia se aproxima en arco (flanqueando) y luego se lanza de frente
     const tl = clamp(dist / (e.speed + 140), 0, 2.2) * 0.8;
     _Elead.copy(P).addScaledVector(pv, tl);
+    // v51: no apunta a ti sino a un punto a tu lado (ENEMY_PASS_OFF m, hacia e.passA), cada vez más según se acerca: pasa de largo, sin embestirte
+    const off = ENEMY_PASS_OFF * (1 - smooth(450, 1200, dist));
+    if (off > 0.5) {
+      _Eside.crossVectors(_Etn, UP); if (_Eside.lengthSq() < 0.01) _Eside.set(1, 0, 0); _Eside.normalize(); _Epu.crossVectors(_Eside, _Etn);
+      _Elead.addScaledVector(_Eside, Math.cos(e.passA) * off).addScaledVector(_Epu, Math.sin(e.passA) * off);
+    }
     want.subVectors(_Elead, e.pos).normalize();
     // el desvío del arco se limita para que siga acercándose aunque el jugador huya (cierre mínimo ≈ 25 m/s)
     const w = smooth(650, 1150, dist) * (1 - smooth(1500, 2000, dist)), need = (pv.dot(_Etn) + 25) / Math.max(e.speed, 60);
@@ -510,6 +523,19 @@ function steerEnemy(e, tSpeed, dt) {
     if (o === e || o.dead || (e.mode === 'cruise' && o.squad === e.squad)) continue;   // (v34: en formación, juntos)
     const dx = pos.x - o.pos.x, dy = pos.y - o.pos.y, dz = pos.z - o.pos.z, dd = Math.hypot(dx, dy, dz);
     if (dd < 230 && dd > 1) { const k = (1 - dd / 230) * 1.6 / dd; d.x += dx * k; d.y += dy * k; d.z += dz * k; }
+  }
+  // v51: no embestir: si, tal como vais los dos, pasaríais a menos de ENEMY_PASS_OFF × 0,8 m en los próximos 3,5 s, se aparta hacia fuera (cuanto más cerca y más justo, más)
+  if (e.kind === 'dragon' && state === 'playing' && ENEMY_PASS_OFF > 0) {
+    const P = dragon.position, rx = P.x - pos.x, ry = P.y - pos.y, rz = P.z - pos.z, vx = dragonVel.x - e.vel.x, vy = dragonVel.y - e.vel.y, vz = dragonVel.z - e.vel.z;
+    const v2 = vx * vx + vy * vy + vz * vz, tc = v2 > 1 ? -(rx * vx + ry * vy + rz * vz) / v2 : -1, lim = ENEMY_PASS_OFF * 0.8;
+    if (tc > 0 && tc < 3.5) {
+      const mx = rx + vx * tc, my = ry + vy * tc, mz = rz + vz * tc, miss = Math.hypot(mx, my, mz);
+      if (miss < lim) {
+        const k = (1 - miss / lim) * (1 - tc / 3.5) * 2.2;
+        if (miss > 2) { d.x -= mx / miss * k; d.y -= my / miss * k; d.z -= mz / miss * k; }
+        else { _Esr.set(1, 0, 0).applyQuaternion(q); _Esu.set(0, 1, 0).applyQuaternion(q); d.addScaledVector(_Esr, Math.cos(e.passA) * k).addScaledVector(_Esu, Math.sin(e.passA) * k); }   // (de frente clavado: hacia su lado)
+      }
+    }
   }
   d.normalize();
   // evitar terreno, agua e islas por delante
@@ -594,6 +620,50 @@ function updateEnemyDodge(e, dt) {
   if (u >= 1) dodgeClear(e);
 }
 
+/* ---------- v51: llamarada de los dragones enemigos ----------
+   Al pasar cerca: con el jugador a menos de EFL.range m, delante de su morro (EFL.cos) y a la vista, lanza un chorro de EFL.dur s; luego, EFL.pause s de pausa. El chorro sale de la boca (el
+   cuello ya mira al jugador: aimLocal) y sigue al jugador con un pequeño retraso (e.flD). Daño como en la del jugador: un cono que se abre un 11 % de la distancia; el
+   escudo lo para. Patrullando, en formación o huyendo, no. */
+function updateEnemyFlame(e, dt, dist) {
+  const P = dragon.position;
+  e.flCool -= dt;
+  if (e.flT <= 0) {
+    if (state !== 'playing' || holdFire() || cine.on || e.flCool > 0 || dist > EFL.range || e.mode === 'patrol' || e.mode === 'cruise' || e.mode === 'evade') return;
+    _Eef.set(0, 0, -1).applyQuaternion(e.q); _Efd.subVectors(P, e.pos).normalize();
+    if (_Eef.dot(_Efd) < EFL.cos || !losClear(e.pos.x, e.pos.y, e.pos.z, P.x, P.y, P.z)) return;
+    e.flT = EFL.dur; e.flD.copy(_Efd); sfx.enemyFlame(clamp(1.2 - dist / (EFL.range * 2), 0, 1));
+  }
+  e.flT -= dt;
+  if (e.flT <= 0 || state !== 'playing') { e.flT = 0; e.flCool = EFL.pause; return; }
+  const m = enemyMouth(e, _Efl);
+  _Efd.subVectors(P, m).normalize(); _Eef.set(0, 0, -1).applyQuaternion(e.q);
+  if (_Eef.dot(_Efd) < EFL.cos) _Efd.copy(_Eef);           // (se le ha ido de la vista: hacia delante)
+  e.flD.lerp(_Efd, 1 - Math.exp(-dt * 11)).normalize();
+  // Las llamas se mueven con el jugador a lo ancho y con el dragón a lo largo del chorro: visto desde el jugador, va derecho hacia él aunque el dragón pase de lado a toda velocidad (heredando
+  // solo la velocidad del dragón, como las del jugador, se iba de largo hacia donde pasaba), y mirado desde el dragón sale a FLAME_SPEED. Llega hasta el jugador, no más: no le da en la cara.
+  const D = e.flD, R = EFL.range, n = Math.round(1100 * dt + Math.random()), closing = Math.max(0, (e.vel.x - dragonVel.x) * D.x + (e.vel.y - dragonVel.y) * D.y + (e.vel.z - dragonVel.z) * D.z);
+  _Efd.subVectors(P, m); const along = _Efd.dot(D), r = PLAYER_HIT_R + clamp(along, 0, R) * 0.11, onP = along > 0 && along < R && _Efd.lengthSq() - along * along < r * r, reach = onP ? along : R;
+  for (let i = 0; i < n; i++) {
+    const hot = Math.random() < 0.25, rel = FLAME_SPEED * rnd(0.9, 1.1) + closing, j = 0.11 * FLAME_SPEED / rel, o = rnd(0, dt), life = reach / rel * rnd(0.75, 1.05);
+    const vx = (D.x + rnd(-j, j)) * rel, vy = (D.y + rnd(-j, j)) * rel, vz = (D.z + rnd(-j, j)) * rel;
+    emit(fxAdd, m.x + vx * o, m.y + vy * o, m.z + vz * o, vx + dragonVel.x, vy + dragonVel.y, vz + dragonVel.z, hot ? life * 0.5 : life, hot ? 1.2 : rnd(2, 3), hot ? 9 : rnd(18, 30), 1, hot ? 0.95 : rnd(0.42, 0.62), hot ? 0.7 : 0.12, hot ? 0.75 : 0.5, 0, -8);
+  }
+  fbLight.position.copy(m).addScaledVector(D, 30); fbLight.intensity = 5; fbLight.color.set(0xff8a3a);
+  e.fireFlash = Math.max(e.fireFlash, 0.55);               // (boca abierta y un fogonazo no muy grande: con 1, el brillo tapa al dragón)
+  if (onP) {
+    if (shieldOn()) { if (Math.random() < dt * 8) shieldHit(_Efd.copy(P).addScaledVector(D, -SHIELD_R), 0.5); }
+    else { hurtDragon(EFL.dps * dt, 'La llamarada de un dragón te calcinó', true); flameHit(_Efd.copy(P).addScaledVector(D, -6), dt); }
+  }
+}
+/* v51: choque con un dragón: solo si pasáis casi uno dentro del otro (ENEMY_RAM_R). Poco daño a los dos, chispas y un golpe de cámara, sin rebote ni cambio de rumbo: antes te mandaba de golpe a otra
+   dirección (confuso) y se podía matar a los dragones a embestidas. */
+function ramHit(e) {
+  const P = dragon.position; _Efl.addVectors(P, e.pos).multiplyScalar(0.5);
+  sparks(_Efl.x, _Efl.y, _Efl.z, 24, dragonVel.x, dragonVel.y, dragonVel.z);
+  if (!devCheat('noCrash')) { hurtDragon(ENEMY_RAM_DMG, 'Chocaste con un dragón enemigo', true); camShake = Math.max(camShake, 0.5); hudBlast(e.pos.x, e.pos.y, e.pos.z, 0.6); }
+  damageEnemy(e, ENEMY_RAM_TAKEN, _Efl);
+}
+
 /* ---------- Daño y muerte ---------- */
 /* n = puntos de daño. soft = daño continuo (llamarada, rayo): cada fotograma unas chispas, y un golpe de sonido de vez en cuando. */
 function damageEnemy(e, n, at, soft) {
@@ -618,7 +688,7 @@ function damageEnemy(e, n, at, soft) {
 function killEnemy(e) {
   const mine = !byAlly;                                    // v23: los derribos del aliado no recargan el rayo ni el escudo
   if (mine) heroKill();                                    // (v39: el escudo se recarga con el tiempo; cada derribo le quita unos segundos)
-  e.dead = true; showEnemy(e, false); dodgeClear(e); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
+  e.dead = true; e.flT = 0; showEnemy(e, false); dodgeClear(e); e.glow.visible = false; e.U.uHit.value = 0; e.respawnT = rnd(ENEMY_RESPAWN[0], ENEMY_RESPAWN[1]);
   const p = e.pos;
   explode(p.x, p.y, p.z, 2.2); debris(p.x, p.y, p.z);
   for (let i = 0; i < 3; i++) explode(p.x + rnd(-14, 14), p.y + rnd(-8, 8), p.z + rnd(-14, 14), 0.8);
@@ -702,7 +772,8 @@ function updateEnemies(dt) {
     updateTrail(e, dt);
     const dist = e.pos.distanceTo(P);
     // choque con el jugador
-    if (playing && dist < ENEMY_HIT_R + PLAYER_HIT_R && e.ramT <= 0) { e.ramT = 2; crashBump(_Ev2.subVectors(P, e.pos), 'Chocaste con un dragón enemigo', ENEMY_RAM_DMG); damageEnemy(e, ENEMY_RAM_TAKEN, e.pos); if (e.dead) continue; }   // (v43: con rebote)
+    if (playing && dist < ENEMY_RAM_R && e.ramT <= 0) { e.ramT = 2; ramHit(e); if (e.dead) continue; }   // (v51: sin rebote y muy justo: ramHit)
+    updateEnemyFlame(e, dt, dist);                           // v51: su llamarada al pasar cerca
     // bola guiada: la fija y la lanza si está en combate y tiene al jugador por delante
     if (playing) { _Eef.set(0, 0, -1).applyQuaternion(e.q); _Ev2.subVectors(P, e.pos).normalize(); if (enemyMissileTry(e, enemyMouth(e, _Emo2), dt, e.mode !== 'patrol' && e.mode !== 'cruise' && _Eef.dot(_Ev2) > 0.4)) e.fireFlash = 1; }
     // mirada: hacia el jugador cuando combate

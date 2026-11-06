@@ -928,7 +928,7 @@ function updateDodge(dt) {
 
 /* ---------- v43: choques con rebote ----------
    Petición de Jorge: estrellarse ya no es caer al instante (era muy frustrante). Tocar el suelo, el agua, una montaña, una isla, una torre, un
-   dirigible, una unidad enemiga con colisión o un dragón enemigo quita CRASH_DMG de vida (el dragón enemigo, su choque_dano) y hace rebotar:
+   dirigible o una unidad enemiga con colisión quita CRASH_DMG de vida y hace rebotar (v51: un dragón enemigo, no: ramHit, 14):
    - el dragón sale despedido hacia fuera de lo que ha tocado y algo hacia arriba (BUMP.v, que se apaga en ~1 s);
    - el morro (y la mira con él) se desvía fuera de la superficie: rozando, unos 15° hacia fuera; contra una ladera, sube por ella; casi de
      frente contra una pared, sale de lado a lo largo de ella; en picado contra el suelo, se endereza como al tirar de las riendas;
@@ -940,10 +940,10 @@ let CRASH_DMG = 20, CRASH_PUSH = 30, CRASH_GRACE = 1.5, LAND_SPEED = 350 / 3.6;
 const BUMP = { v: new THREE.Vector3(), t: -99, skim: false };   // velocidad del rebote (m/s), gameTime del último choque con daño, ¿rozando el agua?
 const _bn = new THREE.Vector3(), _bt = new THREE.Vector3(), _bc = new THREE.Vector3(), _bf = new THREE.Vector3(), _bu = new THREE.Vector3(), _bq = new THREE.Quaternion();
 function bumpReset() { BUMP.v.set(0, 0, 0); BUMP.t = -99; BUMP.skim = false; }
-/* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida; dmg: el daño (por defecto, CRASH_DMG). */
-function crashBump(n, why, dmg) {
+/* n: normal (hacia fuera) de lo que se ha tocado; why: el motivo si te deja sin vida. */
+function crashBump(n, why) {
   if (state !== 'playing' || devCheat('noCrash')) return;   // (v27: Dev Test, «sin choques»)
-  if (GR.mode) { if (gameTime - BUMP.t >= CRASH_GRACE) { BUMP.t = gameTime; hurtDragon(dmg != null ? dmg : CRASH_DMG, why); } return; }   // (v44: en tierra, un dragón que choca contigo: solo el daño)
+  if (GR.mode) { if (gameTime - BUMP.t >= CRASH_GRACE) { BUMP.t = gameTime; hurtDragon(CRASH_DMG, why); } return; }   // (v44: en tierra, solo el daño)
   const q = dragon.quaternion;
   _bn.copy(n).normalize();
   _bf.set(0, 0, -1).applyQuaternion(q);
@@ -968,7 +968,7 @@ function crashBump(n, why, dmg) {
   F.sink = 0;
   if (gameTime - BUMP.t < CRASH_GRACE) { camShake = Math.max(camShake, 0.35); return; }   // en la pausa: rebota, sin daño
   BUMP.t = gameTime;
-  hurtDragon(dmg != null ? dmg : CRASH_DMG, why);
+  hurtDragon(CRASH_DMG, why);
   camShake = Math.max(camShake, 1);
 }
 /* Normal del terreno en (x, z) (hacia arriba). */

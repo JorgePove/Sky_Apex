@@ -64,7 +64,7 @@ const STATS_SCHEMA = {
     ['esquiva_recarga', 'Espera entre esquivas', 's', 1, 'Segundos desde que acaba una hasta que se puede hacer la siguiente.'],
     ['esquiva_guiadas', 'Despiste de guiadas', 'm', 400, 'Al esquivar, las bolas guiadas enemigas a menos de esto pierden el blanco y siguen rectas (0 = ninguna).'],
     { sec: 'Choques' },                                    // v43
-    ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo hace el daño de su pestaña.'],
+    ['choque_dano', 'Daño al chocar', 'puntos', 20, 'Contra el suelo, el agua, una montaña, una isla, una torre, un dirigible u otra unidad enemiga (v43: ya no te derriba; rebotas). Solo caes si te deja sin vida. Chocar con un dragón enemigo es aparte (su pestaña): sin rebote.'],
     ['choque_rebote', 'Fuerza del rebote', 'm/s', 30, 'Velocidad con la que el choque te aparta de lo que has tocado (y algo hacia arriba); se apaga en ~1 s.', 1],
     ['choque_pausa', 'Pausa entre choques', 's', 1.5, 'Tras un choque con daño, segundos en los que otro choque te hace rebotar pero no te quita vida.', 1],
     ['aterrizaje_vel', 'Velocidad para posarse', 'km/h', 350, 'A esta velocidad o menos, sin picar ni ir muy de lado, el dragón roza el agua sin daño y no se hunde (v43) y aterriza al llegar al suelo (v44).'],
@@ -110,9 +110,17 @@ const STATS_SCHEMA = {
     ['guiada_separacion', 'Separación entre guiadas de todos', 's', 20, 'Entre dos lanzamientos de dragones cualesquiera.'],
     ['guiada_vel', 'Velocidad máxima de la guiada', 'km/h', 750, 'v41: −35 % (antes 1152) para dar tiempo a reaccionar. Sale al 53 % y acelera.'],
     ['guiada_giro', 'Giro de la guiada', '°/s', 40, 'Cuanto menos, más fácil esquivarla rompiendo fuerte.'],
-    { sec: 'Choques' },
-    ['choque_dano', 'Daño que te hace al chocar', 'puntos', 25, ''],
-    ['choque_recibe', 'Daño que recibe al chocar', 'puntos', 50, '']
+    { sec: 'Llamarada (al pasar cerca)' },
+    ['llamas_dano', 'Daño', 'puntos/s', 7.5, 'La mitad del tuyo (v51: Base, 15).'],
+    ['llamas_alcance', 'Alcance', 'm', 250, 'Con el jugador más cerca que esto y delante de su morro, la lanza.'],
+    ['llamas_angulo', 'Ángulo', '°', 60, 'Cuánto puede girar la cabeza respecto al morro: fuera de esto no la lanza y el chorro no te alcanza.'],
+    ['llamas_duracion', 'Duración', 's', 1.2, ''],
+    ['llamas_pausa', 'Pausa entre llamaradas', 's', 4, ''],
+    { sec: 'Pasadas y choques' },
+    ['pasada_desvio', 'Distancia a la que pasa', 'm', 90, 'Al acercarse no apunta a ti sino a un punto a este lado tuyo, para pasar de largo (v51). Si aun así va a chocar, se aparta.'],
+    ['choque_radio', 'Distancia de choque', 'm', 9, 'Solo chocáis si vuestros centros pasan a menos de esto, casi uno dentro del otro (v51). Sin rebote: los dos seguís vuestro rumbo.'],
+    ['choque_dano', 'Daño que te hace al chocar', 'puntos', 5, ''],
+    ['choque_recibe', 'Daño que recibe al chocar', 'puntos', 5, '']
   ],
   torre: [
     { sec: 'Vida' },
@@ -442,7 +450,8 @@ function applyStats(vals, src) {
   ENEMY_DMG = E.bola_dano; ENEMY_FIRE_RANGE = E.bola_alcance; ENEMY_FIRE_CD[0] = E.bola_pausa_min; ENEMY_FIRE_CD[1] = Math.max(E.bola_pausa_min, E.bola_pausa_max); ENEMY_AIM_ERR = E.bola_error / 100;
   EMSL_DMG = E.guiada_dano; EMSL_LOCK = Math.max(0.1, E.guiada_fijado); EMSL_RANGE[0] = E.guiada_alcance_min; EMSL_RANGE[1] = E.guiada_alcance_max;
   EMSL_CD = E.guiada_pausa; EMSL_GAP = E.guiada_separacion; EMSL_SPEED[1] = Math.max(20, E.guiada_vel / 3.6); EMSL_SPEED[0] = EMSL_SPEED[1] * 0.53;   // (v41: la de salida, en proporción: 170 de 320 m/s) EMSL_TURN = deg(E.guiada_giro);
-  ENEMY_RAM_DMG = E.choque_dano; ENEMY_RAM_TAKEN = E.choque_recibe;
+  ENEMY_RAM_DMG = E.choque_dano; ENEMY_RAM_TAKEN = E.choque_recibe; ENEMY_RAM_R = E.choque_radio; ENEMY_PASS_OFF = Math.max(0, E.pasada_desvio);
+  EFL.dps = E.llamas_dano; EFL.range = E.llamas_alcance; EFL.cos = Math.cos(deg(E.llamas_angulo)); EFL.dur = Math.max(0.1, E.llamas_duracion); EFL.pause = Math.max(0, E.llamas_pausa);
   const T = STATS.torre;
   TOWER_HP = T.vida; TOWER_SCORE = T.puntos; TOWER_MSL_SURE = T.guiada_destruye >= 0.5;
   AA_DMG = T.aa_dano; AA_RANGE = T.aa_alcance; AA_BURST = Math.max(1, Math.round(T.aa_rafaga)); AA_RATE = T.aa_cadencia; AA_PAUSE[0] = T.aa_pausa_min; AA_PAUSE[1] = Math.max(T.aa_pausa_min, T.aa_pausa_max);
